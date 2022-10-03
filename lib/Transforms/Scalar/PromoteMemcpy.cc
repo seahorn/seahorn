@@ -154,7 +154,10 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
     assert(Ty == TrDst->getType());
 
     if (!Ty->isStructTy()) {
-      auto *NewLoad = Builder.CreateLoad(TrSrc, SrcPtr->getName() + ".pmcpy");
+      assert(TrSrc->getType()->isPointerTy());
+      auto *TrSrcPtr = cast<PointerType>(TrSrc->getType());
+      auto *LoadedTy = TrSrcPtr->getPointerElementType();
+      auto *NewLoad = Builder.CreateLoad(LoadedTy, TrSrc, SrcPtr->getName() + ".pmcpy");
       auto *NewStore = Builder.CreateStore(NewLoad, TrDst);
 
       PMCPY_DBG_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());

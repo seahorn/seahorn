@@ -29,6 +29,7 @@ static term_t encode_term_fail(Expr e, const char *error_msg) {
   raw_string_ostream str_os(str);
   str_os << "encode_term: failed on " << *e << "\n" << error_msg << "\n";
   report_fatal_error(str_os.str());
+  llvm_unreachable("fatal error");
 }
 
 static void decode_term_fail(std::string error_msg,

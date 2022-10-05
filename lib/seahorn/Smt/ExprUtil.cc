@@ -4,6 +4,7 @@
 #include "seahorn/Expr/ExprNumericUtils.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
+#include "seahorn/Support/Stats.hh"
 /// yet to be refactored
 namespace expr {
 
@@ -50,6 +51,23 @@ unsigned circSize(const ExprVector &vec) {
 } // namespace boolop
 
 namespace array {
+
+Expr storeMapNew(Expr arr, Expr base, Expr ovA, Expr ovB, StoreMapCache &c) {
+  // seahorn::ScopedStats _st("smap_new_time");
+  Expr map = mk<CONS>(ovA, mk<CONS>(ovB));
+  Expr res = mk<STORE_MAP>(arr, base, map);
+  Expr oA = ovA->arg(0), vA = ovA->arg(1);
+  Expr oB = ovB->arg(0), vB = ovB->arg(1);
+  unsigned long oANum = op::bv::toMpz(oA).get_ui(),
+                oBNum = op::bv::toMpz(oB).get_ui();
+  OffsetValueMap *ovMap = new OffsetValueMap();
+  ovMap->insert({oANum, vA});
+  ovMap->insert({oBNum, vB});
+  c[&*res] = ovMap;
+  res->Ref();
+  return res;
+}
+
 bool ovCmp(const Expr a, const Expr b) {
   // both a and b are struct(offset, val)
   ENode *oA = a->arg(0);
@@ -59,35 +77,79 @@ bool ovCmp(const Expr a, const Expr b) {
   return op::bv::toMpz(oA).get_ui() < op::bv::toMpz(oB).get_ui();
 }
 
-Expr storeMapInsert(Expr stm, Expr ov) {
-  Expr smap = storeMapGetMap(stm);
-  ExprVector kids(smap->args_begin(), smap->args_end());
-  ExprVector::iterator it =
-      std::upper_bound(kids.begin(), kids.end(), ov, ovCmp);
-  ExprVector::iterator itPrv = it == kids.begin() ? it : it - 1;
-  if (op::bv::toMpz(ov->arg(0)) == op::bv::toMpz((*itPrv)->arg(0))) {
-    *itPrv = ov;
-  } else {
-    kids.insert(it, ov);
-  }
-  smap = smap->getFactory().mkNary(smap->op(), kids.begin(), kids.end());
-  return stm->getFactory().mkTern(stm->op(), stm->arg(0), stm->arg(1), smap);
+void transferStoreMapCache(ENode *oldE, ENode *newE, StoreMapCache &c) {
+  c[newE] = c[oldE];
+  newE->Ref();
+  // remove
+  c[oldE] = NULL;
+  c.erase(oldE);
+  oldE->efac().Deref(oldE);
 }
 
-Expr storeMapFind(Expr stm, Expr o) {
-  Expr res;
-  Expr dummyOv = op::strct::mk(o);
+Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c) {
+  // seahorn::ScopedStats _st("smap_insert_time");
   Expr smap = storeMapGetMap(stm);
-  auto it =
-      std::lower_bound(smap->args_begin(), smap->args_end(), dummyOv, ovCmp);
-  if (it != smap->args_end()) {
-    Expr ov = *it;
-    if (op::bv::toMpz(o) == op::bv::toMpz(ov->arg(0))) {
-      res = ov->arg(1);
-    }
-  }
+  smap = mk<CONS>(ov, smap);
+  Expr res =
+      stm->getFactory().mkTern(stm->op(), stm->arg(0), stm->arg(1), smap);
+  // update in cached map
+  auto mapIt = c.find(&*stm);
+  if (mapIt != c.end()) {
+    op::array::OffsetValueMap *map = mapIt->second;
+    Expr o = ov->arg(0), v = ov->arg(1);
+    (*map)[op::bv::toMpz(o).get_ui()] = v;
+    transferStoreMapCache(&*stm, &*res, c);
+  } // else is probably going wrong
   return res;
 }
+
+Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c) {
+  // seahorn::ScopedStats _st("smap_find_time");
+  Expr res;
+  unsigned long oNum = op::bv::toMpz(o).get_ui();
+  auto it = c.find(&*stm);
+  if (it != c.end() && op::bv::is_bvnum(o)) {
+    auto v = it->second->find(oNum);
+    if (v != it->second->end()) {
+      seahorn::Stats::count("hybrid.smap_find_w_cache");
+      res = v->second;
+    }
+    return res;
+  }
+  // Fallback:
+  Expr head = op::array::storeMapGetMap(stm);
+  Expr ov;
+  OffsetValueMap *ovM = new OffsetValueMap();
+  while (head) {
+    ov = head->arg(0);
+    head = head->arity() == 2 ? head->arg(1) : NULL;
+    Expr oX = ov->arg(0);
+    unsigned long oXNum = op::bv::toMpz(oX).get_ui();
+    if (!res && oXNum == oNum) { /* Find first */
+      seahorn::Stats::count("hybrid.smap_find_w_fallback");
+      res = ov->arg(1);
+    }
+    if (ovM->find(oXNum) ==
+        ovM->cend()) { // reconstruct cache using values towards head
+      ovM->insert({oXNum, ov->arg(1)});
+    }
+  }
+  c[&*stm] = ovM;
+  stm->Ref();
+  return res;
+}
+
+// ENode * => std::map<unsigned, Expr> *
+void clearStoreMapCache(StoreMapCache &cache) {
+  seahorn::ScopedStats _st("clear-store-map-cache");
+  for (StoreMapCache::value_type &kv : cache) {
+    kv.first->efac().Deref(kv.first);
+    kv.second->clear();
+    delete kv.second;
+  }
+  cache.clear();
+}
+
 } // namespace array
 
 } // namespace op

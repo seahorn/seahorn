@@ -73,6 +73,12 @@ rewrite_result WriteOverWriteConfig::applyRewriteRules(Expr exp) {
   return res;
 }
 
+void WriteOverWriteConfig::applyAfterRewriteActions(Expr oldE, Expr newE) {
+  if (isOpX<STORE_MAP>(oldE) && isOpX<STORE_MAP>(newE) && oldE != newE) {
+    op::array::transferStoreMapCache(&*oldE, &*newE, m_wowRule.m_smapC);
+  }
+}
+
 rewrite_result ReadOverWriteRule::operator()(Expr exp) {
   if (!isOpX<SELECT>(exp)) {
     return {exp, rewrite_status::RW_SKIP};
@@ -107,7 +113,7 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
 }
 
 rewrite_result ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
-  seahorn::ScopedStats _st("rw_ro_store");
+  // seahorn::ScopedStats _st("rw_ro_store");
   Expr arrN = op::array::storeArray(arr);
   Expr idxN = op::array::storeIdx(arr);
   // if (UseArm) {
@@ -123,7 +129,7 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
 }
 
 rewrite_result ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
-  seahorn::ScopedStats _st("rw_ro_ite");
+  // seahorn::ScopedStats _st("rw_ro_ite");
   Expr i = arr->arg(0);
   Expr t = arr->arg(1);
   Expr e = arr->arg(2);
@@ -132,7 +138,7 @@ rewrite_result ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
 }
 
 rewrite_result ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
-  seahorn::ScopedStats _st("rw_ro_memset");
+  // seahorn::ScopedStats _st("rw_ro_memset");
 
   Expr inMem = arr->arg(0);
   Expr idxN = arr->arg(1);
@@ -168,32 +174,55 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
   return {res, rewrite_status::RW_2};
 }
 
-bool ReadOverWriteRule::revertSMapToIte(Expr arr, Expr base, Expr smap,
-                                        Expr idx, Expr &res) {
+bool ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx, Expr &res) {
+  Expr arr = storeMap->arg(0), base = storeMap->arg(1),
+       consList = storeMap->arg(2);
   bool canSkipFullRw = false;
-  seahorn::ScopedStats _st("stmap_revert");
-  Stats::count("hybrid.stmap_revert_ite");
-  res = op::array::select(arr, idx);
-  auto cit = cache.find(&*res);
-  if (cit != cache.end()) {
-    Stats::count("hybrid.stmap_revert_ite_skip_full_rewrite");
-    res = cit->second;
-    canSkipFullRw = true;
+  // seahorn::ScopedStats _st("hybrid.smap_revert");
+  Stats::count("hybrid.smap_revert_ite");
+  // res = op::array::select(arr, idx);
+  res = arr;
+  // auto cit = m_cache.find(&*res);
+  // if (cit != m_cache.end()) {
+  //   Stats::count("hybrid.stmap_revert_ite_skip_full_rewrite");
+  //   res = cit->second;
+  //   canSkipFullRw = true;
+  // }
+  auto it = m_smapCache.find(&*storeMap);
+  if (it != m_smapCache.end()) {
+    op::array::OffsetValueMap *cached = it->second;
+    for (auto ovIt = cached->cbegin(); ovIt != cached->cend(); ovIt++) {
+      Expr oIdx =
+          mk<BADD>(base, op::bv::bvnum(ovIt->first, m_ptrWidth, base->efac()));
+      // res = mk<ITE>(mk<EQ>(idx, oIdx), ovIt->second, res);
+      res = op::array::store(res, oIdx, ovIt->second);
+    }
+    res = op::array::select(res, idx);
+    return canSkipFullRw;
   }
-  for (auto it = smap->args_begin(); it != smap->args_end(); it++) {
-    Expr ov = *it;
-    Expr oIdx = mk<BADD>(base, ov->arg(0));
-    // if (UseArm && !approxPtrEq(oIdx, idx, m_armCache, m_ptCache)) {
-    //   Stats::count("hybrid.arm_skip_store");
-    //   continue; // idx!=oIdx
-    // }
-    res = mk<ITE>(mk<EQ>(idx, oIdx), ov->arg(1), res);
+  // Fallback to stored cons list
+  Stats::count("hybrid.smap_revert_ite_fallback");
+  op::array::OffsetValueMap *ovM = new op::array::OffsetValueMap();
+  Expr head = consList;
+  while (head != NULL) {
+    Expr ov = head->arg(0);
+    head = head->arity() == 2 ? head->arg(1) : NULL;
+    unsigned long oXNum = op::bv::toMpz(ov->arg(0)).get_ui();
+    if (ovM->find(oXNum) == ovM->cend()) { // keep latest value only
+      ovM->insert({oXNum, ov->arg(1)});
+      Expr oIdx = mk<BADD>(base, ov->arg(0));
+      // res = mk<ITE>(mk<EQ>(idx, oIdx), ov->arg(1), res);
+      res = op::array::store(res, oIdx, ov->arg(1));
+    }
   }
+  res = op::array::select(res, idx);
+  m_smapCache[&*storeMap] = ovM;
+  storeMap->Ref();
   return canSkipFullRw;
 }
 
 rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
-  seahorn::ScopedStats _st("rw_ro_stmap");
+  // seahorn::ScopedStats _st("rw_ro_stmap");
   Expr nxtArr = arr->arg(0), base = arr->arg(1);
   Expr smap = op::array::storeMapGetMap(arr);
 
@@ -202,7 +231,7 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
   if (idxHasBase) {
     if (idxBase == base) {
       if (op::bv::is_bvnum(idxOffset)) {
-        Expr val = op::array::storeMapFind(arr, idxOffset);
+        Expr val = op::array::storeMapFind(arr, idxOffset, m_smapCache);
         if (val) {
           // R-HIT
           Stats::count("hybrid.smap_hit");
@@ -216,9 +245,10 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
         // same base but symolic offset, can only abort
         Stats::count("hybrid.smap_abort");
         Expr res;
-        bool canSkipFullRw = revertSMapToIte(nxtArr, base, smap, idx, res);
-        return {res, canSkipFullRw ? rewrite_status::RW_DONE
-                                   : rewrite_status::RW_FULL};
+        bool canSkipFullRw = revertSMapToIte(arr, idx, res);
+        // return {res, canSkipFullRw ? rewrite_status::RW_DONE
+        //                            : rewrite_status::RW_FULL};
+        return {res, rewrite_status::RW_FULL};
       }
     } else {
       // R-SKIP
@@ -229,14 +259,16 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
     // R-Abort
     Stats::count("hybrid.smap_abort");
     Expr res;
-    bool canSkipFullRw = revertSMapToIte(nxtArr, base, smap, idx, res);
-    return {res,
-            canSkipFullRw ? rewrite_status::RW_DONE : rewrite_status::RW_FULL};
+    bool canSkipFullRw = revertSMapToIte(arr, idx, res);
+    // return {res,
+    //         canSkipFullRw ? rewrite_status::RW_DONE :
+    //         rewrite_status::RW_FULL};
+    return {res, rewrite_status::RW_FULL};
   }
 }
 
 rewrite_result ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
-  seahorn::ScopedStats _st("rw_ro_memcpy");
+  // seahorn::ScopedStats _st("rw_ro_memcpy");
   /** select(copy(a, p, b, q, s), i) =>
    * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
   Expr res;
@@ -281,13 +313,14 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
 using namespace op::array;
 using namespace op::bv;
 rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
-  seahorn::ScopedStats _st("rw_wo_store");
+  // seahorn::ScopedStats _st("rw_wo_store");
   Expr arr = storeArray(e), idx = storeIdx(e), val = storeVal(e);
   /* idx should be normalised */
   Expr idxBase;
   Expr idxOffset;
   bool hasBase = isSingleBasePtr(idx, m_ptrWidth, idxBase, idxOffset);
   if (isOpX<STORE>(arr)) {
+    Stats::count("hybrid.store_over_store");
     Expr arrNxt = storeArray(arr), idxNxt = storeIdx(arr),
          valNxt = storeVal(arr);
     Expr idxNxtBase, idxNxtOffset;
@@ -305,9 +338,11 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
                     rewrite_status::RW_DONE};
           }
           /* SMAP-NEW */
-          ExprVector smap = {op::strct::mk(idxOffset, val),
-                             op::strct::mk(idxNxtOffset, valNxt)};
-          Expr res = storeMap<ExprVector, TUPLE>(arrNxt, idxBase, smap);
+          // ExprVector smap = {op::strct::mk(idxOffset, val),
+          //                    op::strct::mk(idxNxtOffset, valNxt)};
+          // Expr res = storeMap<ExprVector, TUPLE>(arrNxt, idxBase, smap);
+          Expr res = storeMapNew(arrNxt, idxBase, op::strct::mk(idxOffset, val),
+                                 op::strct::mk(idxNxtOffset, valNxt), m_smapC);
           Stats::count("hybrid.smap_new");
           return {res, rewrite_status::RW_DONE}; // maybe commute
         }
@@ -323,13 +358,14 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
       }
     }
   } else if (isOpX<STORE_MAP>(arr)) {
+    Stats::count("hybrid.store_over_storemap");
     Expr sMapArr = arr->arg(0);
     Expr sMapBase = arr->arg(1);
     Expr sMap = storeMapGetMap(arr);
     if (hasBase) {
       if (sMapBase == idxBase && is_bvnum(idxOffset)) {
         /* SMAP-HIT */
-        Expr res = storeMapInsert(arr, op::strct::mk(idxOffset, val));
+        Expr res = storeMapInsert(arr, op::strct::mk(idxOffset, val), m_smapC);
         Stats::count("hybrid.smap_insert");
         return {res, rewrite_status::RW_DONE};
       } else if (expr::mem::getBasedAddrSerial(idxBase) <
@@ -342,6 +378,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
 
         Expr innerStore = e->efac().mkTern(e->op(), sMapArr, idx, val);
         Expr res = arr->efac().mkTern(arr->op(), innerStore, sMapBase, sMap);
+        op::array::transferStoreMapCache(&*arr, &*res, m_smapC);
         return {res, rewrite_status::RW_2};
       }
     }
@@ -350,6 +387,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
 }
 
 rewrite_result WriteOverWriteRule::operator()(Expr e) {
+  // seahorn::ScopedStats _st("rw_wow");
   if (!isOpX<STORE>(e) && !isOpX<STORE_MAP>(e)) {
     return {e, rewrite_status::RW_SKIP};
   }
@@ -361,7 +399,7 @@ rewrite_result WriteOverWriteRule::operator()(Expr e) {
 }
 
 rewrite_result CompareRewriteRule::operator()(Expr exp) {
-  seahorn::ScopedStats _st("rw_comp");
+  // seahorn::ScopedStats _st("rw_comp");
   if (!isOpX<CompareOp>(exp)) {
     return {exp, rewrite_status::RW_SKIP};
   }
@@ -419,7 +457,7 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
 }
 
 rewrite_result ITERewriteRule::operator()(Expr exp) {
-  seahorn::ScopedStats _st("rw_ite");
+  // seahorn::ScopedStats _st("rw_ite");
   if (!isOpX<ITE>(exp)) {
     return {exp, rewrite_status::RW_SKIP};
   }

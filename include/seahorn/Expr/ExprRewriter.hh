@@ -43,6 +43,10 @@ public:
   rewrite_result applyRewriteRules(Expr exp);
 
   bool shouldRewrite(Expr exp);
+
+  /* Given original Expr oldE and rewritten newE, do actions like
+    update cache, logging, etc */
+  void applyAfterRewriteActions(Expr oldE, Expr newE);
 };
 
 /* example config for ITE */
@@ -56,16 +60,18 @@ private:
 
 public:
   ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache, ARMCache &armC,
-                       PtrTypeCheckCache &ptC, unsigned wordSize,
-                       unsigned ptrWidth)
+                       PtrTypeCheckCache &ptC, op::array::StoreMapCache &smC,
+                       unsigned wordSize, unsigned ptrWidth)
       : m_iteRule(efac, cache), m_compRule(efac, cache, ptC, armC, ptrWidth),
         m_boolRule(efac, cache),
-        m_arrayRule(efac, cache, armC, ptC, wordSize, ptrWidth),
+        m_arrayRule(efac, cache, armC, ptC, smC, wordSize, ptrWidth),
         m_arithRule(efac, cache), ExprRewriterConfig(efac, cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 
   bool shouldRewrite(Expr exp);
+
+  void applyAfterRewriteActions(Expr oldE, Expr newE) {}
 };
 
 /* config for normalising pointer bvadd */
@@ -80,6 +86,8 @@ public:
   rewrite_result applyRewriteRules(Expr exp);
 
   bool shouldRewrite(Expr exp);
+
+  void applyAfterRewriteActions(Expr oldE, Expr newE) {}
 };
 
 /* config for eager-rewriting store */
@@ -90,13 +98,15 @@ private:
 
 public:
   WriteOverWriteConfig(ExprFactory &efac, DagVisitCache &cache,
-                       unsigned ptrWidth)
-      : m_arithRule(efac, cache, true), m_wowRule(efac, cache, ptrWidth),
+                       op::array::StoreMapCache &sC, unsigned ptrWidth)
+      : m_arithRule(efac, cache, true), m_wowRule(efac, cache, sC, ptrWidth),
         ExprRewriterConfig(efac, cache) {}
 
   rewrite_result applyRewriteRules(Expr exp);
 
   bool shouldRewrite(Expr exp);
+
+  void applyAfterRewriteActions(Expr oldE, Expr newE);
 };
 
 template <typename Config> class ExprRewriter {
@@ -134,6 +144,7 @@ protected:
 
   void addToCache(Expr src, Expr rw) {
     if (utils::shouldCache(src)) {
+      assert(src != rw);
       src->Ref();
       m_cache[&*src] = rw;
     }
@@ -144,6 +155,7 @@ public:
       : m_efac(efac), m_config(config), m_cache(cache) {}
 
   void processFrame(RewriteFrame &frame) {
+    // seahorn::Stats::resume("rewriter.try-visit");
     Expr exp = frame.m_exp;
     size_t arity = exp->arity();
     while (frame.m_i < arity) {
@@ -169,6 +181,7 @@ public:
     m_resultStack.resize(begin);
     // apply rewrite rules to expression with new kids
     rewrite_result rwRes = m_config.applyRewriteRules(new_exp);
+    m_config.applyAfterRewriteActions(exp, rwRes.rewritten);
     if (rwRes.status == rewrite_status::RW_SKIP) {
       m_resultStack.push_back(rwRes.rewritten);
       /* cache multi-step */

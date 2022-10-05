@@ -94,9 +94,6 @@ public:
 
 using DagVisitCache = std::unordered_map<ENode *, Expr>;
 
-/* Map[mem][ptr] */
-using DagVisitMemCache = std::unordered_map<ENode *, DagVisitCache>;
-
 template <typename ExprVisitor>
 Expr visitRec(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
   if (!expr)

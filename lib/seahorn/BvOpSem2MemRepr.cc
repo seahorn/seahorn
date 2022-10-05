@@ -196,6 +196,7 @@ OpSemMemArrayReprBase::MemFill(PtrTy dPtr, char *sPtr, unsigned len,
 }
 
 Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
+  Stats::count("hybrid.n_select");
   ScopedStats _st_("hybrid.load");
   unsigned wordSize = m_memManager.wordSizeInBytes();
   unsigned ptrWidth = m_memManager.ptrSizeInBits();
@@ -205,21 +206,24 @@ Expr OpSemMemHybridRepr::loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) {
   LOG("opsem.hybrid.debug", INFO << "Load ptr: " << *ptr.toExpr() << "\n");
   /** rewrite store into ITE **/
   // normalize pointer with add rules
-  Stats::resume("hybrid.ptr-norm");
+  // Stats::resume("hybrid.ptr-norm");
   Expr ptrE = ptr.toExpr();
   PointerArithmeticConfig paC(ptrE->efac(), m_cache);
   ExprRewriter<PointerArithmeticConfig> pRw(ptr.toExpr()->efac(), paC, m_cache);
   Expr ptrSimp = pRw.rewriteExpr(ptr.toExpr());
-  Stats::stop("hybrid.ptr-norm");
+  // Stats::stop("hybrid.ptr-norm");
   LOG("opsem.hybrid.debug", INFO << "Simp ptr: " << *ptrSimp << "\n");
-  Stats::resume("hybrid.rw-ite");
+
   /** rewrite into ITE format **/
   Expr res = op::array::select(mem.toExpr(), ptrSimp);
+  // Stats::resume("hybrid.build-row-rwter");
   ITECompRewriteConfig memC(mem.toExpr()->efac(), m_cache, m_armCache,
-                            m_ptCache, wordSize, ptrWidth);
+                            m_ptCache, m_smapCache, wordSize, ptrWidth);
   ExprRewriter<ITECompRewriteConfig> rowRw(mem.toExpr()->efac(), memC, m_cache);
+  // Stats::stop("hybrid.build-row-rwter");
+  Stats::resume("hybrid.eager-rw-ite");
   res = rowRw.rewriteExpr(res);
-  Stats::stop("hybrid.rw-ite");
+  Stats::stop("hybrid.eager-rw-ite");
   LOG("opsem.hybrid.debug", INFO << "rw into ITE: \n" << *res << "\n");
   /** simplify with z3 **/
   Expr simp = m_ctx.simplify(res);
@@ -694,10 +698,11 @@ OpSemMemRepr::MemValTy OpSemMemHybridRepr::MemCpy(
 OpSemMemRepr::MemValTy OpSemMemHybridRepr::storeAlignedWordToMem(
     Expr val, PtrTy ptr, PtrSortTy ptrSort, OpSemMemRepr::MemValTy mem) {
   (void)ptrSort;
+  Stats::count("hybrid.n_store");
   /* simplify pointer */
   Expr res = op::array::store(mem.toExpr(), normalizePtr(ptr.toExpr()), val);
   if (UseStoreMap) {
-    WriteOverWriteConfig conf(res->efac(), m_cache,
+    WriteOverWriteConfig conf(res->efac(), m_cache, m_smapCache,
                               m_memManager.ptrSizeInBits());
     ExprRewriter<WriteOverWriteConfig> rw(res->efac(), conf, m_cache);
     res = rw.rewriteExpr(res);
@@ -707,9 +712,13 @@ OpSemMemRepr::MemValTy OpSemMemHybridRepr::storeAlignedWordToMem(
 }
 
 OpSemMemHybridRepr::~OpSemMemHybridRepr() {
+  // seahorn::ScopedStats _st("clear-caches");
+  seahorn::Stats::resume("clear-other-cache");
   clearENodePtrCache(m_cache);
   clearENodePtrCache(m_armCache);
   clearENodePtrCache(m_ptCache);
+  seahorn::Stats::stop("clear-other-cache");
+  op::array::clearStoreMapCache(m_smapCache);
 }
 
 } // namespace details

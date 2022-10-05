@@ -6,6 +6,9 @@
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/TypeCheckerMapUtils.hh"
 
+#include <map>
+#include <unordered_map>
+
 namespace expr {
 
 namespace op {
@@ -108,6 +111,14 @@ NOP(STORE_MAP, "store-map", FUNCTIONAL, ArrayOp, typeCheck::arrayType::StoreMap)
 
 namespace op {
 namespace array {
+
+// cons list => (offset, value expr)
+using OffsetValueMap = std::map<unsigned long, Expr>;
+using StoreMapCache = std::unordered_map<ENode *, OffsetValueMap *>;
+
+/* need to de-allocate OV maps */
+void clearStoreMapCache(StoreMapCache &cache);
+
 inline Expr select(Expr a, Expr idx) { return mk<SELECT>(a, idx); }
 inline Expr selectArray(Expr sel) {
   assert(isOpX<SELECT>(sel));
@@ -128,15 +139,22 @@ inline Expr storeMap(Expr a, Expr base, R &map) {
   return mk<STORE_MAP>(a, base, mknary<Container>(map));
 }
 
+/**
+ * \brief when <old> is rewritten to <new>
+ * move cached ovmap of <old> to <new> **/
+void transferStoreMapCache(ENode *oldE, ENode *newE, StoreMapCache &c);
+
+Expr storeMapNew(Expr arr, Expr base, Expr ovA, Expr ovB, StoreMapCache &c);
+
 /** @brief get offset-value map of storeMap **/
 inline Expr storeMapGetMap(Expr stm) {
   assert(isOpX<STORE_MAP>(stm));
   return stm->arg(2);
 }
 
-Expr storeMapInsert(Expr stm, Expr ov);
+Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c);
 
-Expr storeMapFind(Expr stm, Expr o);
+Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c);
 
 inline Expr storeArray(Expr st) {
   assert(isOpX<STORE>(st));

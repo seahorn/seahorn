@@ -93,6 +93,7 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
   BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
+    // seahorn::ScopedStats _st("rw_bool");
     if (!isOpX<BoolOp>(exp)) {
       return {exp, rewrite_status::RW_SKIP};
     }
@@ -126,15 +127,19 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
 struct ReadOverWriteRule : public ExprRewriteRule {
   ARMCache &m_armCache;
   PtrTypeCheckCache &m_ptCache;
+  op::array::StoreMapCache &m_smapCache;
   unsigned m_wordSize; // in bytes
   unsigned m_ptrWidth; // ptr size in bits
   ReadOverWriteRule(ExprFactory &efac, DagVisitCache &cache, ARMCache &armCache,
-                    expr::PtrTypeCheckCache &ptCache, unsigned wordSz,
+                    expr::PtrTypeCheckCache &ptCache,
+                    op::array::StoreMapCache &smapCache, unsigned wordSz,
                     unsigned ptrWidth)
-      : m_armCache(armCache), m_ptCache(ptCache), ExprRewriteRule(efac, cache),
-        m_wordSize(wordSz), m_ptrWidth(ptrWidth) {}
+      : m_armCache(armCache), m_ptCache(ptCache), m_smapCache(smapCache),
+        ExprRewriteRule(efac, cache), m_wordSize(wordSz), m_ptrWidth(ptrWidth) {
+  }
   ReadOverWriteRule(const ReadOverWriteRule &o)
-      : m_armCache(o.m_armCache), m_ptCache(o.m_ptCache), ExprRewriteRule(o),
+      : m_armCache(o.m_armCache), m_ptCache(o.m_ptCache),
+        m_smapCache(o.m_smapCache), ExprRewriteRule(o),
         m_wordSize(o.m_wordSize), m_ptrWidth(o.m_ptrWidth) {}
 
   rewrite_result operator()(Expr exp);
@@ -152,16 +157,18 @@ private:
 
   /* Given select(storemap(arr, base, smap), idx), revert into ite form
   return true if select(arr) is already rewritten and stored in cache */
-  bool revertSMapToIte(Expr arr, Expr base, Expr smap, Expr idx, Expr &res);
+  bool revertSMapToIte(Expr storeMap, Expr idx, Expr &res);
 };
 
 // for eager pre-processing stores during storeWord
 struct WriteOverWriteRule : public ExprRewriteRule {
   unsigned m_ptrWidth;
-  WriteOverWriteRule(ExprFactory &efac, DagVisitCache &cache, unsigned ptrWidth)
-      : m_ptrWidth(ptrWidth), ExprRewriteRule(efac, cache) {}
+  op::array::StoreMapCache &m_smapC;
+  WriteOverWriteRule(ExprFactory &efac, DagVisitCache &cache,
+                     op::array::StoreMapCache &sC, unsigned ptrWidth)
+      : m_ptrWidth(ptrWidth), m_smapC(sC), ExprRewriteRule(efac, cache) {}
   WriteOverWriteRule(const WriteOverWriteRule &o)
-      : m_ptrWidth(o.m_ptrWidth), ExprRewriteRule(o) {}
+      : m_ptrWidth(o.m_ptrWidth), m_smapC(o.m_smapC), ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp);
 
@@ -176,6 +183,7 @@ struct ArithmeticRule : public ExprRewriteRule {
   ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
 
   rewrite_result operator()(Expr exp) {
+    // seahorn::ScopedStats _st("rw_arith");
     if (!isOpX<BADD>(exp)) {
       return {exp, rewrite_status::RW_SKIP};
     }

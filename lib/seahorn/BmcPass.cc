@@ -270,6 +270,7 @@ public:
   StringRef getPassName() const override { return "BmcPass"; }
 
   void computeCoi(Function &F, OperationalSemantics &sem) {
+    seahorn::ScopedStats _st("bmc.coi");
     DfCoiAnalysis dfCoi;
 
     auto computeDependence = [&](Function *f) {

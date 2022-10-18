@@ -16,8 +16,8 @@
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 
-#include "clam/CfgBuilder.hh"
-#include "clam/Clam.hh"
+#include "seahorn/clam_CfgBuilder.hh"
+#include "seahorn/clam_Clam.hh"
 
 using namespace llvm;
 using namespace seahorn;

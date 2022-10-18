@@ -28,8 +28,8 @@
 
 #include "BvOpSem2Context.hh"
 
-#include "clam/CfgBuilder.hh"
-#include "clam/Clam.hh"
+#include "seahorn/clam_CfgBuilder.hh"
+#include "seahorn/clam_Clam.hh"
 #include "clam/ClamQueryAPI.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
 #include "crab/domains/abstract_domain_params.hpp"

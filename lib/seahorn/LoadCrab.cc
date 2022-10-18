@@ -29,8 +29,8 @@ bool LoadCrabPass::runOnModule(llvm::Module &M) {
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/HornifyModule.hh"
 
-#include "clam/CfgBuilder.hh"
-#include "clam/Clam.hh"
+#include "seahorn/clam_CfgBuilder.hh"
+#include "seahorn/clam_Clam.hh"
 
 #include <unordered_map>
 

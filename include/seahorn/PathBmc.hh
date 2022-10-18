@@ -78,7 +78,7 @@ public:
 } // namespace seahorn
 #else
 
-#include "clam/Clam.hh"
+#include "seahorn/clam_Clam.hh"
 
 #include <memory>
 #include <queue>

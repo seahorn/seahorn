@@ -17,7 +17,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-#include "boost/format.hpp"
 #include "boost/range.hpp"
 #include <unordered_set>
 

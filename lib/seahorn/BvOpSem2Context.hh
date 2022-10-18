@@ -8,7 +8,11 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
 #include <boost/hana.hpp>
+#pragma clang diagnostic pop
+
 #include <type_traits>
 #include <unordered_set>
 

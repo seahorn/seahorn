@@ -33,8 +33,8 @@ seahorn::PathBmcTrace seahorn::PathBmcEngine::getTrace() {
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/UfoOpSem.hh"
 
-#include "clam/CfgBuilder.hh"
-#include "clam/Clam.hh"
+#include "seahorn/clam_CfgBuilder.hh"
+#include "seahorn/clam_Clam.hh"
 #include "clam/CrabDomain.hh"
 #include "clam/CrabDomainParser.hh"
 #include "clam/HeapAbstraction.hh"

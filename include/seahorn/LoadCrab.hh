@@ -10,7 +10,7 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/OperationalSemantics.hh"
 
-#include "clam/Clam.hh"
+#include "seahorn/clam_Clam.hh"
 
 namespace clam {
 class CfgBuilder;

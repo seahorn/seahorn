@@ -10,7 +10,7 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
-#include "clam/Clam.hh"
+#include "seahorn/clam_Clam.hh"
 
 namespace seahorn {
 namespace details {

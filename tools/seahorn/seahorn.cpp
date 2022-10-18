@@ -40,7 +40,7 @@
 #include "seahorn/config.h"
 
 #ifdef HAVE_CLAM
-#include "clam/Clam.hh"
+#include "seahorn/clam_Clam.hh"
 #endif
 
 #include "seadsa/DsaAnalysis.hh"

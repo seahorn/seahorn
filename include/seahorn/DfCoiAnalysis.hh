@@ -5,7 +5,10 @@ Computes DataFlow Cone of Influence for a given instruction
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Instruction.h"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
 #include <boost/hana.hpp>
+#pragma clang diagnostic pop
 
 namespace llvm {
 class LoadInst;
@@ -15,7 +18,6 @@ class AllocaInst;
 } // namespace llvm
 
 namespace seahorn {
-namespace hana = boost::hana;
 
 class DfCoiAnalysis {
 

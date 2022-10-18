@@ -12,7 +12,7 @@
 #include "seahorn/config.h"
 
 #ifdef HAVE_CLAM
-#include "clam/Clam.hh"
+#include "seahorn/clam_Clam.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #endif
 

@@ -25,11 +25,6 @@
 #include <boost/pool/pool.hpp>
 #include <boost/pool/poolfwd.hpp>
 
-#define BOOST_DISABLE_ASSERTS 1
-// boost/ptr_vector.hpp has BOOST_ASSERT that rely on rtti
-#include <boost/ptr_container/ptr_vector.hpp>
-#undef BOOST_DISABLE_ASSERTS
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Casting.h"
@@ -56,7 +51,7 @@
 
 #include "seahorn/Expr/ExprOpMisc.hh"
 
-namespace expr {
+    namespace expr {
 namespace op {}
 /** Size of an expression as a DAG */
 size_t dagSize(Expr e);

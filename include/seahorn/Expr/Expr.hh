@@ -48,7 +48,7 @@
 #include "seahorn/Expr/ExprOpVariant.hh"
 
 #include "seahorn/Expr/ExprOpBv.hh"
-
+#include "seahorn/Expr/ExprOpMem.hh"
 #include "seahorn/Expr/ExprOpMisc.hh"
 
 namespace expr {

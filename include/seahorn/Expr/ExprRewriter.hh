@@ -144,7 +144,7 @@ protected:
 
   void addToCache(Expr src, Expr rw) {
     if (utils::shouldCache(src)) {
-      assert(src != rw);
+      assert(src != rw); //
       src->Ref();
       m_cache[&*src] = rw;
     }

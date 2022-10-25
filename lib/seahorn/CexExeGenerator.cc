@@ -317,6 +317,7 @@ void CexExeGenerator<Trace>::buildMemhavoc(const Function *func,
 template <class Trace> void CexExeGenerator<Trace>::buildCexModule() {
   m_harness = std::make_unique<Module>("harness", m_context);
   m_harness->setDataLayout(m_dl);
+  size_t max_values = 0;
   for (auto CFV : m_func_val_map) {
     auto CF = CFV.first;
     auto &values = CFV.second;
@@ -324,8 +325,15 @@ template <class Trace> void CexExeGenerator<Trace>::buildCexModule() {
       buildMemhavoc(CF, values);
     } else {
       buildNonDetFunction(CF, values);
+      max_values = std::max(max_values, values.size());
     }
   }
+
+  // Create global variable to keep size of longest chain of non-deterministic values
+  auto *maxValTy = Type::getInt32Ty(m_context);
+  new GlobalVariable(
+      *m_harness, maxValTy, true /* isConstant */, GlobalValue::ExternalLinkage,
+      ConstantInt::get(maxValTy, max_values), "__seahorn_cex_count");
 }
 
 template <class Trace>

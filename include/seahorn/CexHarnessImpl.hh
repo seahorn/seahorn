@@ -248,6 +248,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
     }
   }
 
+  size_t max_values = 0;
   // Build harness functions
   for (auto CFV : FuncValueMap) {
 
@@ -295,6 +296,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
                        return exprToLlvm(RT, e, TheContext, dl);
                      });
       AT = ArrayType::get(RT, values.size());
+      max_values = std::max(max_values, values.size());
     }
 
     // This is an array containing the values to be returned
@@ -458,6 +460,13 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
     }
     Builder.CreateRetVoid();
   } // end AllocateMem
+
+  // Create global variable to keep size of longest chain of non-deterministic
+  // values
+  auto *maxValTy = Type::getInt32Ty(TheContext);
+  new GlobalVariable(
+      *Harness, maxValTy, true /* isConstant */, GlobalValue::ExternalLinkage,
+      ConstantInt::get(maxValTy, max_values), "__seahorn_cex_count");
 
   return (Harness);
 }

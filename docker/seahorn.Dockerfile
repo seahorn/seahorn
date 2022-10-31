@@ -5,7 +5,8 @@
 # without any of the build by-products
 #
 
-FROM seahorn/buildpack-deps-seahorn:bionic-llvm10
+ARG BASE_IMAGE=jammy-llvm12
+FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 
 ENV SEAHORN=/home/usea/seahorn/bin/sea PATH="$PATH:/home/usea/seahorn/bin"
 USER root
@@ -20,13 +21,13 @@ RUN useradd -ms /bin/bash usea && \
 USER usea
 WORKDIR /home/usea
 
-COPY SeaHorn-10.*.tar.gz /tmp
+COPY SeaHorn-12.*.tar.gz /tmp
 RUN mkdir -p /home/usea/seahorn && \
-  tar xf /tmp/SeaHorn-10.*.tar.gz -C seahorn --strip-components=1 
+  tar xf /tmp/SeaHorn-12.*.tar.gz -C seahorn --strip-components=1
 
 # cleanup
 USER root
-RUN rm -rf /tmp/SeaHorn-10.*.tar.gz
+RUN rm -rf /tmp/SeaHorn-12.*.tar.gz
 
 # user and directory for when the container starts interactively
 USER usea

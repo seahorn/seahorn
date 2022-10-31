@@ -1,6 +1,5 @@
 /**==-- Finite Maps Expr Tests --==*/
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"
 
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
@@ -10,6 +9,8 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 
 #include "llvm/Support/raw_ostream.h"
+
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 using namespace std;
 using namespace expr;

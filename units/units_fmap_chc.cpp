@@ -1,9 +1,7 @@
 /**==-- Finite Maps in CHC Transformation Tests --==*/
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "doctest.h"
-
-#include "doctest.h"
+#include "doctest.h" // doctest is first to avoid name clash
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"

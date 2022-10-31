@@ -4,7 +4,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/APInt.h"
 #include "boost/lexical_cast.hpp"
-#include "doctest.h"
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 inline expr::mpz_class toMpzE(const llvm::APInt &v) {
   // Based on:

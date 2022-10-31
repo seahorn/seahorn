@@ -1,7 +1,7 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "llvm/Support/raw_ostream.h"
 #include "boost/logic/tribool.hpp"
-#include "doctest.h"
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 TEST_CASE("z3.muz_test" * doctest::skip(true)) {
   using namespace std;

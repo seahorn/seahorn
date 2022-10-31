@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-project (SeaHorn)
-set (SeaHorn_VERSION_MAJOR 12)
-set (SeaHorn_VERSION_MINOR 0)
+project(SeaHorn)
+set(SeaHorn_VERSION_MAJOR 14)
+set(SeaHorn_VERSION_MINOR 0)
 set (SeaHorn_VERSION_PATCH 0)
 set (SeaHorn_VERSION_TWEAK "rc0")
 

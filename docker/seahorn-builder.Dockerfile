@@ -1,9 +1,9 @@
 # SeaHorn builder image that builds binary SeaHorn release package
 # Primarily used by the CI
 # Arguments:
-#  - BASE-IMAGE: bionic-llvm10, focal-llvm10
+#  - BASE-IMAGE: jammy-llvm14
 #  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
-ARG BASE_IMAGE=bionic-llvm10
+ARG BASE_IMAGE=jammy-llvm14
 FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 
 # Assume that docker-build is ran in the top-level SeaHorn directory
@@ -23,8 +23,8 @@ RUN cmake .. -GNinja \
   -DZ3_ROOT=/opt/z3-4.8.9 \
   -DYICES2_HOME=/opt/yices-2.6.1 \
   -DCMAKE_INSTALL_PREFIX=run \
-  -DCMAKE_CXX_COMPILER=clang++-10 \
-  -DCMAKE_C_COMPILER=clang-10 \
+  -DCMAKE_CXX_COMPILER=clang++-14 \
+  -DCMAKE_C_COMPILER=clang-14 \
   -DSEA_ENABLE_LLD=ON \
   -DCPACK_GENERATOR="TGZ" \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \

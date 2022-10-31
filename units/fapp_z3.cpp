@@ -1,7 +1,7 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "llvm/Support/raw_ostream.h"
 #include "seahorn/Expr/ExprOpBinder.hh"
-#include "doctest.h"
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 TEST_CASE("z3.fapp_test") {
   using namespace std;

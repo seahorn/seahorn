@@ -1,6 +1,5 @@
 /**==-- Type Checker Tests --==*/
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"
 
 #include "boost/lexical_cast.hpp"
 
@@ -18,6 +17,7 @@
 #include "seahorn/Expr/TypeChecker.hh"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 using namespace expr;
 using namespace llvm;

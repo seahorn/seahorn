@@ -9,7 +9,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "doctest.h"
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 using namespace std;
 using namespace expr;

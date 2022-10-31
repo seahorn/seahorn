@@ -1,5 +1,4 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "doctest.h"
 
 // Define the entry point for unit tests.
 #include "seahorn/Expr/Smt/EZ3.hh"
@@ -7,6 +6,8 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprGmp.hh"
+
+#include "sea_doctest.hh" // doctest is last to avoid name clash
 
 using namespace seahorn;
 static Expr mkInt(unsigned num, ExprFactory &efac) {
@@ -16,7 +17,8 @@ static Expr mkIntConst(const std::string name, ExprFactory &efac) {
   return bind::intConst(mkTerm(name, efac));
 }
 
-static Expr mkBvConst(const std::string name, ExprFactory &efac, unsigned width) {
+static Expr mkBvConst(const std::string name, ExprFactory &efac,
+                      unsigned width) {
   return bv::bvConst(mkTerm(name, efac), width);
 }
 TEST_CASE("expr.simplifier") {

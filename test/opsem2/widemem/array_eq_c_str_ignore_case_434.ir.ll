@@ -1,7 +1,7 @@
 ; https://github.com/seahorn/seahorn/issues/434
 ; RUN: %fpfsea "%s" -O3 --inline --enable-loop-idiom --enable-indvar --no-lower-gv-init-struct --externalize-addr-taken-functions --no-kill-vaarg --with-arith-overflow=true --horn-unify-assumes=true --horn-gsa --no-fat-fns=bcmp,memcpy,assert_bytes_match,ensure_linked_list_is_allocated,sea_aws_linked_list_is_valid --dsa=sea-cs-t --devirt-functions=types --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=true --horn-bmc-coi=true --sea-opsem-allocator=static --horn-explicit-sp0=false --horn-bv2-lambdas --horn-bv2-simplify=true --horn-bv2-extra-widemem --bound=10 2>&1 | %oc %s
 ; CHECK: ^unsat$
-; ModuleID = '/tmp/array_eq_c_str_ignore_case.ir.bc'
+; ModuleID = '../test/opsem2/widemem/array_eq_c_str_ignore_case_434.ir.bc'
 source_filename = "llvm-link"
 target datalayout = "e-m:o-p:32:32-Fi8-f64:32:64-v64:32:64-v128:32:128-a:0:32-n32-S32"
 target triple = "armv4t-apple-macosx10.17.0"
@@ -59,7 +59,7 @@ define i32 @aws_byte_buf_init(%struct.aws_byte_buf* %0, %struct.aws_allocator* %
 11:                                               ; preds = %3
   %12 = load %struct.aws_allocator*, %struct.aws_allocator** %6, align 4, !dbg !669, !tbaa !657
   %13 = load i32, i32* %7, align 4, !dbg !670, !tbaa !663
-  %14 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %12, i32 %13) #14, !dbg !671
+  %14 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %12, i32 %13) #17, !dbg !671
   br label %15, !dbg !668
 
 15:                                               ; preds = %11, %10
@@ -87,7 +87,7 @@ define i32 @aws_byte_buf_init(%struct.aws_byte_buf* %0, %struct.aws_allocator* %
   %30 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !687, !tbaa !657
   %31 = bitcast %struct.aws_byte_buf* %30 to i8*, !dbg !687
   %32 = call i32 @llvm.objectsize.i32.p0i8(i8* %31, i1 false, i1 true, i1 false), !dbg !687
-  %33 = call i8* @__memset_chk(i8* %29, i32 0, i32 16, i32 %32) #15, !dbg !687
+  %33 = call i8* @__memset_chk(i8* %29, i32 0, i32 16, i32 %32) #18, !dbg !687
   br label %34, !dbg !687
 
 34:                                               ; preds = %27
@@ -114,10 +114,10 @@ define i32 @aws_byte_buf_init(%struct.aws_byte_buf* %0, %struct.aws_allocator* %
   ret i32 %45, !dbg !705
 }
 
-; Function Attrs: nounwind readnone speculatable willreturn
+; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-; Function Attrs: nounwind readnone speculatable willreturn
+; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare i32 @llvm.objectsize.i32.p0i8(i8*, i1 immarg, i1 immarg, i1 immarg) #1
 
 ; Function Attrs: nounwind ssp
@@ -136,11 +136,11 @@ define i32 @aws_byte_buf_init_copy(%struct.aws_byte_buf* %0, %struct.aws_allocat
 
 8:                                                ; preds = %3
   %9 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %7, align 4, !dbg !717, !tbaa !657
-  %10 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %9) #14, !dbg !717
+  %10 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %9) #17, !dbg !717
   br i1 %10, label %13, label %11, !dbg !720
 
 11:                                               ; preds = %8
-  %12 = call i32 @aws_raise_error(i32 34) #14, !dbg !721
+  %12 = call i32 @aws_raise_error(i32 34) #17, !dbg !721
   store i32 %12, i32* %4, align 4, !dbg !721
   br label %74, !dbg !721
 
@@ -163,7 +163,7 @@ define i32 @aws_byte_buf_init_copy(%struct.aws_byte_buf* %0, %struct.aws_allocat
   %23 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !729, !tbaa !657
   %24 = bitcast %struct.aws_byte_buf* %23 to i8*, !dbg !729
   %25 = call i32 @llvm.objectsize.i32.p0i8(i8* %24, i1 false, i1 true, i1 false), !dbg !729
-  %26 = call i8* @__memset_chk(i8* %22, i32 0, i32 16, i32 %25) #15, !dbg !729
+  %26 = call i8* @__memset_chk(i8* %22, i32 0, i32 16, i32 %25) #18, !dbg !729
   br label %27, !dbg !729
 
 27:                                               ; preds = %20
@@ -188,7 +188,7 @@ define i32 @aws_byte_buf_init_copy(%struct.aws_byte_buf* %0, %struct.aws_allocat
   %40 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %7, align 4, !dbg !745, !tbaa !657
   %41 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %40, i32 0, i32 2, !dbg !746
   %42 = load i32, i32* %41, align 4, !dbg !746, !tbaa !698
-  %43 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %39, i32 %42) #14, !dbg !747
+  %43 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %39, i32 %42) #17, !dbg !747
   %44 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !748, !tbaa !657
   %45 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %44, i32 0, i32 1, !dbg !749
   store i8* %43, i8** %45, align 4, !dbg !750, !tbaa !675
@@ -207,7 +207,7 @@ define i32 @aws_byte_buf_init_copy(%struct.aws_byte_buf* %0, %struct.aws_allocat
   %54 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !758, !tbaa !657
   %55 = bitcast %struct.aws_byte_buf* %54 to i8*, !dbg !758
   %56 = call i32 @llvm.objectsize.i32.p0i8(i8* %55, i1 false, i1 true, i1 false), !dbg !758
-  %57 = call i8* @__memset_chk(i8* %53, i32 0, i32 16, i32 %56) #15, !dbg !758
+  %57 = call i8* @__memset_chk(i8* %53, i32 0, i32 16, i32 %56) #18, !dbg !758
   br label %58, !dbg !758
 
 58:                                               ; preds = %51
@@ -228,7 +228,7 @@ define i32 @aws_byte_buf_init_copy(%struct.aws_byte_buf* %0, %struct.aws_allocat
   %70 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %69, i32 0, i32 1, !dbg !761
   %71 = load i8*, i8** %70, align 4, !dbg !761, !tbaa !675
   %72 = call i32 @llvm.objectsize.i32.p0i8(i8* %71, i1 false, i1 true, i1 false), !dbg !761
-  %73 = call i8* @__memcpy_chk(i8* %62, i8* %65, i32 %68, i32 %72) #15, !dbg !761
+  %73 = call i8* @__memcpy_chk(i8* %62, i8* %65, i32 %68, i32 %72) #18, !dbg !761
   store i32 0, i32* %4, align 4, !dbg !762
   br label %74, !dbg !762
 
@@ -321,11 +321,11 @@ define internal i32 @aws_raise_error(i32 %0) #2 !dbg !799 {
   store i32 %0, i32* %2, align 4, !tbaa !805
   call void @llvm.dbg.declare(metadata i32* %2, metadata !804, metadata !DIExpression()), !dbg !807
   %3 = load i32, i32* %2, align 4, !dbg !808, !tbaa !805
-  call void @aws_raise_error_private(i32 %3) #14, !dbg !809
+  call void @aws_raise_error_private(i32 %3) #17, !dbg !809
   ret i32 -1, !dbg !810
 }
 
-; Function Attrs: argmemonly nounwind willreturn
+; Function Attrs: argmemonly nofree nounwind willreturn
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i32, i1 immarg) #3
 
 ; Function Attrs: nounwind ssp
@@ -404,7 +404,7 @@ define void @aws_byte_buf_reset(%struct.aws_byte_buf* %0, i1 zeroext %1) #0 !dbg
 
 8:                                                ; preds = %2
   %9 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !851, !tbaa !657
-  call void @aws_byte_buf_secure_zero(%struct.aws_byte_buf* %9) #14, !dbg !853
+  call void @aws_byte_buf_secure_zero(%struct.aws_byte_buf* %9) #17, !dbg !853
   br label %10, !dbg !854
 
 10:                                               ; preds = %8, %2
@@ -432,7 +432,7 @@ define void @aws_byte_buf_secure_zero(%struct.aws_byte_buf* %0) #0 !dbg !859 {
   %11 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !870, !tbaa !657
   %12 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %11, i32 0, i32 2, !dbg !871
   %13 = load i32, i32* %12, align 4, !dbg !871, !tbaa !698
-  call void @aws_secure_zero(i8* %10, i32 %13) #14, !dbg !872
+  call void @aws_secure_zero(i8* %10, i32 %13) #17, !dbg !872
   br label %14, !dbg !873
 
 14:                                               ; preds = %7, %1
@@ -469,7 +469,7 @@ define void @aws_byte_buf_clean_up(%struct.aws_byte_buf* %0) #0 !dbg !878 {
   %16 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !892, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %16, i32 0, i32 1, !dbg !893
   %18 = load i8*, i8** %17, align 4, !dbg !893, !tbaa !675
-  call void bitcast (void (%struct.aws_allocator.13*, i8*)* @aws_mem_release to void (%struct.aws_allocator*, i8*)*)(%struct.aws_allocator* %15, i8* %18) #14, !dbg !894
+  call void bitcast (void (%struct.aws_allocator.13*, i8*)* @aws_mem_release to void (%struct.aws_allocator*, i8*)*)(%struct.aws_allocator* %15, i8* %18) #17, !dbg !894
   br label %19, !dbg !895
 
 19:                                               ; preds = %12, %7, %1
@@ -494,9 +494,9 @@ define void @aws_byte_buf_clean_up_secure(%struct.aws_byte_buf* %0) #0 !dbg !909
   store %struct.aws_byte_buf* %0, %struct.aws_byte_buf** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %2, metadata !911, metadata !DIExpression()), !dbg !912
   %3 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !913, !tbaa !657
-  call void @aws_byte_buf_secure_zero(%struct.aws_byte_buf* %3) #14, !dbg !914
+  call void @aws_byte_buf_secure_zero(%struct.aws_byte_buf* %3) #17, !dbg !914
   %4 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !915, !tbaa !657
-  call void @aws_byte_buf_clean_up(%struct.aws_byte_buf* %4) #14, !dbg !916
+  call void @aws_byte_buf_clean_up(%struct.aws_byte_buf* %4) #17, !dbg !916
   ret void, !dbg !917
 }
 
@@ -509,7 +509,7 @@ define zeroext i1 @aws_byte_buf_eq(%struct.aws_byte_buf* %0, %struct.aws_byte_bu
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !922, metadata !DIExpression()), !dbg !925
   store %struct.aws_byte_buf* %1, %struct.aws_byte_buf** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %4, metadata !923, metadata !DIExpression()), !dbg !926
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !927
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !927
   call void @llvm.dbg.declare(metadata i8* %5, metadata !924, metadata !DIExpression()), !dbg !928
   %6 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !929, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %6, i32 0, i32 1, !dbg !930
@@ -523,17 +523,17 @@ define zeroext i1 @aws_byte_buf_eq(%struct.aws_byte_buf* %0, %struct.aws_byte_bu
   %15 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !935, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %15, i32 0, i32 0, !dbg !936
   %17 = load i32, i32* %16, align 4, !dbg !936, !tbaa !693
-  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !937
+  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !937
   %19 = zext i1 %18 to i8, !dbg !928
   store i8 %19, i8* %5, align 1, !dbg !928, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !938, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !938
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !939
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !939
   ret i1 %21, !dbg !940
 }
 
-; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #3
+; Function Attrs: argmemonly nofree nosync nounwind willreturn
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #5
 
 ; Function Attrs: nounwind ssp
 define zeroext i1 @aws_array_eq(i8* %0, i32 %1, i8* %2, i32 %3) #0 !dbg !941 {
@@ -572,7 +572,7 @@ define zeroext i1 @aws_array_eq(i8* %0, i32 %1, i8* %2, i32 %3) #0 !dbg !941 {
   %19 = load i8*, i8** %6, align 4, !dbg !968, !tbaa !657
   %20 = load i8*, i8** %8, align 4, !dbg !969, !tbaa !657
   %21 = load i32, i32* %7, align 4, !dbg !970, !tbaa !663
-  %22 = call i32 @memcmp(i8* %19, i8* %20, i32 %21) #14, !dbg !971
+  %22 = call i32 @memcmp(i8* %19, i8* %20, i32 %21) #17, !dbg !971
   %23 = icmp ne i32 %22, 0, !dbg !972
   %24 = xor i1 %23, true, !dbg !972
   store i1 %24, i1* %5, align 1, !dbg !973
@@ -583,8 +583,8 @@ define zeroext i1 @aws_array_eq(i8* %0, i32 %1, i8* %2, i32 %3) #0 !dbg !941 {
   ret i1 %26, !dbg !974
 }
 
-; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #3
+; Function Attrs: argmemonly nofree nosync nounwind willreturn
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #5
 
 ; Function Attrs: nounwind ssp
 define zeroext i1 @aws_byte_buf_eq_ignore_case(%struct.aws_byte_buf* %0, %struct.aws_byte_buf* %1) #0 !dbg !975 {
@@ -595,7 +595,7 @@ define zeroext i1 @aws_byte_buf_eq_ignore_case(%struct.aws_byte_buf* %0, %struct
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !977, metadata !DIExpression()), !dbg !980
   store %struct.aws_byte_buf* %1, %struct.aws_byte_buf** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %4, metadata !978, metadata !DIExpression()), !dbg !981
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !982
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !982
   call void @llvm.dbg.declare(metadata i8* %5, metadata !979, metadata !DIExpression()), !dbg !983
   %6 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !984, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %6, i32 0, i32 1, !dbg !985
@@ -609,12 +609,12 @@ define zeroext i1 @aws_byte_buf_eq_ignore_case(%struct.aws_byte_buf* %0, %struct
   %15 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !990, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %15, i32 0, i32 0, !dbg !991
   %17 = load i32, i32* %16, align 4, !dbg !991, !tbaa !693
-  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !992
+  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !992
   %19 = zext i1 %18 to i8, !dbg !983
   store i8 %19, i8* %5, align 1, !dbg !983, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !993, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !993
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !994
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !994
   ret i1 %21, !dbg !995
 }
 
@@ -648,17 +648,17 @@ define zeroext i1 @aws_array_eq_ignore_case(i8* %0, i32 %1, i8* %2, i32 %3) #0 !
 
 18:                                               ; preds = %4
   %19 = bitcast i8** %10 to i8*, !dbg !1017
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #5, !dbg !1017
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #19, !dbg !1017
   call void @llvm.dbg.declare(metadata i8** %10, metadata !1002, metadata !DIExpression()), !dbg !1018
   %20 = load i8*, i8** %6, align 4, !dbg !1019, !tbaa !657
   store i8* %20, i8** %10, align 4, !dbg !1018, !tbaa !657
   %21 = bitcast i8** %11 to i8*, !dbg !1020
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #5, !dbg !1020
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #19, !dbg !1020
   call void @llvm.dbg.declare(metadata i8** %11, metadata !1003, metadata !DIExpression()), !dbg !1021
   %22 = load i8*, i8** %8, align 4, !dbg !1022, !tbaa !657
   store i8* %22, i8** %11, align 4, !dbg !1021, !tbaa !657
   %23 = bitcast i32* %12 to i8*, !dbg !1023
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #5, !dbg !1023
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #19, !dbg !1023
   call void @llvm.dbg.declare(metadata i32* %12, metadata !1004, metadata !DIExpression()), !dbg !1024
   store i32 0, i32* %12, align 4, !dbg !1024, !tbaa !663
   br label %24, !dbg !1023
@@ -709,7 +709,7 @@ define zeroext i1 @aws_array_eq_ignore_case(i8* %0, i32 %1, i8* %2, i32 %3) #0 !
 
 52:                                               ; preds = %47, %28
   %53 = bitcast i32* %12 to i8*, !dbg !1045
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %53) #5, !dbg !1045
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %53) #19, !dbg !1045
   %54 = load i32, i32* %13, align 4
   switch i32 %54, label %56 [
     i32 2, label %55
@@ -722,9 +722,9 @@ define zeroext i1 @aws_array_eq_ignore_case(i8* %0, i32 %1, i8* %2, i32 %3) #0 !
 
 56:                                               ; preds = %55, %52
   %57 = bitcast i8** %11 to i8*, !dbg !1049
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %57) #5, !dbg !1049
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %57) #19, !dbg !1049
   %58 = bitcast i8** %10 to i8*, !dbg !1049
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %58) #5, !dbg !1049
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %58) #19, !dbg !1049
   br label %59
 
 59:                                               ; preds = %56, %17
@@ -741,7 +741,7 @@ define zeroext i1 @aws_byte_buf_eq_c_str(%struct.aws_byte_buf* %0, i8* %1) #0 !d
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !1055, metadata !DIExpression()), !dbg !1058
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !1056, metadata !DIExpression()), !dbg !1059
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !1060
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !1060
   call void @llvm.dbg.declare(metadata i8* %5, metadata !1057, metadata !DIExpression()), !dbg !1061
   %6 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !1062, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %6, i32 0, i32 1, !dbg !1063
@@ -750,12 +750,12 @@ define zeroext i1 @aws_byte_buf_eq_c_str(%struct.aws_byte_buf* %0, i8* %1) #0 !d
   %10 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %9, i32 0, i32 0, !dbg !1065
   %11 = load i32, i32* %10, align 4, !dbg !1065, !tbaa !693
   %12 = load i8*, i8** %4, align 4, !dbg !1066, !tbaa !657
-  %13 = call zeroext i1 @aws_array_eq_c_str(i8* %8, i32 %11, i8* %12) #14, !dbg !1067
+  %13 = call zeroext i1 @aws_array_eq_c_str(i8* %8, i32 %11, i8* %12) #17, !dbg !1067
   %14 = zext i1 %13 to i8, !dbg !1061
   store i8 %14, i8* %5, align 1, !dbg !1061, !tbaa !844
   %15 = load i8, i8* %5, align 1, !dbg !1068, !tbaa !844, !range !849
   %16 = trunc i8 %15 to i1, !dbg !1068
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !1069
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !1069
   ret i1 %16, !dbg !1070
 }
 
@@ -777,17 +777,17 @@ define zeroext i1 @aws_array_eq_c_str(i8* %0, i32 %1, i8* %2) #0 !dbg !1071 {
   store i8* %2, i8** %7, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %7, metadata !1077, metadata !DIExpression()), !dbg !1087
   %13 = bitcast i8** %8 to i8*, !dbg !1088
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !1088
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !1088
   call void @llvm.dbg.declare(metadata i8** %8, metadata !1078, metadata !DIExpression()), !dbg !1089
   %14 = load i8*, i8** %5, align 4, !dbg !1090, !tbaa !657
   store i8* %14, i8** %8, align 4, !dbg !1089, !tbaa !657
   %15 = bitcast i8** %9 to i8*, !dbg !1091
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !1091
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !1091
   call void @llvm.dbg.declare(metadata i8** %9, metadata !1079, metadata !DIExpression()), !dbg !1092
   %16 = load i8*, i8** %7, align 4, !dbg !1093, !tbaa !657
   store i8* %16, i8** %9, align 4, !dbg !1092, !tbaa !657
   %17 = bitcast i32* %10 to i8*, !dbg !1094
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #5, !dbg !1094
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #19, !dbg !1094
   call void @llvm.dbg.declare(metadata i32* %10, metadata !1080, metadata !DIExpression()), !dbg !1095
   store i32 0, i32* %10, align 4, !dbg !1095, !tbaa !663
   br label %18, !dbg !1094
@@ -803,7 +803,7 @@ define zeroext i1 @aws_array_eq_c_str(i8* %0, i32 %1, i8* %2) #0 !dbg !1071 {
   br label %49, !dbg !1099
 
 23:                                               ; preds = %18
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #5, !dbg !1100
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #19, !dbg !1100
   call void @llvm.dbg.declare(metadata i8* %12, metadata !1082, metadata !DIExpression()), !dbg !1101
   %24 = load i8*, i8** %9, align 4, !dbg !1102, !tbaa !657
   %25 = load i32, i32* %10, align 4, !dbg !1103, !tbaa !663
@@ -841,7 +841,7 @@ define zeroext i1 @aws_array_eq_c_str(i8* %0, i32 %1, i8* %2) #0 !dbg !1071 {
   br label %43, !dbg !1118
 
 43:                                               ; preds = %42, %41, %31
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #5, !dbg !1118
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #19, !dbg !1118
   %44 = load i32, i32* %11, align 4
   switch i32 %44, label %49 [
     i32 0, label %45
@@ -858,7 +858,7 @@ define zeroext i1 @aws_array_eq_c_str(i8* %0, i32 %1, i8* %2) #0 !dbg !1071 {
 
 49:                                               ; preds = %43, %22
   %50 = bitcast i32* %10 to i8*, !dbg !1121
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %50) #5, !dbg !1121
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %50) #19, !dbg !1121
   %51 = load i32, i32* %11, align 4
   switch i32 %51, label %59 [
     i32 2, label %52
@@ -877,9 +877,9 @@ define zeroext i1 @aws_array_eq_c_str(i8* %0, i32 %1, i8* %2) #0 !dbg !1071 {
 
 59:                                               ; preds = %52, %49
   %60 = bitcast i8** %9 to i8*, !dbg !1128
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #5, !dbg !1128
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #19, !dbg !1128
   %61 = bitcast i8** %8 to i8*, !dbg !1128
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #5, !dbg !1128
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #19, !dbg !1128
   %62 = load i1, i1* %4, align 1, !dbg !1128
   ret i1 %62, !dbg !1128
 }
@@ -893,7 +893,7 @@ define zeroext i1 @aws_byte_buf_eq_c_str_ignore_case(%struct.aws_byte_buf* %0, i
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !1131, metadata !DIExpression()), !dbg !1134
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !1132, metadata !DIExpression()), !dbg !1135
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !1136
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !1136
   call void @llvm.dbg.declare(metadata i8* %5, metadata !1133, metadata !DIExpression()), !dbg !1137
   %6 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !1138, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %6, i32 0, i32 1, !dbg !1139
@@ -902,12 +902,12 @@ define zeroext i1 @aws_byte_buf_eq_c_str_ignore_case(%struct.aws_byte_buf* %0, i
   %10 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %9, i32 0, i32 0, !dbg !1141
   %11 = load i32, i32* %10, align 4, !dbg !1141, !tbaa !693
   %12 = load i8*, i8** %4, align 4, !dbg !1142, !tbaa !657
-  %13 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %8, i32 %11, i8* %12) #14, !dbg !1143
+  %13 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %8, i32 %11, i8* %12) #17, !dbg !1143
   %14 = zext i1 %13 to i8, !dbg !1137
   store i8 %14, i8* %5, align 1, !dbg !1137, !tbaa !844
   %15 = load i8, i8* %5, align 1, !dbg !1144, !tbaa !844, !range !849
   %16 = trunc i8 %15 to i1, !dbg !1144
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !1145
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !1145
   ret i1 %16, !dbg !1146
 }
 
@@ -929,17 +929,17 @@ define zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %0, i32 %1, i8* %2) #0 !db
   store i8* %2, i8** %7, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %7, metadata !1151, metadata !DIExpression()), !dbg !1161
   %13 = bitcast i8** %8 to i8*, !dbg !1162
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !1162
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !1162
   call void @llvm.dbg.declare(metadata i8** %8, metadata !1152, metadata !DIExpression()), !dbg !1163
   %14 = load i8*, i8** %5, align 4, !dbg !1164, !tbaa !657
   store i8* %14, i8** %8, align 4, !dbg !1163, !tbaa !657
   %15 = bitcast i8** %9 to i8*, !dbg !1165
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !1165
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !1165
   call void @llvm.dbg.declare(metadata i8** %9, metadata !1153, metadata !DIExpression()), !dbg !1166
   %16 = load i8*, i8** %7, align 4, !dbg !1167, !tbaa !657
   store i8* %16, i8** %9, align 4, !dbg !1166, !tbaa !657
   %17 = bitcast i32* %10 to i8*, !dbg !1168
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #5, !dbg !1168
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #19, !dbg !1168
   call void @llvm.dbg.declare(metadata i32* %10, metadata !1154, metadata !DIExpression()), !dbg !1169
   store i32 0, i32* %10, align 4, !dbg !1169, !tbaa !663
   br label %18, !dbg !1168
@@ -955,7 +955,7 @@ define zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %0, i32 %1, i8* %2) #0 !db
   br label %55, !dbg !1173
 
 23:                                               ; preds = %18
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #5, !dbg !1174
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #19, !dbg !1174
   call void @llvm.dbg.declare(metadata i8* %12, metadata !1156, metadata !DIExpression()), !dbg !1175
   %24 = load i8*, i8** %9, align 4, !dbg !1176, !tbaa !657
   %25 = load i32, i32* %10, align 4, !dbg !1177, !tbaa !663
@@ -999,7 +999,7 @@ define zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %0, i32 %1, i8* %2) #0 !db
   br label %49, !dbg !1194
 
 49:                                               ; preds = %48, %47, %31
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #5, !dbg !1194
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #19, !dbg !1194
   %50 = load i32, i32* %11, align 4
   switch i32 %50, label %55 [
     i32 0, label %51
@@ -1016,7 +1016,7 @@ define zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %0, i32 %1, i8* %2) #0 !db
 
 55:                                               ; preds = %49, %22
   %56 = bitcast i32* %10 to i8*, !dbg !1197
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %56) #5, !dbg !1197
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %56) #19, !dbg !1197
   %57 = load i32, i32* %11, align 4
   switch i32 %57, label %65 [
     i32 2, label %58
@@ -1035,9 +1035,9 @@ define zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %0, i32 %1, i8* %2) #0 !db
 
 65:                                               ; preds = %58, %55
   %66 = bitcast i8** %9 to i8*, !dbg !1204
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %66) #5, !dbg !1204
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %66) #19, !dbg !1204
   %67 = bitcast i8** %8 to i8*, !dbg !1204
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %67) #5, !dbg !1204
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %67) #19, !dbg !1204
   %68 = load i1, i1* %4, align 1, !dbg !1204
   ret i1 %68, !dbg !1204
 }
@@ -1058,11 +1058,11 @@ define i32 @aws_byte_buf_init_copy_from_cursor(%struct.aws_byte_buf* %0, %struct
   br label %9, !dbg !1215
 
 9:                                                ; preds = %3
-  %10 = call zeroext i1 @aws_byte_cursor_is_valid(%struct.aws_byte_cursor* %5) #14, !dbg !1216
+  %10 = call zeroext i1 @aws_byte_cursor_is_valid(%struct.aws_byte_cursor* %5) #17, !dbg !1216
   br i1 %10, label %13, label %11, !dbg !1219
 
 11:                                               ; preds = %9
-  %12 = call i32 @aws_raise_error(i32 34) #14, !dbg !1220
+  %12 = call i32 @aws_raise_error(i32 34) #17, !dbg !1220
   store i32 %12, i32* %4, align 4, !dbg !1220
   br label %74, !dbg !1220
 
@@ -1078,7 +1078,7 @@ define i32 @aws_byte_buf_init_copy_from_cursor(%struct.aws_byte_buf* %0, %struct
   %18 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %6, align 4, !dbg !1223, !tbaa !657
   %19 = bitcast %struct.aws_byte_buf* %18 to i8*, !dbg !1223
   %20 = call i32 @llvm.objectsize.i32.p0i8(i8* %19, i1 false, i1 true, i1 false), !dbg !1223
-  %21 = call i8* @__memset_chk(i8* %17, i32 0, i32 16, i32 %20) #15, !dbg !1223
+  %21 = call i8* @__memset_chk(i8* %17, i32 0, i32 16, i32 %20) #18, !dbg !1223
   br label %22, !dbg !1223
 
 22:                                               ; preds = %15
@@ -1091,7 +1091,7 @@ define i32 @aws_byte_buf_init_copy_from_cursor(%struct.aws_byte_buf* %0, %struct
   %27 = load %struct.aws_allocator*, %struct.aws_allocator** %7, align 4, !dbg !1228, !tbaa !657
   %28 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %5, i32 0, i32 0, !dbg !1229
   %29 = load i32, i32* %28, align 4, !dbg !1229, !tbaa !822
-  %30 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %27, i32 %29) #14, !dbg !1230
+  %30 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %27, i32 %29) #17, !dbg !1230
   br label %32, !dbg !1227
 
 31:                                               ; preds = %22
@@ -1150,7 +1150,7 @@ define i32 @aws_byte_buf_init_copy_from_cursor(%struct.aws_byte_buf* %0, %struct
   %69 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %68, i32 0, i32 1, !dbg !1260
   %70 = load i8*, i8** %69, align 4, !dbg !1260, !tbaa !675
   %71 = call i32 @llvm.objectsize.i32.p0i8(i8* %70, i1 false, i1 true, i1 false), !dbg !1260
-  %72 = call i8* @__memcpy_chk(i8* %63, i8* %65, i32 %67, i32 %71) #15, !dbg !1260
+  %72 = call i8* @__memcpy_chk(i8* %63, i8* %65, i32 %67, i32 %71) #18, !dbg !1260
   br label %73, !dbg !1262
 
 73:                                               ; preds = %60, %45
@@ -1183,21 +1183,21 @@ define i32 @aws_byte_buf_init_cache_and_update_cursors(%struct.aws_byte_buf* %0,
   %13 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !1280, !tbaa !657
   %14 = bitcast %struct.aws_byte_buf* %13 to i8*, !dbg !1280
   %15 = call i32 @llvm.objectsize.i32.p0i8(i8* %14, i1 false, i1 true, i1 false), !dbg !1280
-  %16 = call i8* @__memset_chk(i8* %12, i32 0, i32 16, i32 %15) #15, !dbg !1280
+  %16 = call i8* @__memset_chk(i8* %12, i32 0, i32 16, i32 %15) #18, !dbg !1280
   br label %17, !dbg !1280
 
 17:                                               ; preds = %10
   %18 = bitcast i32* %6 to i8*, !dbg !1282
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %18) #5, !dbg !1282
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %18) #19, !dbg !1282
   call void @llvm.dbg.declare(metadata i32* %6, metadata !1271, metadata !DIExpression()), !dbg !1283
   store i32 0, i32* %6, align 4, !dbg !1283, !tbaa !663
   %19 = bitcast i8** %7 to i8*, !dbg !1284
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #5, !dbg !1284
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #19, !dbg !1284
   call void @llvm.dbg.declare(metadata i8** %7, metadata !1272, metadata !DIExpression()), !dbg !1285
   %20 = bitcast i8** %7 to i8*, !dbg !1286
   call void @llvm.va_start(i8* %20), !dbg !1286
   %21 = bitcast %struct.aws_byte_cursor** %8 to i8*, !dbg !1287
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #5, !dbg !1287
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #19, !dbg !1287
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %8, metadata !1276, metadata !DIExpression()), !dbg !1288
   br label %22, !dbg !1289
 
@@ -1216,7 +1216,7 @@ define i32 @aws_byte_buf_init_cache_and_update_cursors(%struct.aws_byte_buf* %0,
   %30 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %8, align 4, !dbg !1296, !tbaa !657
   %31 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %30, i32 0, i32 0, !dbg !1297
   %32 = load i32, i32* %31, align 4, !dbg !1297, !tbaa !822
-  %33 = call i32 @aws_add_size_checked(i32 %29, i32 %32, i32* %6) #14, !dbg !1298
+  %33 = call i32 @aws_add_size_checked(i32 %29, i32 %32, i32* %6) #17, !dbg !1298
   %34 = icmp ne i32 %33, 0, !dbg !1298
   br i1 %34, label %35, label %36, !dbg !1299
 
@@ -1234,7 +1234,7 @@ define i32 @aws_byte_buf_init_cache_and_update_cursors(%struct.aws_byte_buf* %0,
   %39 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !1305, !tbaa !657
   %40 = load %struct.aws_allocator*, %struct.aws_allocator** %5, align 4, !dbg !1307, !tbaa !657
   %41 = load i32, i32* %6, align 4, !dbg !1308, !tbaa !663
-  %42 = call i32 @aws_byte_buf_init(%struct.aws_byte_buf* %39, %struct.aws_allocator* %40, i32 %41) #14, !dbg !1309
+  %42 = call i32 @aws_byte_buf_init(%struct.aws_byte_buf* %39, %struct.aws_allocator* %40, i32 %41) #17, !dbg !1309
   %43 = icmp ne i32 %42, 0, !dbg !1309
   br i1 %43, label %44, label %45, !dbg !1310
 
@@ -1261,7 +1261,7 @@ define i32 @aws_byte_buf_init_cache_and_update_cursors(%struct.aws_byte_buf* %0,
 53:                                               ; preds = %47
   %54 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !1318, !tbaa !657
   %55 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %8, align 4, !dbg !1320, !tbaa !657
-  %56 = call i32 @aws_byte_buf_append_and_update(%struct.aws_byte_buf* %54, %struct.aws_byte_cursor* %55) #14, !dbg !1321
+  %56 = call i32 @aws_byte_buf_append_and_update(%struct.aws_byte_buf* %54, %struct.aws_byte_cursor* %55) #17, !dbg !1321
   br label %47, !dbg !1314, !llvm.loop !1322
 
 57:                                               ; preds = %47
@@ -1273,17 +1273,17 @@ define i32 @aws_byte_buf_init_cache_and_update_cursors(%struct.aws_byte_buf* %0,
 
 59:                                               ; preds = %57, %44, %35
   %60 = bitcast %struct.aws_byte_cursor** %8 to i8*, !dbg !1326
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #5, !dbg !1326
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #19, !dbg !1326
   %61 = bitcast i8** %7 to i8*, !dbg !1326
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #5, !dbg !1326
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #19, !dbg !1326
   %62 = bitcast i32* %6 to i8*, !dbg !1326
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %62) #5, !dbg !1326
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %62) #19, !dbg !1326
   %63 = load i32, i32* %3, align 4, !dbg !1326
   ret i32 %63, !dbg !1326
 }
 
-; Function Attrs: nounwind
-declare void @llvm.va_start(i8*) #5
+; Function Attrs: nofree nosync nounwind willreturn
+declare void @llvm.va_start(i8*) #6
 
 ; Function Attrs: inlinehint nounwind ssp
 define internal i32 @aws_add_size_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !1327 {
@@ -1299,12 +1299,12 @@ define internal i32 @aws_add_size_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !1327
   %7 = load i32, i32* %4, align 4, !dbg !1339, !tbaa !663
   %8 = load i32, i32* %5, align 4, !dbg !1340, !tbaa !663
   %9 = load i32*, i32** %6, align 4, !dbg !1341, !tbaa !657
-  %10 = call i32 @aws_add_u32_checked(i32 %7, i32 %8, i32* %9) #14, !dbg !1342
+  %10 = call i32 @aws_add_u32_checked(i32 %7, i32 %8, i32* %9) #17, !dbg !1342
   ret i32 %10, !dbg !1343
 }
 
-; Function Attrs: nounwind
-declare void @llvm.va_end(i8*) #5
+; Function Attrs: nofree nosync nounwind willreturn
+declare void @llvm.va_end(i8*) #6
 
 ; Function Attrs: nounwind ssp
 define i32 @aws_byte_buf_append_and_update(%struct.aws_byte_buf* %0, %struct.aws_byte_cursor* %1) #0 !dbg !1344 {
@@ -1317,7 +1317,7 @@ define i32 @aws_byte_buf_append_and_update(%struct.aws_byte_buf* %0, %struct.aws
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %5, metadata !1347, metadata !DIExpression()), !dbg !1349
   %6 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !1350, !tbaa !657
   %7 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !1352, !tbaa !657
-  %8 = call i32 @aws_byte_buf_append(%struct.aws_byte_buf* %6, %struct.aws_byte_cursor* %7) #14, !dbg !1353
+  %8 = call i32 @aws_byte_buf_append(%struct.aws_byte_buf* %6, %struct.aws_byte_cursor* %7) #17, !dbg !1353
   %9 = icmp ne i32 %8, 0, !dbg !1353
   br i1 %9, label %10, label %11, !dbg !1354
 
@@ -1371,7 +1371,7 @@ define i32 @aws_byte_buf_append(%struct.aws_byte_buf* %0, %struct.aws_byte_curso
   br i1 %16, label %17, label %19, !dbg !1385
 
 17:                                               ; preds = %2
-  %18 = call i32 @aws_raise_error(i32 26) #14, !dbg !1386
+  %18 = call i32 @aws_raise_error(i32 26) #17, !dbg !1386
   store i32 %18, i32* %3, align 4, !dbg !1388
   br label %55, !dbg !1388
 
@@ -1404,7 +1404,7 @@ define i32 @aws_byte_buf_append(%struct.aws_byte_buf* %0, %struct.aws_byte_curso
   %43 = load i32, i32* %42, align 4, !dbg !1394, !tbaa !693
   %44 = getelementptr inbounds i8, i8* %40, i32 %43, !dbg !1394
   %45 = call i32 @llvm.objectsize.i32.p0i8(i8* %44, i1 false, i1 true, i1 false), !dbg !1394
-  %46 = call i8* @__memcpy_chk(i8* %31, i8* %34, i32 %37, i32 %45) #15, !dbg !1394
+  %46 = call i8* @__memcpy_chk(i8* %31, i8* %34, i32 %37, i32 %45) #18, !dbg !1394
   %47 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !1396, !tbaa !657
   %48 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %47, i32 0, i32 0, !dbg !1397
   %49 = load i32, i32* %48, align 4, !dbg !1397, !tbaa !822
@@ -1446,7 +1446,7 @@ define internal i32 @aws_add_u32_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !1404 
   br i1 %12, label %14, label %16, !dbg !1420
 
 14:                                               ; preds = %3
-  %15 = call i32 @aws_raise_error(i32 5) #14, !dbg !1421
+  %15 = call i32 @aws_raise_error(i32 5) #17, !dbg !1421
   store i32 %15, i32* %4, align 4, !dbg !1423
   br label %17, !dbg !1423
 
@@ -1459,7 +1459,7 @@ define internal i32 @aws_add_u32_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !1404 
   ret i32 %18, !dbg !1425
 }
 
-; Function Attrs: nounwind readnone speculatable willreturn
+; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32) #1
 
 ; Function Attrs: nounwind ssp
@@ -1478,7 +1478,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
   call void @llvm.dbg.declare(metadata i8* %6, metadata !1433, metadata !DIExpression()), !dbg !1442
   store %struct.aws_byte_cursor* %2, %struct.aws_byte_cursor** %7, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %7, metadata !1434, metadata !DIExpression()), !dbg !1443
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #5, !dbg !1444
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #19, !dbg !1444
   call void @llvm.dbg.declare(metadata i8* %8, metadata !1435, metadata !DIExpression()), !dbg !1445
   %12 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %7, align 4, !dbg !1446, !tbaa !657
   %13 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %12, i32 0, i32 1, !dbg !1447
@@ -1522,7 +1522,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
   %38 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %7, align 4, !dbg !1465, !tbaa !657
   %39 = bitcast %struct.aws_byte_cursor* %38 to i8*, !dbg !1465
   %40 = call i32 @llvm.objectsize.i32.p0i8(i8* %39, i1 false, i1 true, i1 false), !dbg !1465
-  %41 = call i8* @__memset_chk(i8* %37, i32 0, i32 8, i32 %40) #15, !dbg !1465
+  %41 = call i8* @__memset_chk(i8* %37, i32 0, i32 8, i32 %40) #18, !dbg !1465
   br label %42, !dbg !1465
 
 42:                                               ; preds = %35
@@ -1548,7 +1548,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
 
 52:                                               ; preds = %44
   %53 = bitcast i8** %10 to i8*, !dbg !1476
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %53) #5, !dbg !1476
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %53) #19, !dbg !1476
   call void @llvm.dbg.declare(metadata i8** %10, metadata !1437, metadata !DIExpression()), !dbg !1477
   %54 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !1478, !tbaa !657
   %55 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %54, i32 0, i32 1, !dbg !1479
@@ -1593,7 +1593,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
   %86 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %7, align 4, !dbg !1503, !tbaa !657
   %87 = bitcast %struct.aws_byte_cursor* %86 to i8*, !dbg !1503
   %88 = call i32 @llvm.objectsize.i32.p0i8(i8* %87, i1 false, i1 true, i1 false), !dbg !1503
-  %89 = call i8* @__memset_chk(i8* %85, i32 0, i32 8, i32 %88) #15, !dbg !1503
+  %89 = call i8* @__memset_chk(i8* %85, i32 0, i32 8, i32 %88) #18, !dbg !1503
   br label %90, !dbg !1503
 
 90:                                               ; preds = %83
@@ -1626,7 +1626,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
 
 108:                                              ; preds = %92, %91
   %109 = bitcast i8** %10 to i8*, !dbg !1517
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %109) #5, !dbg !1517
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %109) #19, !dbg !1517
   %110 = load i32, i32* %9, align 4
   switch i32 %110, label %137 [
     i32 0, label %111
@@ -1637,7 +1637,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
 
 112:                                              ; preds = %111, %47
   %113 = bitcast i8** %11 to i8*, !dbg !1518
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %113) #5, !dbg !1518
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %113) #19, !dbg !1518
   call void @llvm.dbg.declare(metadata i8** %11, metadata !1440, metadata !DIExpression()), !dbg !1519
   %114 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %7, align 4, !dbg !1520, !tbaa !657
   %115 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %114, i32 0, i32 1, !dbg !1521
@@ -1647,7 +1647,7 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
   %119 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %7, align 4, !dbg !1523, !tbaa !657
   %120 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %119, i32 0, i32 0, !dbg !1524
   %121 = load i32, i32* %120, align 4, !dbg !1524, !tbaa !822
-  %122 = call i8* @memchr(i8* %116, i32 %118, i32 %121) #14, !dbg !1525
+  %122 = call i8* @memchr(i8* %116, i32 %118, i32 %121) #17, !dbg !1525
   store i8* %122, i8** %11, align 4, !dbg !1519, !tbaa !657
   %123 = load i8*, i8** %11, align 4, !dbg !1526, !tbaa !657
   %124 = icmp ne i8* %123, null, !dbg !1526
@@ -1670,17 +1670,17 @@ define zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* noalias %
   store i1 true, i1* %4, align 1, !dbg !1538
   store i32 1, i32* %9, align 4
   %136 = bitcast i8** %11 to i8*, !dbg !1539
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %136) #5, !dbg !1539
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %136) #19, !dbg !1539
   br label %137
 
 137:                                              ; preds = %135, %108, %43, %29
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5, !dbg !1539
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #19, !dbg !1539
   %138 = load i1, i1* %4, align 1, !dbg !1539
   ret i1 %138, !dbg !1539
 }
 
-; Function Attrs: nounwind readnone willreturn
-declare i32 @llvm.expect.i32(i32, i32) #6
+; Function Attrs: nofree nosync nounwind readnone willreturn
+declare i32 @llvm.expect.i32(i32, i32) #7
 
 declare i8* @memchr(i8*, i32, i32) #4
 
@@ -1704,7 +1704,7 @@ define i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* noalias %0,
   store %struct.aws_array_list* %3, %struct.aws_array_list** %9, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_array_list** %9, metadata !1548, metadata !DIExpression()), !dbg !1555
   %14 = bitcast i32* %10 to i8*, !dbg !1556
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !1556
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !1556
   call void @llvm.dbg.declare(metadata i32* %10, metadata !1549, metadata !DIExpression()), !dbg !1557
   %15 = load i32, i32* %8, align 4, !dbg !1558, !tbaa !663
   %16 = icmp ugt i32 %15, 0, !dbg !1559
@@ -1721,11 +1721,11 @@ define i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* noalias %0,
   %21 = phi i32 [ %18, %17 ], [ -1, %19 ], !dbg !1558
   store i32 %21, i32* %10, align 4, !dbg !1557, !tbaa !663
   %22 = bitcast i32* %11 to i8*, !dbg !1561
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #5, !dbg !1561
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #19, !dbg !1561
   call void @llvm.dbg.declare(metadata i32* %11, metadata !1550, metadata !DIExpression()), !dbg !1562
   store i32 0, i32* %11, align 4, !dbg !1562, !tbaa !663
   %23 = bitcast %struct.aws_byte_cursor* %12 to i8*, !dbg !1563
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %23) #5, !dbg !1563
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %23) #19, !dbg !1563
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %12, metadata !1551, metadata !DIExpression()), !dbg !1564
   br label %24, !dbg !1565
 
@@ -1749,7 +1749,7 @@ define i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* noalias %0,
 32:                                               ; preds = %28
   %33 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !1573, !tbaa !657
   %34 = load i8, i8* %7, align 1, !dbg !1574, !tbaa !1034
-  %35 = call zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* %33, i8 signext %34, %struct.aws_byte_cursor* %12) #14, !dbg !1575
+  %35 = call zeroext i1 @aws_byte_cursor_next_split(%struct.aws_byte_cursor* %33, i8 signext %34, %struct.aws_byte_cursor* %12) #17, !dbg !1575
   br label %36
 
 36:                                               ; preds = %32, %28
@@ -1782,7 +1782,7 @@ define i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* noalias %0,
 56:                                               ; preds = %42, %38
   %57 = load %struct.aws_array_list*, %struct.aws_array_list** %9, align 4, !dbg !1594, !tbaa !657
   %58 = bitcast %struct.aws_byte_cursor* %12 to i8*, !dbg !1594
-  %59 = call i32 @aws_array_list_push_back(%struct.aws_array_list* %57, i8* %58) #14, !dbg !1594
+  %59 = call i32 @aws_array_list_push_back(%struct.aws_array_list* %57, i8* %58) #17, !dbg !1594
   %60 = icmp ne i32 %59, 0, !dbg !1594
   %61 = xor i1 %60, true, !dbg !1594
   %62 = xor i1 %61, true, !dbg !1594
@@ -1809,17 +1809,17 @@ define i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* noalias %0,
 
 71:                                               ; preds = %70, %66
   %72 = bitcast %struct.aws_byte_cursor* %12 to i8*, !dbg !1603
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %72) #5, !dbg !1603
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %72) #19, !dbg !1603
   %73 = bitcast i32* %11 to i8*, !dbg !1603
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %73) #5, !dbg !1603
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %73) #19, !dbg !1603
   %74 = bitcast i32* %10 to i8*, !dbg !1603
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %74) #5, !dbg !1603
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %74) #19, !dbg !1603
   %75 = load i32, i32* %5, align 4, !dbg !1603
   ret i32 %75, !dbg !1603
 }
 
-; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.memset.p0i8.i32(i8* nocapture writeonly, i8, i32, i1 immarg) #3
+; Function Attrs: argmemonly nofree nounwind willreturn writeonly
+declare void @llvm.memset.p0i8.i32(i8* nocapture writeonly, i8, i32, i1 immarg) #8
 
 ; Function Attrs: inlinehint nounwind ssp
 define internal i32 @aws_array_list_push_back(%struct.aws_array_list* noalias %0, i8* %1) #2 !dbg !1604 {
@@ -1833,20 +1833,20 @@ define internal i32 @aws_array_list_push_back(%struct.aws_array_list* noalias %0
   store i8* %1, i8** %5, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %5, metadata !1610, metadata !DIExpression()), !dbg !1613
   %8 = bitcast i32* %6 to i8*, !dbg !1614
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !1614
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !1614
   call void @llvm.dbg.declare(metadata i32* %6, metadata !1611, metadata !DIExpression()), !dbg !1615
   %9 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !1616, !tbaa !657
   %10 = load i8*, i8** %5, align 4, !dbg !1617, !tbaa !657
   %11 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !1618, !tbaa !657
-  %12 = call i32 @aws_array_list_length(%struct.aws_array_list* %11) #14, !dbg !1619
-  %13 = call i32 @aws_array_list_set_at(%struct.aws_array_list* %9, i8* %10, i32 %12) #14, !dbg !1620
+  %12 = call i32 @aws_array_list_length(%struct.aws_array_list* %11) #17, !dbg !1619
+  %13 = call i32 @aws_array_list_set_at(%struct.aws_array_list* %9, i8* %10, i32 %12) #17, !dbg !1620
   store i32 %13, i32* %6, align 4, !dbg !1615, !tbaa !805
   %14 = load i32, i32* %6, align 4, !dbg !1621, !tbaa !805
   %15 = icmp ne i32 %14, 0, !dbg !1621
   br i1 %15, label %16, label %26, !dbg !1623
 
 16:                                               ; preds = %2
-  %17 = call i32 @aws_last_error() #14, !dbg !1624
+  %17 = call i32 @aws_last_error() #17, !dbg !1624
   %18 = icmp eq i32 %17, 10, !dbg !1625
   br i1 %18, label %19, label %26, !dbg !1626
 
@@ -1858,7 +1858,7 @@ define internal i32 @aws_array_list_push_back(%struct.aws_array_list* noalias %0
   br i1 %23, label %26, label %24, !dbg !1631
 
 24:                                               ; preds = %19
-  %25 = call i32 @aws_raise_error(i32 27) #14, !dbg !1632
+  %25 = call i32 @aws_raise_error(i32 27) #17, !dbg !1632
   store i32 %25, i32* %3, align 4, !dbg !1634
   store i32 1, i32* %7, align 4
   br label %28, !dbg !1634
@@ -1871,7 +1871,7 @@ define internal i32 @aws_array_list_push_back(%struct.aws_array_list* noalias %0
 
 28:                                               ; preds = %26, %24
   %29 = bitcast i32* %6 to i8*, !dbg !1637
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #5, !dbg !1637
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #19, !dbg !1637
   %30 = load i32, i32* %3, align 4, !dbg !1637
   ret i32 %30, !dbg !1637
 }
@@ -1896,12 +1896,12 @@ define internal i32 @aws_array_list_length(%struct.aws_array_list* noalias %0) #
   br i1 %12, label %14, label %13, !dbg !1652
 
 13:                                               ; preds = %8
-  call void @aws_fatal_assert(i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @.str.2, i32 0, i32 0), i32 312) #16, !dbg !1653
+  call void @aws_fatal_assert(i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @.str.2, i32 0, i32 0), i32 312) #20, !dbg !1653
   unreachable, !dbg !1653
 
 14:                                               ; preds = %8, %1
   %15 = bitcast i32* %3 to i8*, !dbg !1655
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !1655
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !1655
   call void @llvm.dbg.declare(metadata i32* %3, metadata !1646, metadata !DIExpression()), !dbg !1656
   %16 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !1657, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %16, i32 0, i32 2, !dbg !1658
@@ -1909,7 +1909,7 @@ define internal i32 @aws_array_list_length(%struct.aws_array_list* noalias %0) #
   store i32 %18, i32* %3, align 4, !dbg !1656, !tbaa !663
   %19 = load i32, i32* %3, align 4, !dbg !1659, !tbaa !663
   %20 = bitcast i32* %3 to i8*, !dbg !1660
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %20) #5, !dbg !1660
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %20) #19, !dbg !1660
   ret i32 %19, !dbg !1661
 }
 
@@ -1927,7 +1927,7 @@ define internal i32 @aws_array_list_set_at(%struct.aws_array_list* noalias %0, i
   call void @llvm.dbg.declare(metadata i32* %7, metadata !1668, metadata !DIExpression()), !dbg !1671
   %8 = load %struct.aws_array_list*, %struct.aws_array_list** %5, align 4, !dbg !1672, !tbaa !657
   %9 = load i32, i32* %7, align 4, !dbg !1674, !tbaa !663
-  %10 = call i32 @aws_array_list_ensure_capacity(%struct.aws_array_list* %8, i32 %9) #14, !dbg !1675
+  %10 = call i32 @aws_array_list_ensure_capacity(%struct.aws_array_list* %8, i32 %9) #17, !dbg !1675
   %11 = icmp ne i32 %10, 0, !dbg !1675
   br i1 %11, label %12, label %13, !dbg !1676
 
@@ -1943,7 +1943,7 @@ define internal i32 @aws_array_list_set_at(%struct.aws_array_list* noalias %0, i
   br i1 %17, label %19, label %18, !dbg !1681
 
 18:                                               ; preds = %13
-  call void @aws_fatal_assert(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.1, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @.str.2, i32 0, i32 0), i32 359) #16, !dbg !1682
+  call void @aws_fatal_assert(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @.str.1, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @.str.2, i32 0, i32 0), i32 359) #20, !dbg !1682
   unreachable, !dbg !1682
 
 19:                                               ; preds = %13
@@ -1970,10 +1970,10 @@ define internal i32 @aws_array_list_set_at(%struct.aws_array_list* noalias %0, i
   %40 = mul i32 %38, %39, !dbg !1684
   %41 = getelementptr inbounds i8, i8* %35, i32 %40, !dbg !1684
   %42 = call i32 @llvm.objectsize.i32.p0i8(i8* %41, i1 false, i1 true, i1 false), !dbg !1684
-  %43 = call i8* @__memcpy_chk(i8* %28, i8* %29, i32 %32, i32 %42) #15, !dbg !1684
+  %43 = call i8* @__memcpy_chk(i8* %28, i8* %29, i32 %32, i32 %42) #18, !dbg !1684
   %44 = load i32, i32* %7, align 4, !dbg !1686, !tbaa !663
   %45 = load %struct.aws_array_list*, %struct.aws_array_list** %5, align 4, !dbg !1688, !tbaa !657
-  %46 = call i32 @aws_array_list_length(%struct.aws_array_list* %45) #14, !dbg !1689
+  %46 = call i32 @aws_array_list_length(%struct.aws_array_list* %45) #17, !dbg !1689
   %47 = icmp uge i32 %44, %46, !dbg !1690
   br i1 %47, label %48, label %56, !dbg !1691
 
@@ -1981,7 +1981,7 @@ define internal i32 @aws_array_list_set_at(%struct.aws_array_list* noalias %0, i
   %49 = load i32, i32* %7, align 4, !dbg !1692, !tbaa !663
   %50 = load %struct.aws_array_list*, %struct.aws_array_list** %5, align 4, !dbg !1695, !tbaa !657
   %51 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %50, i32 0, i32 2, !dbg !1696
-  %52 = call i32 @aws_add_size_checked(i32 %49, i32 1, i32* %51) #14, !dbg !1697
+  %52 = call i32 @aws_add_size_checked(i32 %49, i32 1, i32* %51) #17, !dbg !1697
   %53 = icmp ne i32 %52, 0, !dbg !1697
   br i1 %53, label %54, label %55, !dbg !1698
 
@@ -2004,7 +2004,7 @@ define internal i32 @aws_array_list_set_at(%struct.aws_array_list* noalias %0, i
 declare !dbg !168 i32 @aws_array_list_ensure_capacity(%struct.aws_array_list*, i32) #4
 
 ; Function Attrs: noreturn
-declare !dbg !180 void @aws_fatal_assert(i8*, i8*, i32) #7
+declare !dbg !180 void @aws_fatal_assert(i8*, i8*, i32) #9
 
 ; Function Attrs: nounwind ssp
 define i32 @aws_byte_cursor_split_on_char(%struct.aws_byte_cursor* noalias %0, i8 signext %1, %struct.aws_array_list* noalias %2) #0 !dbg !1704 {
@@ -2020,7 +2020,7 @@ define i32 @aws_byte_cursor_split_on_char(%struct.aws_byte_cursor* noalias %0, i
   %7 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !1714, !tbaa !657
   %8 = load i8, i8* %5, align 1, !dbg !1715, !tbaa !1034
   %9 = load %struct.aws_array_list*, %struct.aws_array_list** %6, align 4, !dbg !1716, !tbaa !657
-  %10 = call i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* %7, i8 signext %8, i32 0, %struct.aws_array_list* %9) #14, !dbg !1717
+  %10 = call i32 @aws_byte_cursor_split_on_char_n(%struct.aws_byte_cursor* %7, i8 signext %8, i32 0, %struct.aws_array_list* %9) #17, !dbg !1717
   ret i32 %10, !dbg !1718
 }
 
@@ -2051,7 +2051,7 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   br i1 %19, label %20, label %22, !dbg !1738
 
 20:                                               ; preds = %3
-  %21 = call i32 @aws_raise_error(i32 48) #14, !dbg !1739
+  %21 = call i32 @aws_raise_error(i32 48) #17, !dbg !1739
   store i32 %21, i32* %4, align 4, !dbg !1741
   br label %97, !dbg !1741
 
@@ -2063,13 +2063,13 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   br i1 %26, label %27, label %29, !dbg !1746
 
 27:                                               ; preds = %22
-  %28 = call i32 @aws_raise_error(i32 4) #14, !dbg !1747
+  %28 = call i32 @aws_raise_error(i32 4) #17, !dbg !1747
   store i32 %28, i32* %4, align 4, !dbg !1749
   br label %97, !dbg !1749
 
 29:                                               ; preds = %22
   %30 = bitcast %struct.aws_byte_cursor* %8 to i8*, !dbg !1750
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %30) #5, !dbg !1750
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %30) #19, !dbg !1750
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %8, metadata !1726, metadata !DIExpression()), !dbg !1751
   %31 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !1752, !tbaa !657
   %32 = bitcast %struct.aws_byte_cursor* %8 to i8*, !dbg !1753
@@ -2085,7 +2085,7 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
 
 38:                                               ; preds = %34
   %39 = bitcast i8** %9 to i8*, !dbg !1756
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %39) #5, !dbg !1756
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %39) #19, !dbg !1756
   call void @llvm.dbg.declare(metadata i8** %9, metadata !1727, metadata !DIExpression()), !dbg !1757
   %40 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %8, i32 0, i32 1, !dbg !1758
   %41 = load i8*, i8** %40, align 4, !dbg !1758, !tbaa !832
@@ -2096,14 +2096,14 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   %46 = sext i8 %45 to i32, !dbg !1762
   %47 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %8, i32 0, i32 0, !dbg !1763
   %48 = load i32, i32* %47, align 4, !dbg !1763, !tbaa !822
-  %49 = call i8* @memchr(i8* %41, i32 %46, i32 %48) #14, !dbg !1764
+  %49 = call i8* @memchr(i8* %41, i32 %46, i32 %48) #17, !dbg !1764
   store i8* %49, i8** %9, align 4, !dbg !1757, !tbaa !657
   %50 = load i8*, i8** %9, align 4, !dbg !1765, !tbaa !657
   %51 = icmp ne i8* %50, null, !dbg !1765
   br i1 %51, label %54, label %52, !dbg !1767
 
 52:                                               ; preds = %38
-  %53 = call i32 @aws_raise_error(i32 48) #14, !dbg !1768
+  %53 = call i32 @aws_raise_error(i32 48) #17, !dbg !1768
   store i32 %53, i32* %4, align 4, !dbg !1770
   store i32 1, i32* %10, align 4
   br label %89, !dbg !1770
@@ -2116,10 +2116,10 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   %59 = ptrtoint i8* %57 to i32, !dbg !1773
   %60 = sub i32 %58, %59, !dbg !1773
   %61 = bitcast %struct.aws_byte_cursor* %11 to i8*, !dbg !1774
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %61) #5, !dbg !1774
-  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret %11, %struct.aws_byte_cursor* %8, i32 %60) #14, !dbg !1774
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %61) #19, !dbg !1774
+  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %11, %struct.aws_byte_cursor* %8, i32 %60) #17, !dbg !1774
   %62 = bitcast %struct.aws_byte_cursor* %11 to i8*, !dbg !1774
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %62) #5, !dbg !1774
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %62) #19, !dbg !1774
   %63 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %8, i32 0, i32 0, !dbg !1775
   %64 = load i32, i32* %63, align 4, !dbg !1775, !tbaa !822
   %65 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !1777, !tbaa !657
@@ -2129,7 +2129,7 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   br i1 %68, label %69, label %71, !dbg !1780
 
 69:                                               ; preds = %54
-  %70 = call i32 @aws_raise_error(i32 48) #14, !dbg !1781
+  %70 = call i32 @aws_raise_error(i32 48) #17, !dbg !1781
   store i32 %70, i32* %4, align 4, !dbg !1783
   store i32 1, i32* %10, align 4
   br label %89, !dbg !1783
@@ -2143,7 +2143,7 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   %77 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !1788, !tbaa !657
   %78 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %77, i32 0, i32 0, !dbg !1789
   %79 = load i32, i32* %78, align 4, !dbg !1789, !tbaa !822
-  %80 = call i32 @memcmp(i8* %73, i8* %76, i32 %79) #14, !dbg !1790
+  %80 = call i32 @memcmp(i8* %73, i8* %76, i32 %79) #17, !dbg !1790
   %81 = icmp ne i32 %80, 0, !dbg !1790
   br i1 %81, label %86, label %82, !dbg !1791
 
@@ -2158,16 +2158,16 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
 
 86:                                               ; preds = %71
   %87 = bitcast %struct.aws_byte_cursor* %12 to i8*, !dbg !1796
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %87) #5, !dbg !1796
-  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret %12, %struct.aws_byte_cursor* %8, i32 1) #14, !dbg !1796
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %87) #19, !dbg !1796
+  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %12, %struct.aws_byte_cursor* %8, i32 1) #17, !dbg !1796
   %88 = bitcast %struct.aws_byte_cursor* %12 to i8*, !dbg !1796
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %88) #5, !dbg !1796
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %88) #19, !dbg !1796
   store i32 0, i32* %10, align 4, !dbg !1797
   br label %89, !dbg !1797
 
 89:                                               ; preds = %86, %82, %69, %52
   %90 = bitcast i8** %9 to i8*, !dbg !1797
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %90) #5, !dbg !1797
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %90) #19, !dbg !1797
   %91 = load i32, i32* %10, align 4
   switch i32 %91, label %95 [
     i32 0, label %92
@@ -2177,14 +2177,14 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
   br label %34, !dbg !1754, !llvm.loop !1798
 
 93:                                               ; preds = %34
-  %94 = call i32 @aws_raise_error(i32 48) #14, !dbg !1799
+  %94 = call i32 @aws_raise_error(i32 48) #17, !dbg !1799
   store i32 %94, i32* %4, align 4, !dbg !1800
   store i32 1, i32* %10, align 4
   br label %95, !dbg !1800
 
 95:                                               ; preds = %93, %89
   %96 = bitcast %struct.aws_byte_cursor* %8 to i8*, !dbg !1801
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %96) #5, !dbg !1801
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %96) #19, !dbg !1801
   br label %97
 
 97:                                               ; preds = %95, %27, %20
@@ -2193,7 +2193,7 @@ define i32 @aws_byte_cursor_find_exact(%struct.aws_byte_cursor* noalias %0, %str
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_advance(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_cursor* %1, i32 %2) #0 !dbg !1802 {
+define void @aws_byte_cursor_advance(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %1, i32 %2) #0 !dbg !1802 {
   %4 = alloca %struct.aws_byte_cursor*, align 4
   %5 = alloca i32, align 4
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %4, align 4, !tbaa !657
@@ -2285,12 +2285,12 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
   store i32 %1, i32* %5, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %5, metadata !1861, metadata !DIExpression()), !dbg !1870
   %11 = bitcast i8** %6 to i8*, !dbg !1871
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !1871
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !1871
   call void @llvm.dbg.declare(metadata i8** %6, metadata !1862, metadata !DIExpression()), !dbg !1872
   %12 = bitcast i8** %6 to i8*, !dbg !1873
   call void @llvm.va_start(i8* %12), !dbg !1873
   %13 = bitcast i32* %7 to i8*, !dbg !1874
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !1874
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !1874
   call void @llvm.dbg.declare(metadata i32* %7, metadata !1863, metadata !DIExpression()), !dbg !1875
   store i32 0, i32* %7, align 4, !dbg !1875, !tbaa !663
   br label %14, !dbg !1874
@@ -2307,7 +2307,7 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
 
 19:                                               ; preds = %14
   %20 = bitcast %struct.aws_byte_buf** %9 to i8*, !dbg !1880
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #5, !dbg !1880
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #19, !dbg !1880
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %9, metadata !1865, metadata !DIExpression()), !dbg !1881
   %21 = load i8*, i8** %6, align 4, !dbg !1882
   %22 = getelementptr inbounds i8, i8* %21, i32 4, !dbg !1882
@@ -2316,12 +2316,12 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
   %24 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %23, align 4, !dbg !1882
   store %struct.aws_byte_buf* %24, %struct.aws_byte_buf** %9, align 4, !dbg !1881, !tbaa !657
   %25 = bitcast %struct.aws_byte_cursor* %10 to i8*, !dbg !1883
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %25) #5, !dbg !1883
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %25) #19, !dbg !1883
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %10, metadata !1868, metadata !DIExpression()), !dbg !1884
   %26 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %9, align 4, !dbg !1885, !tbaa !657
-  call void @aws_byte_cursor_from_buf(%struct.aws_byte_cursor* sret %10, %struct.aws_byte_buf* %26) #14, !dbg !1886
+  call void @aws_byte_cursor_from_buf(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %10, %struct.aws_byte_buf* %26) #17, !dbg !1886
   %27 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !1887, !tbaa !657
-  %28 = call i32 @aws_byte_buf_append(%struct.aws_byte_buf* %27, %struct.aws_byte_cursor* %10) #14, !dbg !1889
+  %28 = call i32 @aws_byte_buf_append(%struct.aws_byte_buf* %27, %struct.aws_byte_cursor* %10) #17, !dbg !1889
   %29 = icmp ne i32 %28, 0, !dbg !1889
   br i1 %29, label %30, label %32, !dbg !1890
 
@@ -2338,9 +2338,9 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
 
 33:                                               ; preds = %32, %30
   %34 = bitcast %struct.aws_byte_cursor* %10 to i8*, !dbg !1894
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %34) #5, !dbg !1894
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %34) #19, !dbg !1894
   %35 = bitcast %struct.aws_byte_buf** %9 to i8*, !dbg !1894
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #5, !dbg !1894
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #19, !dbg !1894
   %36 = load i32, i32* %8, align 4
   switch i32 %36, label %41 [
     i32 0, label %37
@@ -2357,7 +2357,7 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
 
 41:                                               ; preds = %33, %18
   %42 = bitcast i32* %7 to i8*, !dbg !1897
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #5, !dbg !1897
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #19, !dbg !1897
   %43 = load i32, i32* %8, align 4
   switch i32 %43, label %46 [
     i32 2, label %44
@@ -2372,13 +2372,13 @@ define i32 @aws_byte_buf_cat(%struct.aws_byte_buf* %0, i32 %1, ...) #0 !dbg !185
 
 46:                                               ; preds = %44, %41
   %47 = bitcast i8** %6 to i8*, !dbg !1902
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #5, !dbg !1902
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #19, !dbg !1902
   %48 = load i32, i32* %3, align 4, !dbg !1902
   ret i32 %48, !dbg !1902
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_from_buf(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_buf* %1) #0 !dbg !1903 {
+define void @aws_byte_cursor_from_buf(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_buf* %1) #0 !dbg !1903 {
   %3 = alloca %struct.aws_byte_buf*, align 4
   store %struct.aws_byte_buf* %1, %struct.aws_byte_buf** %3, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !1907, metadata !DIExpression()), !dbg !1909
@@ -2405,7 +2405,7 @@ define zeroext i1 @aws_byte_cursor_eq(%struct.aws_byte_cursor* %0, %struct.aws_b
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !1924, metadata !DIExpression()), !dbg !1927
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %4, metadata !1925, metadata !DIExpression()), !dbg !1928
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !1929
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !1929
   call void @llvm.dbg.declare(metadata i8* %5, metadata !1926, metadata !DIExpression()), !dbg !1930
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !1931, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !1932
@@ -2419,12 +2419,12 @@ define zeroext i1 @aws_byte_cursor_eq(%struct.aws_byte_cursor* %0, %struct.aws_b
   %15 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !1937, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %15, i32 0, i32 0, !dbg !1938
   %17 = load i32, i32* %16, align 4, !dbg !1938, !tbaa !822
-  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !1939
+  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !1939
   %19 = zext i1 %18 to i8, !dbg !1930
   store i8 %19, i8* %5, align 1, !dbg !1930, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !1940, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !1940
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !1941
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !1941
   ret i1 %21, !dbg !1942
 }
 
@@ -2437,7 +2437,7 @@ define zeroext i1 @aws_byte_cursor_eq_ignore_case(%struct.aws_byte_cursor* %0, %
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !1945, metadata !DIExpression()), !dbg !1948
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %4, metadata !1946, metadata !DIExpression()), !dbg !1949
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !1950
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !1950
   call void @llvm.dbg.declare(metadata i8* %5, metadata !1947, metadata !DIExpression()), !dbg !1951
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !1952, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !1953
@@ -2451,12 +2451,12 @@ define zeroext i1 @aws_byte_cursor_eq_ignore_case(%struct.aws_byte_cursor* %0, %
   %15 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !1958, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %15, i32 0, i32 0, !dbg !1959
   %17 = load i32, i32* %16, align 4, !dbg !1959, !tbaa !822
-  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !1960
+  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !1960
   %19 = zext i1 %18 to i8, !dbg !1951
   store i8 %19, i8* %5, align 1, !dbg !1951, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !1961, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !1961
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !1962
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !1962
   ret i1 %21, !dbg !1963
 }
 
@@ -2480,20 +2480,20 @@ define i64 @aws_hash_array_ignore_case(i8* %0, i32 %1) #0 !dbg !1968 {
   store i32 %1, i32* %4, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %4, metadata !1973, metadata !DIExpression()), !dbg !1983
   %11 = bitcast i64* %5 to i8*, !dbg !1984
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %11) #5, !dbg !1984
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %11) #19, !dbg !1984
   call void @llvm.dbg.declare(metadata i64* %5, metadata !1974, metadata !DIExpression()), !dbg !1985
   store i64 -3750763034362895579, i64* %5, align 8, !dbg !1985, !tbaa !1986
   %12 = bitcast i64* %6 to i8*, !dbg !1988
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %12) #5, !dbg !1988
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %12) #19, !dbg !1988
   call void @llvm.dbg.declare(metadata i64* %6, metadata !1976, metadata !DIExpression()), !dbg !1989
   store i64 1099511628211, i64* %6, align 8, !dbg !1989, !tbaa !1986
   %13 = bitcast i8** %7 to i8*, !dbg !1990
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !1990
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !1990
   call void @llvm.dbg.declare(metadata i8** %7, metadata !1977, metadata !DIExpression()), !dbg !1991
   %14 = load i8*, i8** %3, align 4, !dbg !1992, !tbaa !657
   store i8* %14, i8** %7, align 4, !dbg !1991, !tbaa !657
   %15 = bitcast i8** %8 to i8*, !dbg !1993
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !1993
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !1993
   call void @llvm.dbg.declare(metadata i8** %8, metadata !1978, metadata !DIExpression()), !dbg !1994
   %16 = load i8*, i8** %7, align 4, !dbg !1995, !tbaa !657
   %17 = icmp eq i8* %16, null, !dbg !1996
@@ -2512,7 +2512,7 @@ define i64 @aws_hash_array_ignore_case(i8* %0, i32 %1) #0 !dbg !1968 {
   %24 = phi i8* [ null, %18 ], [ %22, %19 ], !dbg !1997
   store i8* %24, i8** %8, align 4, !dbg !1994, !tbaa !657
   %25 = bitcast i64* %9 to i8*, !dbg !2001
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %25) #5, !dbg !2001
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %25) #19, !dbg !2001
   call void @llvm.dbg.declare(metadata i64* %9, metadata !1979, metadata !DIExpression()), !dbg !2002
   store i64 -3750763034362895579, i64* %9, align 8, !dbg !2002, !tbaa !1986
   br label %26, !dbg !2003
@@ -2524,7 +2524,7 @@ define i64 @aws_hash_array_ignore_case(i8* %0, i32 %1) #0 !dbg !1968 {
   br i1 %29, label %30, label %43, !dbg !2003
 
 30:                                               ; preds = %26
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %10) #5, !dbg !2007
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %10) #19, !dbg !2007
   call void @llvm.dbg.declare(metadata i8* %10, metadata !1980, metadata !DIExpression()), !dbg !2008
   %31 = load i8*, i8** %7, align 4, !dbg !2009, !tbaa !657
   %32 = getelementptr inbounds i8, i8* %31, i32 1, !dbg !2009
@@ -2542,21 +2542,21 @@ define i64 @aws_hash_array_ignore_case(i8* %0, i32 %1) #0 !dbg !1968 {
   %41 = load i64, i64* %9, align 8, !dbg !2014, !tbaa !1986
   %42 = mul i64 %41, 1099511628211, !dbg !2014
   store i64 %42, i64* %9, align 8, !dbg !2014, !tbaa !1986
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %10) #5, !dbg !2015
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %10) #19, !dbg !2015
   br label %26, !dbg !2003, !llvm.loop !2016
 
 43:                                               ; preds = %26
   %44 = load i64, i64* %9, align 8, !dbg !2017, !tbaa !1986
   %45 = bitcast i64* %9 to i8*, !dbg !2018
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %45) #5, !dbg !2018
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %45) #19, !dbg !2018
   %46 = bitcast i8** %8 to i8*, !dbg !2018
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %46) #5, !dbg !2018
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %46) #19, !dbg !2018
   %47 = bitcast i8** %7 to i8*, !dbg !2018
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #5, !dbg !2018
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #19, !dbg !2018
   %48 = bitcast i64* %6 to i8*, !dbg !2018
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %48) #5, !dbg !2018
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %48) #19, !dbg !2018
   %49 = bitcast i64* %5 to i8*, !dbg !2018
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %49) #5, !dbg !2018
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %49) #19, !dbg !2018
   ret i64 %44, !dbg !2019
 }
 
@@ -2568,13 +2568,13 @@ define i64 @aws_hash_byte_cursor_ptr_ignore_case(i8* %0) #0 !dbg !2020 {
   store i8* %0, i8** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %2, metadata !2022, metadata !DIExpression()), !dbg !2026
   %5 = bitcast %struct.aws_byte_cursor** %3 to i8*, !dbg !2027
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5, !dbg !2027
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #19, !dbg !2027
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !2023, metadata !DIExpression()), !dbg !2028
   %6 = load i8*, i8** %2, align 4, !dbg !2029, !tbaa !657
   %7 = bitcast i8* %6 to %struct.aws_byte_cursor*, !dbg !2029
   store %struct.aws_byte_cursor* %7, %struct.aws_byte_cursor** %3, align 4, !dbg !2028, !tbaa !657
   %8 = bitcast i64* %4 to i8*, !dbg !2030
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %8) #5, !dbg !2030
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %8) #19, !dbg !2030
   call void @llvm.dbg.declare(metadata i64* %4, metadata !2025, metadata !DIExpression()), !dbg !2031
   %9 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2032, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %9, i32 0, i32 1, !dbg !2033
@@ -2582,13 +2582,13 @@ define i64 @aws_hash_byte_cursor_ptr_ignore_case(i8* %0) #0 !dbg !2020 {
   %12 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2034, !tbaa !657
   %13 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %12, i32 0, i32 0, !dbg !2035
   %14 = load i32, i32* %13, align 4, !dbg !2035, !tbaa !822
-  %15 = call i64 @aws_hash_array_ignore_case(i8* %11, i32 %14) #14, !dbg !2036
+  %15 = call i64 @aws_hash_array_ignore_case(i8* %11, i32 %14) #17, !dbg !2036
   store i64 %15, i64* %4, align 8, !dbg !2031, !tbaa !1986
   %16 = load i64, i64* %4, align 8, !dbg !2037, !tbaa !1986
   %17 = bitcast i64* %4 to i8*, !dbg !2038
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %17) #5, !dbg !2038
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %17) #19, !dbg !2038
   %18 = bitcast %struct.aws_byte_cursor** %3 to i8*, !dbg !2038
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #5, !dbg !2038
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #19, !dbg !2038
   ret i64 %16, !dbg !2039
 }
 
@@ -2601,7 +2601,7 @@ define zeroext i1 @aws_byte_cursor_eq_byte_buf(%struct.aws_byte_cursor* %0, %str
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !2044, metadata !DIExpression()), !dbg !2047
   store %struct.aws_byte_buf* %1, %struct.aws_byte_buf** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %4, metadata !2045, metadata !DIExpression()), !dbg !2048
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !2049
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !2049
   call void @llvm.dbg.declare(metadata i8* %5, metadata !2046, metadata !DIExpression()), !dbg !2050
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2051, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !2052
@@ -2615,12 +2615,12 @@ define zeroext i1 @aws_byte_cursor_eq_byte_buf(%struct.aws_byte_cursor* %0, %str
   %15 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2057, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %15, i32 0, i32 0, !dbg !2058
   %17 = load i32, i32* %16, align 4, !dbg !2058, !tbaa !693
-  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !2059
+  %18 = call zeroext i1 @aws_array_eq(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !2059
   %19 = zext i1 %18 to i8, !dbg !2050
   store i8 %19, i8* %5, align 1, !dbg !2050, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !2060, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !2060
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !2061
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !2061
   ret i1 %21, !dbg !2062
 }
 
@@ -2633,7 +2633,7 @@ define zeroext i1 @aws_byte_cursor_eq_byte_buf_ignore_case(%struct.aws_byte_curs
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !2065, metadata !DIExpression()), !dbg !2068
   store %struct.aws_byte_buf* %1, %struct.aws_byte_buf** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %4, metadata !2066, metadata !DIExpression()), !dbg !2069
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !2070
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !2070
   call void @llvm.dbg.declare(metadata i8* %5, metadata !2067, metadata !DIExpression()), !dbg !2071
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2072, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !2073
@@ -2647,12 +2647,12 @@ define zeroext i1 @aws_byte_cursor_eq_byte_buf_ignore_case(%struct.aws_byte_curs
   %15 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2078, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %15, i32 0, i32 0, !dbg !2079
   %17 = load i32, i32* %16, align 4, !dbg !2079, !tbaa !693
-  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #14, !dbg !2080
+  %18 = call zeroext i1 @aws_array_eq_ignore_case(i8* %8, i32 %11, i8* %14, i32 %17) #17, !dbg !2080
   %19 = zext i1 %18 to i8, !dbg !2071
   store i8 %19, i8* %5, align 1, !dbg !2071, !tbaa !844
   %20 = load i8, i8* %5, align 1, !dbg !2081, !tbaa !844, !range !849
   %21 = trunc i8 %20 to i1, !dbg !2081
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !2082
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !2082
   ret i1 %21, !dbg !2083
 }
 
@@ -2665,7 +2665,7 @@ define zeroext i1 @aws_byte_cursor_eq_c_str(%struct.aws_byte_cursor* %0, i8* %1)
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !2088, metadata !DIExpression()), !dbg !2091
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !2089, metadata !DIExpression()), !dbg !2092
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !2093
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !2093
   call void @llvm.dbg.declare(metadata i8* %5, metadata !2090, metadata !DIExpression()), !dbg !2094
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2095, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !2096
@@ -2674,12 +2674,12 @@ define zeroext i1 @aws_byte_cursor_eq_c_str(%struct.aws_byte_cursor* %0, i8* %1)
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %9, i32 0, i32 0, !dbg !2098
   %11 = load i32, i32* %10, align 4, !dbg !2098, !tbaa !822
   %12 = load i8*, i8** %4, align 4, !dbg !2099, !tbaa !657
-  %13 = call zeroext i1 @aws_array_eq_c_str(i8* %8, i32 %11, i8* %12) #14, !dbg !2100
+  %13 = call zeroext i1 @aws_array_eq_c_str(i8* %8, i32 %11, i8* %12) #17, !dbg !2100
   %14 = zext i1 %13 to i8, !dbg !2094
   store i8 %14, i8* %5, align 1, !dbg !2094, !tbaa !844
   %15 = load i8, i8* %5, align 1, !dbg !2101, !tbaa !844, !range !849
   %16 = trunc i8 %15 to i1, !dbg !2101
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !2102
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !2102
   ret i1 %16, !dbg !2103
 }
 
@@ -2692,7 +2692,7 @@ define zeroext i1 @aws_byte_cursor_eq_c_str_ignore_case(%struct.aws_byte_cursor*
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !2106, metadata !DIExpression()), !dbg !2109
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !2107, metadata !DIExpression()), !dbg !2110
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !2111
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !2111
   call void @llvm.dbg.declare(metadata i8* %5, metadata !2108, metadata !DIExpression()), !dbg !2112
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2113, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %6, i32 0, i32 1, !dbg !2114
@@ -2701,12 +2701,12 @@ define zeroext i1 @aws_byte_cursor_eq_c_str_ignore_case(%struct.aws_byte_cursor*
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %9, i32 0, i32 0, !dbg !2116
   %11 = load i32, i32* %10, align 4, !dbg !2116, !tbaa !822
   %12 = load i8*, i8** %4, align 4, !dbg !2117, !tbaa !657
-  %13 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %8, i32 %11, i8* %12) #14, !dbg !2118
+  %13 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %8, i32 %11, i8* %12) #17, !dbg !2118
   %14 = zext i1 %13 to i8, !dbg !2112
   store i8 %14, i8* %5, align 1, !dbg !2112, !tbaa !844
   %15 = load i8, i8* %5, align 1, !dbg !2119, !tbaa !844, !range !849
   %16 = trunc i8 %15 to i1, !dbg !2119
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !2120
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !2120
   ret i1 %16, !dbg !2121
 }
 
@@ -2737,13 +2737,13 @@ define i32 @aws_byte_buf_append_with_lookup(%struct.aws_byte_buf* noalias %0, %s
   br i1 %19, label %20, label %22, !dbg !2144
 
 20:                                               ; preds = %3
-  %21 = call i32 @aws_raise_error(i32 26) #14, !dbg !2145
+  %21 = call i32 @aws_raise_error(i32 26) #17, !dbg !2145
   store i32 %21, i32* %4, align 4, !dbg !2147
   br label %68, !dbg !2147
 
 22:                                               ; preds = %3
   %23 = bitcast i32* %8 to i8*, !dbg !2148
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #5, !dbg !2148
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #19, !dbg !2148
   call void @llvm.dbg.declare(metadata i32* %8, metadata !2130, metadata !DIExpression()), !dbg !2149
   store i32 0, i32* %8, align 4, !dbg !2149, !tbaa !663
   br label %24, !dbg !2148
@@ -2758,7 +2758,7 @@ define i32 @aws_byte_buf_append_with_lookup(%struct.aws_byte_buf* noalias %0, %s
 
 30:                                               ; preds = %24
   %31 = bitcast i32* %8 to i8*, !dbg !2156
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %31) #5, !dbg !2156
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %31) #19, !dbg !2156
   br label %55
 
 32:                                               ; preds = %24
@@ -2799,7 +2799,7 @@ define i32 @aws_byte_buf_append_with_lookup(%struct.aws_byte_buf* noalias %0, %s
   %61 = load i32, i32* %60, align 4, !dbg !2177, !tbaa !822
   %62 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2178, !tbaa !657
   %63 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %62, i32 0, i32 0, !dbg !2179
-  %64 = call i32 @aws_add_size_checked(i32 %58, i32 %61, i32* %63) #14, !dbg !2180
+  %64 = call i32 @aws_add_size_checked(i32 %58, i32 %61, i32* %63) #17, !dbg !2180
   %65 = icmp ne i32 %64, 0, !dbg !2180
   br i1 %65, label %66, label %67, !dbg !2181
 
@@ -2826,7 +2826,7 @@ define i32 @aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %struct.aws_by
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %4, metadata !2189, metadata !DIExpression()), !dbg !2191
   %5 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !2192, !tbaa !657
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2193, !tbaa !657
-  %7 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %5, %struct.aws_byte_cursor* %6, i1 zeroext false) #14, !dbg !2194
+  %7 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %5, %struct.aws_byte_cursor* %6, i1 zeroext false) #17, !dbg !2194
   ret i32 %7, !dbg !2195
 }
 
@@ -2859,7 +2859,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   br i1 %19, label %22, label %20, !dbg !2217
 
 20:                                               ; preds = %15
-  %21 = call i32 @aws_raise_error(i32 34) #14, !dbg !2218
+  %21 = call i32 @aws_raise_error(i32 34) #17, !dbg !2218
   store i32 %21, i32* %4, align 4, !dbg !2218
   br label %207, !dbg !2218
 
@@ -2882,7 +2882,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
 
 35:                                               ; preds = %23
   %36 = bitcast i32* %8 to i8*, !dbg !2229
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %36) #5, !dbg !2229
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %36) #19, !dbg !2229
   call void @llvm.dbg.declare(metadata i32* %8, metadata !2203, metadata !DIExpression()), !dbg !2230
   %37 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !2231, !tbaa !657
   %38 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %37, i32 0, i32 0, !dbg !2232
@@ -2897,14 +2897,14 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %47 = sub i32 %39, %46, !dbg !2238
   store i32 %47, i32* %8, align 4, !dbg !2230, !tbaa !663
   %48 = bitcast i32* %9 to i8*, !dbg !2239
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %48) #5, !dbg !2239
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %48) #19, !dbg !2239
   call void @llvm.dbg.declare(metadata i32* %9, metadata !2206, metadata !DIExpression()), !dbg !2240
   store i32 0, i32* %9, align 4, !dbg !2240, !tbaa !663
   %49 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2241, !tbaa !657
   %50 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %49, i32 0, i32 2, !dbg !2243
   %51 = load i32, i32* %50, align 4, !dbg !2243, !tbaa !698
   %52 = load i32, i32* %8, align 4, !dbg !2244, !tbaa !663
-  %53 = call i32 @aws_add_size_checked(i32 %51, i32 %52, i32* %9) #14, !dbg !2245
+  %53 = call i32 @aws_add_size_checked(i32 %51, i32 %52, i32* %9) #17, !dbg !2245
   %54 = icmp ne i32 %53, 0, !dbg !2245
   br i1 %54, label %55, label %56, !dbg !2246
 
@@ -2915,7 +2915,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
 
 56:                                               ; preds = %35
   %57 = bitcast i32* %11 to i8*, !dbg !2249
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %57) #5, !dbg !2249
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %57) #19, !dbg !2249
   call void @llvm.dbg.declare(metadata i32* %11, metadata !2207, metadata !DIExpression()), !dbg !2250
   %58 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2251, !tbaa !657
   %59 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %58, i32 0, i32 2, !dbg !2252
@@ -2923,10 +2923,10 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %61 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2253, !tbaa !657
   %62 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %61, i32 0, i32 2, !dbg !2254
   %63 = load i32, i32* %62, align 4, !dbg !2254, !tbaa !698
-  %64 = call i32 @aws_add_size_saturating(i32 %60, i32 %63) #14, !dbg !2255
+  %64 = call i32 @aws_add_size_saturating(i32 %60, i32 %63) #17, !dbg !2255
   store i32 %64, i32* %11, align 4, !dbg !2250, !tbaa !663
   %65 = bitcast i32* %12 to i8*, !dbg !2256
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %65) #5, !dbg !2256
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %65) #19, !dbg !2256
   call void @llvm.dbg.declare(metadata i32* %12, metadata !2208, metadata !DIExpression()), !dbg !2257
   %66 = load i32, i32* %9, align 4, !dbg !2258, !tbaa !663
   store i32 %66, i32* %12, align 4, !dbg !2257, !tbaa !663
@@ -2942,13 +2942,13 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
 
 72:                                               ; preds = %70, %56
   %73 = bitcast i8** %13 to i8*, !dbg !2268
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %73) #5, !dbg !2268
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %73) #19, !dbg !2268
   call void @llvm.dbg.declare(metadata i8** %13, metadata !2209, metadata !DIExpression()), !dbg !2269
   %74 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2270, !tbaa !657
   %75 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %74, i32 0, i32 3, !dbg !2271
   %76 = load %struct.aws_allocator*, %struct.aws_allocator** %75, align 4, !dbg !2271, !tbaa !703
   %77 = load i32, i32* %12, align 4, !dbg !2272, !tbaa !663
-  %78 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %76, i32 %77) #14, !dbg !2273
+  %78 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %76, i32 %77) #17, !dbg !2273
   store i8* %78, i8** %13, align 4, !dbg !2269, !tbaa !657
   %79 = load i8*, i8** %13, align 4, !dbg !2274, !tbaa !657
   %80 = icmp eq i8* %79, null, !dbg !2276
@@ -2967,7 +2967,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %88 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %87, i32 0, i32 3, !dbg !2288
   %89 = load %struct.aws_allocator*, %struct.aws_allocator** %88, align 4, !dbg !2288, !tbaa !703
   %90 = load i32, i32* %12, align 4, !dbg !2289, !tbaa !663
-  %91 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %89, i32 %90) #14, !dbg !2290
+  %91 = call i8* bitcast (i8* (%struct.aws_allocator.13*, i32)* @aws_mem_acquire to i8* (%struct.aws_allocator*, i32)*)(%struct.aws_allocator* %89, i32 %90) #17, !dbg !2290
   store i8* %91, i8** %13, align 4, !dbg !2291, !tbaa !657
   %92 = load i8*, i8** %13, align 4, !dbg !2292, !tbaa !657
   %93 = icmp eq i8* %92, null, !dbg !2294
@@ -3006,7 +3006,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %110 = load i32, i32* %109, align 4, !dbg !2307, !tbaa !693
   %111 = load i8*, i8** %13, align 4, !dbg !2307, !tbaa !657
   %112 = call i32 @llvm.objectsize.i32.p0i8(i8* %111, i1 false, i1 true, i1 false), !dbg !2307
-  %113 = call i8* @__memcpy_chk(i8* %104, i8* %107, i32 %110, i32 %112) #15, !dbg !2307
+  %113 = call i8* @__memcpy_chk(i8* %104, i8* %107, i32 %110, i32 %112) #18, !dbg !2307
   br label %114, !dbg !2309
 
 114:                                              ; preds = %103, %98
@@ -3034,7 +3034,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %134 = load i32, i32* %133, align 4, !dbg !2315, !tbaa !693
   %135 = getelementptr inbounds i8, i8* %131, i32 %134, !dbg !2315
   %136 = call i32 @llvm.objectsize.i32.p0i8(i8* %135, i1 false, i1 true, i1 false), !dbg !2315
-  %137 = call i8* @__memcpy_chk(i8* %124, i8* %127, i32 %130, i32 %136) #15, !dbg !2315
+  %137 = call i8* @__memcpy_chk(i8* %124, i8* %127, i32 %130, i32 %136) #18, !dbg !2315
   br label %138, !dbg !2317
 
 138:                                              ; preds = %119, %114
@@ -3049,7 +3049,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %145 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2324, !tbaa !657
   %146 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %145, i32 0, i32 2, !dbg !2325
   %147 = load i32, i32* %146, align 4, !dbg !2325, !tbaa !698
-  call void @aws_secure_zero(i8* %144, i32 %147) #14, !dbg !2326
+  call void @aws_secure_zero(i8* %144, i32 %147) #17, !dbg !2326
   br label %148, !dbg !2327
 
 148:                                              ; preds = %141, %138
@@ -3059,7 +3059,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %152 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2330, !tbaa !657
   %153 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %152, i32 0, i32 1, !dbg !2331
   %154 = load i8*, i8** %153, align 4, !dbg !2331, !tbaa !675
-  call void bitcast (void (%struct.aws_allocator.13*, i8*)* @aws_mem_release to void (%struct.aws_allocator*, i8*)*)(%struct.aws_allocator* %151, i8* %154) #14, !dbg !2332
+  call void bitcast (void (%struct.aws_allocator.13*, i8*)* @aws_mem_release to void (%struct.aws_allocator*, i8*)*)(%struct.aws_allocator* %151, i8* %154) #17, !dbg !2332
   %155 = load i8*, i8** %13, align 4, !dbg !2333, !tbaa !657
   %156 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !2334, !tbaa !657
   %157 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %156, i32 0, i32 1, !dbg !2335
@@ -3073,18 +3073,18 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
 
 161:                                              ; preds = %148, %96, %94
   %162 = bitcast i8** %13 to i8*, !dbg !2341
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %162) #5, !dbg !2341
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %162) #19, !dbg !2341
   %163 = bitcast i32* %12 to i8*, !dbg !2341
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %163) #5, !dbg !2341
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %163) #19, !dbg !2341
   %164 = bitcast i32* %11 to i8*, !dbg !2341
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %164) #5, !dbg !2341
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %164) #19, !dbg !2341
   br label %165
 
 165:                                              ; preds = %161, %55
   %166 = bitcast i32* %9 to i8*, !dbg !2341
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %166) #5, !dbg !2341
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %166) #19, !dbg !2341
   %167 = bitcast i32* %8 to i8*, !dbg !2341
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %167) #5, !dbg !2341
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %167) #19, !dbg !2341
   %168 = load i32, i32* %10, align 4
   switch i32 %168, label %209 [
     i32 0, label %169
@@ -3123,7 +3123,7 @@ define internal i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %0, %st
   %194 = load i32, i32* %193, align 4, !dbg !2349, !tbaa !693
   %195 = getelementptr inbounds i8, i8* %191, i32 %194, !dbg !2349
   %196 = call i32 @llvm.objectsize.i32.p0i8(i8* %195, i1 false, i1 true, i1 false), !dbg !2349
-  %197 = call i8* @__memcpy_chk(i8* %182, i8* %185, i32 %188, i32 %196) #15, !dbg !2349
+  %197 = call i8* @__memcpy_chk(i8* %182, i8* %185, i32 %188, i32 %196) #18, !dbg !2349
   br label %198, !dbg !2351
 
 198:                                              ; preds = %175, %170
@@ -3159,7 +3159,7 @@ define internal i32 @aws_add_size_saturating(i32 %0, i32 %1) #2 !dbg !2359 {
   call void @llvm.dbg.declare(metadata i32* %4, metadata !2364, metadata !DIExpression()), !dbg !2366
   %5 = load i32, i32* %3, align 4, !dbg !2367, !tbaa !663
   %6 = load i32, i32* %4, align 4, !dbg !2368, !tbaa !663
-  %7 = call i32 @aws_add_u32_saturating(i32 %5, i32 %6) #14, !dbg !2369
+  %7 = call i32 @aws_add_u32_saturating(i32 %5, i32 %6) #17, !dbg !2369
   ret i32 %7, !dbg !2370
 }
 
@@ -3173,7 +3173,7 @@ define internal i32 @aws_add_u32_saturating(i32 %0, i32 %1) #2 !dbg !2371 {
   store i32 %1, i32* %4, align 4, !tbaa !805
   call void @llvm.dbg.declare(metadata i32* %4, metadata !2376, metadata !DIExpression()), !dbg !2379
   %6 = bitcast i32* %5 to i8*, !dbg !2380
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5, !dbg !2380
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #19, !dbg !2380
   call void @llvm.dbg.declare(metadata i32* %5, metadata !2377, metadata !DIExpression()), !dbg !2381
   %7 = load i32, i32* %3, align 4, !dbg !2382, !tbaa !805
   %8 = load i32, i32* %4, align 4, !dbg !2384, !tbaa !805
@@ -3190,7 +3190,7 @@ define internal i32 @aws_add_u32_saturating(i32 %0, i32 %1) #2 !dbg !2371 {
 13:                                               ; preds = %12, %2
   %14 = load i32, i32* %5, align 4, !dbg !2390, !tbaa !805
   %15 = bitcast i32* %5 to i8*, !dbg !2391
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %15) #5, !dbg !2391
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %15) #19, !dbg !2391
   ret i32 %14, !dbg !2392
 }
 
@@ -3204,7 +3204,7 @@ define i32 @aws_byte_buf_append_dynamic_secure(%struct.aws_byte_buf* %0, %struct
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %4, metadata !2396, metadata !DIExpression()), !dbg !2398
   %5 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !2399, !tbaa !657
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2400, !tbaa !657
-  %7 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %5, %struct.aws_byte_cursor* %6, i1 zeroext true) #14, !dbg !2401
+  %7 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %5, %struct.aws_byte_cursor* %6, i1 zeroext true) #17, !dbg !2401
   ret i32 %7, !dbg !2402
 }
 
@@ -3218,7 +3218,7 @@ define i32 @aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %0, i8 zeroex
   call void @llvm.dbg.declare(metadata i8* %4, metadata !2408, metadata !DIExpression()), !dbg !2410
   %5 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !2411, !tbaa !657
   %6 = load i8, i8* %4, align 1, !dbg !2412, !tbaa !1034
-  %7 = call i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %5, i8 zeroext %6, i1 zeroext false) #14, !dbg !2413
+  %7 = call i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %5, i8 zeroext %6, i1 zeroext false) #17, !dbg !2413
   ret i32 %7, !dbg !2414
 }
 
@@ -3236,7 +3236,7 @@ define internal i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %0
   store i8 %8, i8* %6, align 1, !tbaa !844
   call void @llvm.dbg.declare(metadata i8* %6, metadata !2421, metadata !DIExpression()), !dbg !2425
   %9 = bitcast %struct.aws_byte_cursor* %7 to i8*, !dbg !2426
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %9) #5, !dbg !2426
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %9) #19, !dbg !2426
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %7, metadata !2422, metadata !DIExpression()), !dbg !2427
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %7, i32 0, i32 0, !dbg !2428
   store i32 1, i32* %10, align 4, !dbg !2428, !tbaa !822
@@ -3245,9 +3245,9 @@ define internal i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %0
   %12 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2429, !tbaa !657
   %13 = load i8, i8* %6, align 1, !dbg !2430, !tbaa !844, !range !849
   %14 = trunc i8 %13 to i1, !dbg !2430
-  %15 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %12, %struct.aws_byte_cursor* %7, i1 zeroext %14) #14, !dbg !2431
+  %15 = call i32 @s_aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %12, %struct.aws_byte_cursor* %7, i1 zeroext %14) #17, !dbg !2431
   %16 = bitcast %struct.aws_byte_cursor* %7 to i8*, !dbg !2432
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %16) #5, !dbg !2432
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %16) #19, !dbg !2432
   ret i32 %15, !dbg !2433
 }
 
@@ -3261,7 +3261,7 @@ define i32 @aws_byte_buf_append_byte_dynamic_secure(%struct.aws_byte_buf* %0, i8
   call void @llvm.dbg.declare(metadata i8* %4, metadata !2437, metadata !DIExpression()), !dbg !2439
   %5 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !2440, !tbaa !657
   %6 = load i8, i8* %4, align 1, !dbg !2441, !tbaa !1034
-  %7 = call i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %5, i8 zeroext %6, i1 zeroext true) #14, !dbg !2442
+  %7 = call i32 @s_aws_byte_buf_append_byte_dynamic(%struct.aws_byte_buf* %5, i8 zeroext %6, i1 zeroext true) #17, !dbg !2442
   ret i32 %7, !dbg !2443
 }
 
@@ -3284,7 +3284,7 @@ define i32 @aws_byte_buf_reserve(%struct.aws_byte_buf* %0, i32 %1) #0 !dbg !2444
   br i1 %10, label %13, label %11, !dbg !2456
 
 11:                                               ; preds = %6
-  %12 = call i32 @aws_raise_error(i32 34) #14, !dbg !2457
+  %12 = call i32 @aws_raise_error(i32 34) #17, !dbg !2457
   store i32 %12, i32* %3, align 4, !dbg !2457
   br label %45, !dbg !2457
 
@@ -3296,11 +3296,11 @@ define i32 @aws_byte_buf_reserve(%struct.aws_byte_buf* %0, i32 %1) #0 !dbg !2444
 
 15:                                               ; preds = %14
   %16 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2460, !tbaa !657
-  %17 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %16) #14, !dbg !2460
+  %17 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %16) #17, !dbg !2460
   br i1 %17, label %20, label %18, !dbg !2463
 
 18:                                               ; preds = %15
-  %19 = call i32 @aws_raise_error(i32 34) #14, !dbg !2464
+  %19 = call i32 @aws_raise_error(i32 34) #17, !dbg !2464
   store i32 %19, i32* %3, align 4, !dbg !2464
   br label %45, !dbg !2464
 
@@ -3329,7 +3329,7 @@ define i32 @aws_byte_buf_reserve(%struct.aws_byte_buf* %0, i32 %1) #0 !dbg !2444
   %35 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %34, i32 0, i32 2, !dbg !2480
   %36 = load i32, i32* %35, align 4, !dbg !2480, !tbaa !698
   %37 = load i32, i32* %5, align 4, !dbg !2481, !tbaa !663
-  %38 = call i32 bitcast (i32 (%struct.aws_allocator.13*, i8**, i32, i32)* @aws_mem_realloc to i32 (%struct.aws_allocator*, i8**, i32, i32)*)(%struct.aws_allocator* %31, i8** %33, i32 %36, i32 %37) #14, !dbg !2482
+  %38 = call i32 bitcast (i32 (%struct.aws_allocator.13*, i8**, i32, i32)* @aws_mem_realloc to i32 (%struct.aws_allocator*, i8**, i32, i32)*)(%struct.aws_allocator* %31, i8** %33, i32 %36, i32 %37) #17, !dbg !2482
   %39 = icmp ne i32 %38, 0, !dbg !2482
   br i1 %39, label %40, label %41, !dbg !2483
 
@@ -3371,7 +3371,7 @@ define i32 @aws_byte_buf_reserve_relative(%struct.aws_byte_buf* %0, i32 %1) #0 !
   br i1 %12, label %15, label %13, !dbg !2503
 
 13:                                               ; preds = %8
-  %14 = call i32 @aws_raise_error(i32 34) #14, !dbg !2504
+  %14 = call i32 @aws_raise_error(i32 34) #17, !dbg !2504
   store i32 %14, i32* %3, align 4, !dbg !2504
   br label %43, !dbg !2504
 
@@ -3383,11 +3383,11 @@ define i32 @aws_byte_buf_reserve_relative(%struct.aws_byte_buf* %0, i32 %1) #0 !
 
 17:                                               ; preds = %16
   %18 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2507, !tbaa !657
-  %19 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %18) #14, !dbg !2507
+  %19 = call zeroext i1 @aws_byte_buf_is_valid(%struct.aws_byte_buf* %18) #17, !dbg !2507
   br i1 %19, label %22, label %20, !dbg !2510
 
 20:                                               ; preds = %17
-  %21 = call i32 @aws_raise_error(i32 34) #14, !dbg !2511
+  %21 = call i32 @aws_raise_error(i32 34) #17, !dbg !2511
   store i32 %21, i32* %3, align 4, !dbg !2511
   br label %43, !dbg !2511
 
@@ -3396,14 +3396,14 @@ define i32 @aws_byte_buf_reserve_relative(%struct.aws_byte_buf* %0, i32 %1) #0 !
 
 23:                                               ; preds = %22
   %24 = bitcast i32* %6 to i8*, !dbg !2513
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #5, !dbg !2513
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #19, !dbg !2513
   call void @llvm.dbg.declare(metadata i32* %6, metadata !2496, metadata !DIExpression()), !dbg !2514
   store i32 0, i32* %6, align 4, !dbg !2514, !tbaa !663
   %25 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2515, !tbaa !657
   %26 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %25, i32 0, i32 0, !dbg !2515
   %27 = load i32, i32* %26, align 4, !dbg !2515, !tbaa !693
   %28 = load i32, i32* %5, align 4, !dbg !2515, !tbaa !663
-  %29 = call i32 @aws_add_size_checked(i32 %27, i32 %28, i32* %6) #14, !dbg !2515
+  %29 = call i32 @aws_add_size_checked(i32 %27, i32 %28, i32* %6) #17, !dbg !2515
   %30 = icmp ne i32 %29, 0, !dbg !2515
   %31 = xor i1 %30, true, !dbg !2515
   %32 = xor i1 %31, true, !dbg !2515
@@ -3420,14 +3420,14 @@ define i32 @aws_byte_buf_reserve_relative(%struct.aws_byte_buf* %0, i32 %1) #0 !
 37:                                               ; preds = %23
   %38 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !2520, !tbaa !657
   %39 = load i32, i32* %6, align 4, !dbg !2521, !tbaa !663
-  %40 = call i32 @aws_byte_buf_reserve(%struct.aws_byte_buf* %38, i32 %39) #14, !dbg !2522
+  %40 = call i32 @aws_byte_buf_reserve(%struct.aws_byte_buf* %38, i32 %39) #17, !dbg !2522
   store i32 %40, i32* %3, align 4, !dbg !2523
   store i32 1, i32* %7, align 4
   br label %41, !dbg !2523
 
 41:                                               ; preds = %37, %36
   %42 = bitcast i32* %6 to i8*, !dbg !2524
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #5, !dbg !2524
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #19, !dbg !2524
   br label %43
 
 43:                                               ; preds = %41, %20, %13
@@ -3436,7 +3436,7 @@ define i32 @aws_byte_buf_reserve_relative(%struct.aws_byte_buf* %0, i32 %1) #0 !
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_right_trim_pred(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2525 {
+define void @aws_byte_cursor_right_trim_pred(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2525 {
   %4 = alloca %struct.aws_byte_cursor*, align 4
   %5 = alloca i1 (i8)*, align 4
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %4, align 4, !tbaa !657
@@ -3484,7 +3484,7 @@ define void @aws_byte_cursor_right_trim_pred(%struct.aws_byte_cursor* noalias sr
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2558 {
+define void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2558 {
   %4 = alloca %struct.aws_byte_cursor*, align 4
   %5 = alloca i1 (i8)*, align 4
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %4, align 4, !tbaa !657
@@ -3532,7 +3532,7 @@ define void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* noalias sre
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_trim_pred(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2584 {
+define void @aws_byte_cursor_trim_pred(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %1, i1 (i8)* %2) #0 !dbg !2584 {
   %4 = alloca %struct.aws_byte_cursor*, align 4
   %5 = alloca i1 (i8)*, align 4
   %6 = alloca %struct.aws_byte_cursor, align 4
@@ -3541,16 +3541,16 @@ define void @aws_byte_cursor_trim_pred(%struct.aws_byte_cursor* noalias sret %0,
   store i1 (i8)* %2, i1 (i8)** %5, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i1 (i8)** %5, metadata !2587, metadata !DIExpression()), !dbg !2591
   %7 = bitcast %struct.aws_byte_cursor* %6 to i8*, !dbg !2592
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %7) #5, !dbg !2592
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %7) #19, !dbg !2592
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %6, metadata !2588, metadata !DIExpression()), !dbg !2593
   %8 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2594, !tbaa !657
   %9 = load i1 (i8)*, i1 (i8)** %5, align 4, !dbg !2595, !tbaa !657
-  call void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* sret %6, %struct.aws_byte_cursor* %8, i1 (i8)* %9) #14, !dbg !2596
+  call void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %6, %struct.aws_byte_cursor* %8, i1 (i8)* %9) #17, !dbg !2596
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %0, metadata !2589, metadata !DIExpression()), !dbg !2597
   %10 = load i1 (i8)*, i1 (i8)** %5, align 4, !dbg !2598, !tbaa !657
-  call void @aws_byte_cursor_right_trim_pred(%struct.aws_byte_cursor* sret %0, %struct.aws_byte_cursor* %6, i1 (i8)* %10) #14, !dbg !2599
+  call void @aws_byte_cursor_right_trim_pred(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %6, i1 (i8)* %10) #17, !dbg !2599
   %11 = bitcast %struct.aws_byte_cursor* %6 to i8*, !dbg !2600
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #5, !dbg !2600
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %11) #19, !dbg !2600
   ret void, !dbg !2600
 }
 
@@ -3565,12 +3565,12 @@ define zeroext i1 @aws_byte_cursor_satisfies_pred(%struct.aws_byte_cursor* %0, i
   store i1 (i8)* %1, i1 (i8)** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i1 (i8)** %4, metadata !2606, metadata !DIExpression()), !dbg !2610
   %7 = bitcast %struct.aws_byte_cursor* %5 to i8*, !dbg !2611
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %7) #5, !dbg !2611
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %7) #19, !dbg !2611
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %5, metadata !2607, metadata !DIExpression()), !dbg !2612
   %8 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !2613, !tbaa !657
   %9 = load i1 (i8)*, i1 (i8)** %4, align 4, !dbg !2614, !tbaa !657
-  call void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* sret %5, %struct.aws_byte_cursor* %8, i1 (i8)* %9) #14, !dbg !2615
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !2616
+  call void @aws_byte_cursor_left_trim_pred(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %5, %struct.aws_byte_cursor* %8, i1 (i8)* %9) #17, !dbg !2615
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !2616
   call void @llvm.dbg.declare(metadata i8* %6, metadata !2608, metadata !DIExpression()), !dbg !2617
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %5, i32 0, i32 0, !dbg !2618
   %11 = load i32, i32* %10, align 4, !dbg !2618, !tbaa !822
@@ -3579,9 +3579,9 @@ define zeroext i1 @aws_byte_cursor_satisfies_pred(%struct.aws_byte_cursor* %0, i
   store i8 %13, i8* %6, align 1, !dbg !2617, !tbaa !844
   %14 = load i8, i8* %6, align 1, !dbg !2620, !tbaa !844, !range !849
   %15 = trunc i8 %14 to i1, !dbg !2620
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !2621
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !2621
   %16 = bitcast %struct.aws_byte_cursor* %5 to i8*, !dbg !2621
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %16) #5, !dbg !2621
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %16) #19, !dbg !2621
   ret i1 %15, !dbg !2622
 }
 
@@ -3598,7 +3598,7 @@ define i32 @aws_byte_cursor_compare_lexical(%struct.aws_byte_cursor* %0, %struct
   store %struct.aws_byte_cursor* %1, %struct.aws_byte_cursor** %5, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %5, metadata !2628, metadata !DIExpression()), !dbg !2632
   %9 = bitcast i32* %6 to i8*, !dbg !2633
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %9) #5, !dbg !2633
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %9) #19, !dbg !2633
   call void @llvm.dbg.declare(metadata i32* %6, metadata !2629, metadata !DIExpression()), !dbg !2634
   %10 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2635, !tbaa !657
   %11 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %10, i32 0, i32 0, !dbg !2636
@@ -3620,7 +3620,7 @@ define i32 @aws_byte_cursor_compare_lexical(%struct.aws_byte_cursor* %0, %struct
 
 22:                                               ; preds = %18, %2
   %23 = bitcast i32* %7 to i8*, !dbg !2648
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #5, !dbg !2648
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #19, !dbg !2648
   call void @llvm.dbg.declare(metadata i32* %7, metadata !2630, metadata !DIExpression()), !dbg !2649
   %24 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2650, !tbaa !657
   %25 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %24, i32 0, i32 1, !dbg !2651
@@ -3629,7 +3629,7 @@ define i32 @aws_byte_cursor_compare_lexical(%struct.aws_byte_cursor* %0, %struct
   %28 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %27, i32 0, i32 1, !dbg !2653
   %29 = load i8*, i8** %28, align 4, !dbg !2653, !tbaa !832
   %30 = load i32, i32* %6, align 4, !dbg !2654, !tbaa !663
-  %31 = call i32 @memcmp(i8* %26, i8* %29, i32 %30) #14, !dbg !2655
+  %31 = call i32 @memcmp(i8* %26, i8* %29, i32 %30) #17, !dbg !2655
   store i32 %31, i32* %7, align 4, !dbg !2649, !tbaa !805
   %32 = load i32, i32* %7, align 4, !dbg !2656, !tbaa !805
   %33 = icmp ne i32 %32, 0, !dbg !2658
@@ -3670,9 +3670,9 @@ define i32 @aws_byte_cursor_compare_lexical(%struct.aws_byte_cursor* %0, %struct
 
 53:                                               ; preds = %52, %44, %34
   %54 = bitcast i32* %7 to i8*, !dbg !2677
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %54) #5, !dbg !2677
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %54) #19, !dbg !2677
   %55 = bitcast i32* %6 to i8*, !dbg !2677
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %55) #5, !dbg !2677
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %55) #19, !dbg !2677
   %56 = load i32, i32* %3, align 4, !dbg !2677
   ret i32 %56, !dbg !2677
 }
@@ -3743,14 +3743,14 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
 
 39:                                               ; preds = %38
   %40 = bitcast i8** %8 to i8*, !dbg !2720
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %40) #5, !dbg !2720
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %40) #19, !dbg !2720
   call void @llvm.dbg.declare(metadata i8** %8, metadata !2685, metadata !DIExpression()), !dbg !2721
   %41 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !2722, !tbaa !657
   %42 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %41, i32 0, i32 1, !dbg !2723
   %43 = load i8*, i8** %42, align 4, !dbg !2723, !tbaa !832
   store i8* %43, i8** %8, align 4, !dbg !2721, !tbaa !657
   %44 = bitcast i8** %9 to i8*, !dbg !2724
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %44) #5, !dbg !2724
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %44) #19, !dbg !2724
   call void @llvm.dbg.declare(metadata i8** %9, metadata !2686, metadata !DIExpression()), !dbg !2725
   %45 = load i8*, i8** %8, align 4, !dbg !2726, !tbaa !657
   %46 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !2727, !tbaa !657
@@ -3759,14 +3759,14 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
   %49 = getelementptr inbounds i8, i8* %45, i32 %48, !dbg !2729
   store i8* %49, i8** %9, align 4, !dbg !2725, !tbaa !657
   %50 = bitcast i8** %10 to i8*, !dbg !2730
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %50) #5, !dbg !2730
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %50) #19, !dbg !2730
   call void @llvm.dbg.declare(metadata i8** %10, metadata !2687, metadata !DIExpression()), !dbg !2731
   %51 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !2732, !tbaa !657
   %52 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %51, i32 0, i32 1, !dbg !2733
   %53 = load i8*, i8** %52, align 4, !dbg !2733, !tbaa !832
   store i8* %53, i8** %10, align 4, !dbg !2731, !tbaa !657
   %54 = bitcast i8** %11 to i8*, !dbg !2734
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %54) #5, !dbg !2734
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %54) #19, !dbg !2734
   call void @llvm.dbg.declare(metadata i8** %11, metadata !2688, metadata !DIExpression()), !dbg !2735
   %55 = load i8*, i8** %10, align 4, !dbg !2736, !tbaa !657
   %56 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %6, align 4, !dbg !2737, !tbaa !657
@@ -3793,7 +3793,7 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
   br i1 %69, label %70, label %104, !dbg !2740
 
 70:                                               ; preds = %68
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #5, !dbg !2749
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %12) #19, !dbg !2749
   call void @llvm.dbg.declare(metadata i8* %12, metadata !2689, metadata !DIExpression()), !dbg !2750
   %71 = load i8*, i8** %7, align 4, !dbg !2751, !tbaa !657
   %72 = load i8*, i8** %8, align 4, !dbg !2752, !tbaa !657
@@ -3802,7 +3802,7 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
   %75 = getelementptr inbounds i8, i8* %71, i32 %74, !dbg !2751
   %76 = load i8, i8* %75, align 1, !dbg !2751, !tbaa !1034
   store i8 %76, i8* %12, align 1, !dbg !2750, !tbaa !1034
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %13) #5, !dbg !2754
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %13) #19, !dbg !2754
   call void @llvm.dbg.declare(metadata i8* %13, metadata !2691, metadata !DIExpression()), !dbg !2755
   %77 = load i8*, i8** %7, align 4, !dbg !2756, !tbaa !657
   %78 = load i8*, i8** %10, align 4, !dbg !2757, !tbaa !657
@@ -3847,8 +3847,8 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
   br label %101, !dbg !2775
 
 101:                                              ; preds = %96, %95, %88
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %13) #5, !dbg !2775
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #5, !dbg !2775
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %13) #19, !dbg !2775
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #19, !dbg !2775
   %102 = load i32, i32* %14, align 4
   switch i32 %102, label %115 [
     i32 0, label %103
@@ -3886,13 +3886,13 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
 
 115:                                              ; preds = %114, %113, %108, %101
   %116 = bitcast i8** %11 to i8*, !dbg !2792
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %116) #5, !dbg !2792
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %116) #19, !dbg !2792
   %117 = bitcast i8** %10 to i8*, !dbg !2792
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %117) #5, !dbg !2792
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %117) #19, !dbg !2792
   %118 = bitcast i8** %9 to i8*, !dbg !2792
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %118) #5, !dbg !2792
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %118) #19, !dbg !2792
   %119 = bitcast i8** %8 to i8*, !dbg !2792
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %119) #5, !dbg !2792
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %119) #19, !dbg !2792
   br label %120
 
 120:                                              ; preds = %115, %36, %30, %24
@@ -3901,7 +3901,7 @@ define i32 @aws_byte_cursor_compare_lookup(%struct.aws_byte_cursor* %0, %struct.
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_buf_from_c_str(%struct.aws_byte_buf* noalias sret %0, i8* %1) #0 !dbg !2793 {
+define void @aws_byte_buf_from_c_str(%struct.aws_byte_buf* noalias sret(%struct.aws_byte_buf) %0, i8* %1) #0 !dbg !2793 {
   %3 = alloca i8*, align 4
   store i8* %1, i8** %3, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %3, metadata !2797, metadata !DIExpression()), !dbg !2799
@@ -3915,7 +3915,7 @@ define void @aws_byte_buf_from_c_str(%struct.aws_byte_buf* noalias sret %0, i8* 
 
 7:                                                ; preds = %2
   %8 = load i8*, i8** %3, align 4, !dbg !2803, !tbaa !657
-  %9 = call i32 @strlen(i8* %8) #14, !dbg !2804
+  %9 = call i32 @strlen(i8* %8) #17, !dbg !2804
   br label %10, !dbg !2802
 
 10:                                               ; preds = %7, %6
@@ -3948,7 +3948,7 @@ define void @aws_byte_buf_from_c_str(%struct.aws_byte_buf* noalias sret %0, i8* 
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_buf_from_array(%struct.aws_byte_buf* noalias sret %0, i8* %1, i32 %2) #0 !dbg !2819 {
+define void @aws_byte_buf_from_array(%struct.aws_byte_buf* noalias sret(%struct.aws_byte_buf) %0, i8* %1, i32 %2) #0 !dbg !2819 {
   %4 = alloca i8*, align 4
   %5 = alloca i32, align 4
   store i8* %1, i8** %4, align 4, !tbaa !657
@@ -3983,7 +3983,7 @@ define void @aws_byte_buf_from_array(%struct.aws_byte_buf* noalias sret %0, i8* 
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_buf_from_empty_array(%struct.aws_byte_buf* noalias sret %0, i8* %1, i32 %2) #0 !dbg !2844 {
+define void @aws_byte_buf_from_empty_array(%struct.aws_byte_buf* noalias sret(%struct.aws_byte_buf) %0, i8* %1, i32 %2) #0 !dbg !2844 {
   %4 = alloca i8*, align 4
   %5 = alloca i32, align 4
   store i8* %1, i8** %4, align 4, !tbaa !657
@@ -4017,7 +4017,7 @@ define void @aws_byte_buf_from_empty_array(%struct.aws_byte_buf* noalias sret %0
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_from_c_str(%struct.aws_byte_cursor* noalias sret %0, i8* %1) #0 !dbg !2866 {
+define void @aws_byte_cursor_from_c_str(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, i8* %1) #0 !dbg !2866 {
   %3 = alloca i8*, align 4
   store i8* %1, i8** %3, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %3, metadata !2870, metadata !DIExpression()), !dbg !2872
@@ -4032,7 +4032,7 @@ define void @aws_byte_cursor_from_c_str(%struct.aws_byte_cursor* noalias sret %0
 
 9:                                                ; preds = %2
   %10 = load i8*, i8** %3, align 4, !dbg !2879, !tbaa !657
-  %11 = call i32 @strlen(i8* %10) #14, !dbg !2880
+  %11 = call i32 @strlen(i8* %10) #17, !dbg !2880
   br label %13, !dbg !2878
 
 12:                                               ; preds = %2
@@ -4046,7 +4046,7 @@ define void @aws_byte_cursor_from_c_str(%struct.aws_byte_cursor* noalias sret %0
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_from_array(%struct.aws_byte_cursor* noalias sret %0, i8* %1, i32 %2) #0 !dbg !2884 {
+define void @aws_byte_cursor_from_array(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, i8* %1, i32 %2) #0 !dbg !2884 {
   %4 = alloca i8*, align 4
   %5 = alloca i32, align 4
   store i8* %1, i8** %4, align 4, !tbaa !657
@@ -4075,17 +4075,17 @@ define i32 @aws_nospec_mask(i32 %0, i32 %1) #0 !dbg !2901 {
   store i32 %1, i32* %4, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %4, metadata !2904, metadata !DIExpression()), !dbg !2909
   %8 = load i32, i32* %3, align 4, !dbg !2910, !tbaa !663
-  %9 = call i32 asm sideeffect "", "=r,0"(i32 %8) #5, !dbg !2910, !srcloc !2911
+  %9 = call i32 asm sideeffect "", "=r,0"(i32 %8) #19, !dbg !2910, !srcloc !2911
   store i32 %9, i32* %3, align 4, !dbg !2910, !tbaa !663
   %10 = bitcast i32* %5 to i8*, !dbg !2912
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #5, !dbg !2912
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #19, !dbg !2912
   call void @llvm.dbg.declare(metadata i32* %5, metadata !2905, metadata !DIExpression()), !dbg !2913
   %11 = load i32, i32* %3, align 4, !dbg !2914, !tbaa !663
   %12 = load i32, i32* %4, align 4, !dbg !2915, !tbaa !663
   %13 = or i32 %11, %12, !dbg !2916
   store i32 %13, i32* %5, align 4, !dbg !2913, !tbaa !663
   %14 = bitcast i32* %6 to i8*, !dbg !2917
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !2917
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !2917
   call void @llvm.dbg.declare(metadata i32* %6, metadata !2906, metadata !DIExpression()), !dbg !2918
   %15 = load i32, i32* %4, align 4, !dbg !2919, !tbaa !663
   %16 = load i32, i32* %3, align 4, !dbg !2920, !tbaa !663
@@ -4093,7 +4093,7 @@ define i32 @aws_nospec_mask(i32 %0, i32 %1) #0 !dbg !2901 {
   %18 = sub i32 %17, 1, !dbg !2922
   store i32 %18, i32* %6, align 4, !dbg !2918, !tbaa !663
   %19 = bitcast i32* %7 to i8*, !dbg !2923
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #5, !dbg !2923
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #19, !dbg !2923
   call void @llvm.dbg.declare(metadata i32* %7, metadata !2907, metadata !DIExpression()), !dbg !2924
   %20 = load i32, i32* %5, align 4, !dbg !2925, !tbaa !663
   %21 = load i32, i32* %6, align 4, !dbg !2926, !tbaa !663
@@ -4108,16 +4108,16 @@ define i32 @aws_nospec_mask(i32 %0, i32 %1) #0 !dbg !2901 {
   store i32 %27, i32* %7, align 4, !dbg !2934, !tbaa !663
   %28 = load i32, i32* %7, align 4, !dbg !2935, !tbaa !663
   %29 = bitcast i32* %7 to i8*, !dbg !2936
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #5, !dbg !2936
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #19, !dbg !2936
   %30 = bitcast i32* %6 to i8*, !dbg !2936
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %30) #5, !dbg !2936
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %30) #19, !dbg !2936
   %31 = bitcast i32* %5 to i8*, !dbg !2936
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %31) #5, !dbg !2936
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %31) #19, !dbg !2936
   ret i32 %28, !dbg !2937
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_cursor* %1, i32 %2) #0 !dbg !2938 {
+define void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %1, i32 %2) #0 !dbg !2938 {
   %4 = alloca %struct.aws_byte_cursor*, align 4
   %5 = alloca i32, align 4
   %6 = alloca i32, align 4
@@ -4147,14 +4147,14 @@ define void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* noalias sre
 
 20:                                               ; preds = %15
   %21 = bitcast i32* %6 to i8*, !dbg !2963
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #5, !dbg !2963
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #19, !dbg !2963
   call void @llvm.dbg.declare(metadata i32* %6, metadata !2945, metadata !DIExpression()), !dbg !2964
   %22 = load i32, i32* %5, align 4, !dbg !2965, !tbaa !663
   %23 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !2966, !tbaa !657
   %24 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %23, i32 0, i32 0, !dbg !2967
   %25 = load i32, i32* %24, align 4, !dbg !2967, !tbaa !822
   %26 = add i32 %25, 1, !dbg !2968
-  %27 = call i32 @aws_nospec_mask(i32 %22, i32 %26) #14, !dbg !2969
+  %27 = call i32 @aws_nospec_mask(i32 %22, i32 %26) #17, !dbg !2969
   store i32 %27, i32* %6, align 4, !dbg !2964, !tbaa !663
   %28 = load i32, i32* %5, align 4, !dbg !2970, !tbaa !663
   %29 = load i32, i32* %6, align 4, !dbg !2971, !tbaa !663
@@ -4217,7 +4217,7 @@ define void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* noalias sre
   %74 = sub i32 %73, %70, !dbg !3013
   store i32 %74, i32* %72, align 4, !dbg !3013, !tbaa !822
   %75 = bitcast i32* %6 to i8*, !dbg !3014
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %75) #5, !dbg !3014
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %75) #19, !dbg !3014
   br label %79, !dbg !3015
 
 76:                                               ; preds = %15, %12, %3
@@ -4255,11 +4255,11 @@ define zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* noalias %0, i8*
 
 13:                                               ; preds = %3
   %14 = bitcast %struct.aws_byte_cursor* %8 to i8*, !dbg !3040
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %14) #5, !dbg !3040
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %14) #19, !dbg !3040
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %8, metadata !3030, metadata !DIExpression()), !dbg !3041
   %15 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !3042, !tbaa !657
   %16 = load i32, i32* %7, align 4, !dbg !3043, !tbaa !663
-  call void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* sret %8, %struct.aws_byte_cursor* %15, i32 %16) #14, !dbg !3044
+  call void @aws_byte_cursor_advance_nospec(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %8, %struct.aws_byte_cursor* %15, i32 %16) #17, !dbg !3044
   %17 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %8, i32 0, i32 1, !dbg !3045
   %18 = load i8*, i8** %17, align 4, !dbg !3045, !tbaa !832
   %19 = icmp ne i8* %18, null, !dbg !3047
@@ -4272,7 +4272,7 @@ define zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* noalias %0, i8*
   %24 = load i32, i32* %7, align 4, !dbg !3049, !tbaa !663
   %25 = load i8*, i8** %6, align 4, !dbg !3049, !tbaa !657
   %26 = call i32 @llvm.objectsize.i32.p0i8(i8* %25, i1 false, i1 true, i1 false), !dbg !3049
-  %27 = call i8* @__memcpy_chk(i8* %21, i8* %23, i32 %24, i32 %26) #15, !dbg !3049
+  %27 = call i8* @__memcpy_chk(i8* %21, i8* %23, i32 %24, i32 %26) #18, !dbg !3049
   store i1 true, i1* %4, align 1, !dbg !3051
   store i32 1, i32* %9, align 4
   br label %29, !dbg !3051
@@ -4284,7 +4284,7 @@ define zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* noalias %0, i8*
 
 29:                                               ; preds = %28, %20
   %30 = bitcast %struct.aws_byte_cursor* %8 to i8*, !dbg !3053
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %30) #5, !dbg !3053
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %30) #19, !dbg !3053
   br label %31
 
 31:                                               ; preds = %29, %12
@@ -4308,7 +4308,7 @@ define zeroext i1 @aws_byte_cursor_read_and_fill_buffer(%struct.aws_byte_cursor*
   %10 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !3066, !tbaa !657
   %11 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %10, i32 0, i32 2, !dbg !3067
   %12 = load i32, i32* %11, align 4, !dbg !3067, !tbaa !698
-  %13 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %9, i32 %12) #14, !dbg !3068
+  %13 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %9, i32 %12) #17, !dbg !3068
   br i1 %13, label %14, label %20, !dbg !3069
 
 14:                                               ; preds = %2
@@ -4339,16 +4339,16 @@ define zeroext i1 @aws_byte_cursor_read_u8(%struct.aws_byte_cursor* noalias %0, 
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3084, metadata !DIExpression()), !dbg !3087
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !3085, metadata !DIExpression()), !dbg !3088
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3089
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3089
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3086, metadata !DIExpression()), !dbg !3090
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3091, !tbaa !657
   %7 = load i8*, i8** %4, align 4, !dbg !3092, !tbaa !657
-  %8 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %7, i32 1) #14, !dbg !3093
+  %8 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %7, i32 1) #17, !dbg !3093
   %9 = zext i1 %8 to i8, !dbg !3090
   store i8 %9, i8* %5, align 1, !dbg !3090, !tbaa !844
   %10 = load i8, i8* %5, align 1, !dbg !3094, !tbaa !844, !range !849
   %11 = trunc i8 %10 to i1, !dbg !3094
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3095
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3095
   ret i1 %11, !dbg !3096
 }
 
@@ -4361,12 +4361,12 @@ define zeroext i1 @aws_byte_cursor_read_be16(%struct.aws_byte_cursor* %0, i16* %
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3102, metadata !DIExpression()), !dbg !3105
   store i16* %1, i16** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i16** %4, metadata !3103, metadata !DIExpression()), !dbg !3106
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3107
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3107
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3104, metadata !DIExpression()), !dbg !3108
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3109, !tbaa !657
   %7 = load i16*, i16** %4, align 4, !dbg !3110, !tbaa !657
   %8 = bitcast i16* %7 to i8*, !dbg !3110
-  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 2) #14, !dbg !3111
+  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 2) #17, !dbg !3111
   %10 = zext i1 %9 to i8, !dbg !3108
   store i8 %10, i8* %5, align 1, !dbg !3108, !tbaa !844
   %11 = load i8, i8* %5, align 1, !dbg !3112, !tbaa !844, !range !849
@@ -4381,7 +4381,7 @@ define zeroext i1 @aws_byte_cursor_read_be16(%struct.aws_byte_cursor* %0, i16* %
 18:                                               ; preds = %2
   %19 = load i16*, i16** %4, align 4, !dbg !3115, !tbaa !657
   %20 = load i16, i16* %19, align 2, !dbg !3117, !tbaa !3118
-  %21 = call zeroext i16 @aws_ntoh16(i16 zeroext %20) #14, !dbg !3120
+  %21 = call zeroext i16 @aws_ntoh16(i16 zeroext %20) #17, !dbg !3120
   %22 = load i16*, i16** %4, align 4, !dbg !3121, !tbaa !657
   store i16 %21, i16* %22, align 2, !dbg !3122, !tbaa !3118
   br label %23, !dbg !3123
@@ -4389,7 +4389,7 @@ define zeroext i1 @aws_byte_cursor_read_be16(%struct.aws_byte_cursor* %0, i16* %
 23:                                               ; preds = %18, %2
   %24 = load i8, i8* %5, align 1, !dbg !3124, !tbaa !844, !range !849
   %25 = trunc i8 %24 to i1, !dbg !3124
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3125
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3125
   ret i1 %25, !dbg !3126
 }
 
@@ -4418,7 +4418,7 @@ define internal zeroext i16 @aws_ntoh16(i16 zeroext %0) #2 !dbg !3127 {
 
 17:                                               ; preds = %1
   %18 = load i16, i16* %2, align 2, !dbg !3134, !tbaa !3118
-  %19 = call zeroext i16 @_OSSwapInt16(i16 zeroext %18) #14, !dbg !3134
+  %19 = call zeroext i16 @_OSSwapInt16(i16 zeroext %18) #17, !dbg !3134
   %20 = zext i16 %19 to i32, !dbg !3134
   br label %21, !dbg !3134
 
@@ -4428,8 +4428,8 @@ define internal zeroext i16 @aws_ntoh16(i16 zeroext %0) #2 !dbg !3127 {
   ret i16 %23, !dbg !3135
 }
 
-; Function Attrs: nounwind readnone willreturn
-declare i1 @llvm.is.constant.i16(i16) #6
+; Function Attrs: convergent nofree nosync nounwind readnone willreturn
+declare i1 @llvm.is.constant.i16(i16) #10
 
 ; Function Attrs: inlinehint nounwind ssp
 define internal zeroext i16 @_OSSwapInt16(i16 zeroext %0) #2 !dbg !3136 {
@@ -4458,17 +4458,17 @@ define zeroext i1 @aws_byte_cursor_read_be24(%struct.aws_byte_cursor* %0, i32* %
   store i32* %1, i32** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i32** %4, metadata !3153, metadata !DIExpression()), !dbg !3157
   %7 = bitcast i8** %5 to i8*, !dbg !3158
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !3158
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !3158
   call void @llvm.dbg.declare(metadata i8** %5, metadata !3154, metadata !DIExpression()), !dbg !3159
   %8 = load i32*, i32** %4, align 4, !dbg !3160, !tbaa !657
   %9 = bitcast i32* %8 to i8*, !dbg !3161
   store i8* %9, i8** %5, align 4, !dbg !3159, !tbaa !657
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !3162
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !3162
   call void @llvm.dbg.declare(metadata i8* %6, metadata !3155, metadata !DIExpression()), !dbg !3163
   %10 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3164, !tbaa !657
   %11 = load i8*, i8** %5, align 4, !dbg !3165, !tbaa !657
   %12 = getelementptr inbounds i8, i8* %11, i32 1, !dbg !3165
-  %13 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %10, i8* %12, i32 3) #14, !dbg !3166
+  %13 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %10, i8* %12, i32 3) #17, !dbg !3166
   %14 = zext i1 %13 to i8, !dbg !3163
   store i8 %14, i8* %6, align 1, !dbg !3163, !tbaa !844
   %15 = load i8, i8* %6, align 1, !dbg !3167, !tbaa !844, !range !849
@@ -4486,7 +4486,7 @@ define zeroext i1 @aws_byte_cursor_read_be24(%struct.aws_byte_cursor* %0, i32* %
   store i8 0, i8* %24, align 1, !dbg !3172, !tbaa !1034
   %25 = load i32*, i32** %4, align 4, !dbg !3173, !tbaa !657
   %26 = load i32, i32* %25, align 4, !dbg !3174, !tbaa !805
-  %27 = call i32 @aws_ntoh32(i32 %26) #14, !dbg !3175
+  %27 = call i32 @aws_ntoh32(i32 %26) #17, !dbg !3175
   %28 = load i32*, i32** %4, align 4, !dbg !3176, !tbaa !657
   store i32 %27, i32* %28, align 4, !dbg !3177, !tbaa !805
   br label %29, !dbg !3178
@@ -4494,9 +4494,9 @@ define zeroext i1 @aws_byte_cursor_read_be24(%struct.aws_byte_cursor* %0, i32* %
 29:                                               ; preds = %22, %2
   %30 = load i8, i8* %6, align 1, !dbg !3179, !tbaa !844, !range !849
   %31 = trunc i8 %30 to i1, !dbg !3179
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !3180
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !3180
   %32 = bitcast i8** %5 to i8*, !dbg !3180
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %32) #5, !dbg !3180
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %32) #19, !dbg !3180
   ret i1 %31, !dbg !3181
 }
 
@@ -4529,7 +4529,7 @@ define internal i32 @aws_ntoh32(i32 %0) #2 !dbg !3182 {
 
 21:                                               ; preds = %1
   %22 = load i32, i32* %2, align 4, !dbg !3188, !tbaa !805
-  %23 = call i32 @_OSSwapInt32(i32 %22) #14, !dbg !3188
+  %23 = call i32 @_OSSwapInt32(i32 %22) #17, !dbg !3188
   br label %24, !dbg !3188
 
 24:                                               ; preds = %21, %5
@@ -4537,8 +4537,8 @@ define internal i32 @aws_ntoh32(i32 %0) #2 !dbg !3182 {
   ret i32 %25, !dbg !3189
 }
 
-; Function Attrs: nounwind readnone willreturn
-declare i1 @llvm.is.constant.i32(i32) #6
+; Function Attrs: convergent nofree nosync nounwind readnone willreturn
+declare i1 @llvm.is.constant.i32(i32) #10
 
 ; Function Attrs: inlinehint nounwind ssp
 define internal i32 @_OSSwapInt32(i32 %0) #2 !dbg !3190 {
@@ -4552,7 +4552,7 @@ define internal i32 @_OSSwapInt32(i32 %0) #2 !dbg !3190 {
   ret i32 %5, !dbg !3198
 }
 
-; Function Attrs: nounwind readnone speculatable willreturn
+; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare i32 @llvm.bswap.i32(i32) #1
 
 ; Function Attrs: nounwind ssp
@@ -4564,12 +4564,12 @@ define zeroext i1 @aws_byte_cursor_read_be32(%struct.aws_byte_cursor* %0, i32* %
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3201, metadata !DIExpression()), !dbg !3204
   store i32* %1, i32** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i32** %4, metadata !3202, metadata !DIExpression()), !dbg !3205
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3206
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3206
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3203, metadata !DIExpression()), !dbg !3207
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3208, !tbaa !657
   %7 = load i32*, i32** %4, align 4, !dbg !3209, !tbaa !657
   %8 = bitcast i32* %7 to i8*, !dbg !3209
-  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 4) #14, !dbg !3210
+  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 4) #17, !dbg !3210
   %10 = zext i1 %9 to i8, !dbg !3207
   store i8 %10, i8* %5, align 1, !dbg !3207, !tbaa !844
   %11 = load i8, i8* %5, align 1, !dbg !3211, !tbaa !844, !range !849
@@ -4584,7 +4584,7 @@ define zeroext i1 @aws_byte_cursor_read_be32(%struct.aws_byte_cursor* %0, i32* %
 18:                                               ; preds = %2
   %19 = load i32*, i32** %4, align 4, !dbg !3214, !tbaa !657
   %20 = load i32, i32* %19, align 4, !dbg !3216, !tbaa !805
-  %21 = call i32 @aws_ntoh32(i32 %20) #14, !dbg !3217
+  %21 = call i32 @aws_ntoh32(i32 %20) #17, !dbg !3217
   %22 = load i32*, i32** %4, align 4, !dbg !3218, !tbaa !657
   store i32 %21, i32* %22, align 4, !dbg !3219, !tbaa !805
   br label %23, !dbg !3220
@@ -4592,7 +4592,7 @@ define zeroext i1 @aws_byte_cursor_read_be32(%struct.aws_byte_cursor* %0, i32* %
 23:                                               ; preds = %18, %2
   %24 = load i8, i8* %5, align 1, !dbg !3221, !tbaa !844, !range !849
   %25 = trunc i8 %24 to i1, !dbg !3221
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3222
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3222
   ret i1 %25, !dbg !3223
 }
 
@@ -4605,12 +4605,12 @@ define zeroext i1 @aws_byte_cursor_read_float_be32(%struct.aws_byte_cursor* %0, 
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3230, metadata !DIExpression()), !dbg !3233
   store float* %1, float** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata float** %4, metadata !3231, metadata !DIExpression()), !dbg !3234
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3235
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3235
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3232, metadata !DIExpression()), !dbg !3236
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3237, !tbaa !657
   %7 = load float*, float** %4, align 4, !dbg !3238, !tbaa !657
   %8 = bitcast float* %7 to i8*, !dbg !3238
-  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 4) #14, !dbg !3239
+  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 4) #17, !dbg !3239
   %10 = zext i1 %9 to i8, !dbg !3236
   store i8 %10, i8* %5, align 1, !dbg !3236, !tbaa !844
   %11 = load i8, i8* %5, align 1, !dbg !3240, !tbaa !844, !range !849
@@ -4625,7 +4625,7 @@ define zeroext i1 @aws_byte_cursor_read_float_be32(%struct.aws_byte_cursor* %0, 
 18:                                               ; preds = %2
   %19 = load float*, float** %4, align 4, !dbg !3243, !tbaa !657
   %20 = load float, float* %19, align 4, !dbg !3245, !tbaa !3246
-  %21 = call float @aws_ntohf32(float %20) #14, !dbg !3248
+  %21 = call float @aws_ntohf32(float %20) #17, !dbg !3248
   %22 = load float*, float** %4, align 4, !dbg !3249, !tbaa !657
   store float %21, float* %22, align 4, !dbg !3250, !tbaa !3246
   br label %23, !dbg !3251
@@ -4633,7 +4633,7 @@ define zeroext i1 @aws_byte_cursor_read_float_be32(%struct.aws_byte_cursor* %0, 
 23:                                               ; preds = %18, %2
   %24 = load i8, i8* %5, align 1, !dbg !3252, !tbaa !844, !range !849
   %25 = trunc i8 %24 to i1, !dbg !3252
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3253
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3253
   ret i1 %25, !dbg !3254
 }
 
@@ -4643,7 +4643,7 @@ define internal float @aws_ntohf32(float %0) #2 !dbg !3255 {
   store float %0, float* %2, align 4, !tbaa !3246
   call void @llvm.dbg.declare(metadata float* %2, metadata !3259, metadata !DIExpression()), !dbg !3260
   %3 = load float, float* %2, align 4, !dbg !3261, !tbaa !3246
-  %4 = call float @aws_htonf32(float %3) #14, !dbg !3262
+  %4 = call float @aws_htonf32(float %3) #17, !dbg !3262
   ret float %4, !dbg !3263
 }
 
@@ -4656,7 +4656,7 @@ define internal float @aws_htonf32(float %0) #2 !dbg !3264 {
   %6 = alloca i8*, align 4
   store float %0, float* %3, align 4, !tbaa !3246
   call void @llvm.dbg.declare(metadata float* %3, metadata !3266, metadata !DIExpression()), !dbg !3270
-  %7 = call i32 @aws_is_big_endian() #14, !dbg !3271
+  %7 = call i32 @aws_is_big_endian() #17, !dbg !3271
   %8 = icmp ne i32 %7, 0, !dbg !3271
   br i1 %8, label %9, label %11, !dbg !3273
 
@@ -4667,15 +4667,15 @@ define internal float @aws_htonf32(float %0) #2 !dbg !3264 {
 
 11:                                               ; preds = %1
   %12 = bitcast i8** %4 to i8*, !dbg !3277
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !3277
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !3277
   call void @llvm.dbg.declare(metadata i8** %4, metadata !3267, metadata !DIExpression()), !dbg !3278
   %13 = bitcast float* %3 to i8*, !dbg !3279
   store i8* %13, i8** %4, align 4, !dbg !3278, !tbaa !657
   %14 = bitcast float* %5 to i8*, !dbg !3280
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !3280
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !3280
   call void @llvm.dbg.declare(metadata float* %5, metadata !3268, metadata !DIExpression()), !dbg !3281
   %15 = bitcast i8** %6 to i8*, !dbg !3282
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !3282
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !3282
   call void @llvm.dbg.declare(metadata i8** %6, metadata !3269, metadata !DIExpression()), !dbg !3283
   %16 = bitcast float* %5 to i8*, !dbg !3284
   store i8* %16, i8** %6, align 4, !dbg !3283, !tbaa !657
@@ -4706,11 +4706,11 @@ define internal float @aws_htonf32(float %0) #2 !dbg !3264 {
   %37 = load float, float* %5, align 4, !dbg !3297, !tbaa !3246
   store float %37, float* %2, align 4, !dbg !3298
   %38 = bitcast i8** %6 to i8*, !dbg !3299
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %38) #5, !dbg !3299
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %38) #19, !dbg !3299
   %39 = bitcast float* %5 to i8*, !dbg !3299
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %39) #5, !dbg !3299
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %39) #19, !dbg !3299
   %40 = bitcast i8** %4 to i8*, !dbg !3299
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #5, !dbg !3299
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #19, !dbg !3299
   br label %41
 
 41:                                               ; preds = %11, %9
@@ -4722,14 +4722,14 @@ define internal float @aws_htonf32(float %0) #2 !dbg !3264 {
 define internal i32 @aws_is_big_endian() #2 !dbg !3300 {
   %1 = alloca i16, align 2
   %2 = bitcast i16* %1 to i8*, !dbg !3304
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %2) #5, !dbg !3304
+  call void @llvm.lifetime.start.p0i8(i64 2, i8* %2) #19, !dbg !3304
   call void @llvm.dbg.declare(metadata i16* %1, metadata !3302, metadata !DIExpression()), !dbg !3305
   store i16 256, i16* %1, align 2, !dbg !3305, !tbaa !3118
   %3 = bitcast i16* %1 to i8*, !dbg !3306
   %4 = load i8, i8* %3, align 2, !dbg !3306, !tbaa !1034
   %5 = zext i8 %4 to i32, !dbg !3306
   %6 = bitcast i16* %1 to i8*, !dbg !3307
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %6) #5, !dbg !3307
+  call void @llvm.lifetime.end.p0i8(i64 2, i8* %6) #19, !dbg !3307
   ret i32 %5, !dbg !3308
 }
 
@@ -4742,12 +4742,12 @@ define zeroext i1 @aws_byte_cursor_read_float_be64(%struct.aws_byte_cursor* %0, 
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3314, metadata !DIExpression()), !dbg !3317
   store double* %1, double** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata double** %4, metadata !3315, metadata !DIExpression()), !dbg !3318
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3319
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3319
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3316, metadata !DIExpression()), !dbg !3320
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3321, !tbaa !657
   %7 = load double*, double** %4, align 4, !dbg !3322, !tbaa !657
   %8 = bitcast double* %7 to i8*, !dbg !3322
-  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 8) #14, !dbg !3323
+  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 8) #17, !dbg !3323
   %10 = zext i1 %9 to i8, !dbg !3320
   store i8 %10, i8* %5, align 1, !dbg !3320, !tbaa !844
   %11 = load i8, i8* %5, align 1, !dbg !3324, !tbaa !844, !range !849
@@ -4762,7 +4762,7 @@ define zeroext i1 @aws_byte_cursor_read_float_be64(%struct.aws_byte_cursor* %0, 
 18:                                               ; preds = %2
   %19 = load double*, double** %4, align 4, !dbg !3327, !tbaa !657
   %20 = load double, double* %19, align 4, !dbg !3329, !tbaa !3330
-  %21 = call double @aws_ntohf64(double %20) #14, !dbg !3332
+  %21 = call double @aws_ntohf64(double %20) #17, !dbg !3332
   %22 = load double*, double** %4, align 4, !dbg !3333, !tbaa !657
   store double %21, double* %22, align 4, !dbg !3334, !tbaa !3330
   br label %23, !dbg !3335
@@ -4770,7 +4770,7 @@ define zeroext i1 @aws_byte_cursor_read_float_be64(%struct.aws_byte_cursor* %0, 
 23:                                               ; preds = %18, %2
   %24 = load i8, i8* %5, align 1, !dbg !3336, !tbaa !844, !range !849
   %25 = trunc i8 %24 to i1, !dbg !3336
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3337
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3337
   ret i1 %25, !dbg !3338
 }
 
@@ -4780,7 +4780,7 @@ define internal double @aws_ntohf64(double %0) #2 !dbg !3339 {
   store double %0, double* %2, align 8, !tbaa !3330
   call void @llvm.dbg.declare(metadata double* %2, metadata !3343, metadata !DIExpression()), !dbg !3344
   %3 = load double, double* %2, align 8, !dbg !3345, !tbaa !3330
-  %4 = call double @aws_htonf64(double %3) #14, !dbg !3346
+  %4 = call double @aws_htonf64(double %3) #17, !dbg !3346
   ret double %4, !dbg !3347
 }
 
@@ -4793,7 +4793,7 @@ define internal double @aws_htonf64(double %0) #2 !dbg !3348 {
   %6 = alloca i8*, align 4
   store double %0, double* %3, align 8, !tbaa !3330
   call void @llvm.dbg.declare(metadata double* %3, metadata !3350, metadata !DIExpression()), !dbg !3354
-  %7 = call i32 @aws_is_big_endian() #14, !dbg !3355
+  %7 = call i32 @aws_is_big_endian() #17, !dbg !3355
   %8 = icmp ne i32 %7, 0, !dbg !3355
   br i1 %8, label %9, label %11, !dbg !3357
 
@@ -4804,15 +4804,15 @@ define internal double @aws_htonf64(double %0) #2 !dbg !3348 {
 
 11:                                               ; preds = %1
   %12 = bitcast i8** %4 to i8*, !dbg !3361
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !3361
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !3361
   call void @llvm.dbg.declare(metadata i8** %4, metadata !3351, metadata !DIExpression()), !dbg !3362
   %13 = bitcast double* %3 to i8*, !dbg !3363
   store i8* %13, i8** %4, align 4, !dbg !3362, !tbaa !657
   %14 = bitcast double* %5 to i8*, !dbg !3364
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %14) #5, !dbg !3364
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %14) #19, !dbg !3364
   call void @llvm.dbg.declare(metadata double* %5, metadata !3352, metadata !DIExpression()), !dbg !3365
   %15 = bitcast i8** %6 to i8*, !dbg !3366
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !3366
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !3366
   call void @llvm.dbg.declare(metadata i8** %6, metadata !3353, metadata !DIExpression()), !dbg !3367
   %16 = bitcast double* %5 to i8*, !dbg !3368
   store i8* %16, i8** %6, align 4, !dbg !3367, !tbaa !657
@@ -4867,11 +4867,11 @@ define internal double @aws_htonf64(double %0) #2 !dbg !3348 {
   %57 = load double, double* %5, align 8, !dbg !3393, !tbaa !3330
   store double %57, double* %2, align 4, !dbg !3394
   %58 = bitcast i8** %6 to i8*, !dbg !3395
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %58) #5, !dbg !3395
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %58) #19, !dbg !3395
   %59 = bitcast double* %5 to i8*, !dbg !3395
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %59) #5, !dbg !3395
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %59) #19, !dbg !3395
   %60 = bitcast i8** %4 to i8*, !dbg !3395
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #5, !dbg !3395
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #19, !dbg !3395
   br label %61
 
 61:                                               ; preds = %11, %9
@@ -4888,12 +4888,12 @@ define zeroext i1 @aws_byte_cursor_read_be64(%struct.aws_byte_cursor* %0, i64* %
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3401, metadata !DIExpression()), !dbg !3404
   store i64* %1, i64** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i64** %4, metadata !3402, metadata !DIExpression()), !dbg !3405
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3406
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3406
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3403, metadata !DIExpression()), !dbg !3407
   %6 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3408, !tbaa !657
   %7 = load i64*, i64** %4, align 4, !dbg !3409, !tbaa !657
   %8 = bitcast i64* %7 to i8*, !dbg !3409
-  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 8) #14, !dbg !3410
+  %9 = call zeroext i1 @aws_byte_cursor_read(%struct.aws_byte_cursor* %6, i8* %8, i32 8) #17, !dbg !3410
   %10 = zext i1 %9 to i8, !dbg !3407
   store i8 %10, i8* %5, align 1, !dbg !3407, !tbaa !844
   %11 = load i8, i8* %5, align 1, !dbg !3411, !tbaa !844, !range !849
@@ -4908,7 +4908,7 @@ define zeroext i1 @aws_byte_cursor_read_be64(%struct.aws_byte_cursor* %0, i64* %
 18:                                               ; preds = %2
   %19 = load i64*, i64** %4, align 4, !dbg !3414, !tbaa !657
   %20 = load i64, i64* %19, align 4, !dbg !3416, !tbaa !1986
-  %21 = call i64 @aws_ntoh64(i64 %20) #14, !dbg !3417
+  %21 = call i64 @aws_ntoh64(i64 %20) #17, !dbg !3417
   %22 = load i64*, i64** %4, align 4, !dbg !3418, !tbaa !657
   store i64 %21, i64* %22, align 4, !dbg !3419, !tbaa !1986
   br label %23, !dbg !3420
@@ -4916,7 +4916,7 @@ define zeroext i1 @aws_byte_cursor_read_be64(%struct.aws_byte_cursor* %0, i64* %
 23:                                               ; preds = %18, %2
   %24 = load i8, i8* %5, align 1, !dbg !3421, !tbaa !844, !range !849
   %25 = trunc i8 %24 to i1, !dbg !3421
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3422
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3422
   ret i1 %25, !dbg !3423
 }
 
@@ -4926,7 +4926,7 @@ define internal i64 @aws_ntoh64(i64 %0) #2 !dbg !3424 {
   store i64 %0, i64* %2, align 8, !tbaa !1986
   call void @llvm.dbg.declare(metadata i64* %2, metadata !3428, metadata !DIExpression()), !dbg !3429
   %3 = load i64, i64* %2, align 8, !dbg !3430, !tbaa !1986
-  %4 = call i64 @aws_hton64(i64 %3) #14, !dbg !3431
+  %4 = call i64 @aws_hton64(i64 %3) #17, !dbg !3431
   ret i64 %4, !dbg !3432
 }
 
@@ -4938,7 +4938,7 @@ define internal i64 @aws_hton64(i64 %0) #2 !dbg !3433 {
   %5 = alloca i32, align 4
   store i64 %0, i64* %3, align 8, !tbaa !1986
   call void @llvm.dbg.declare(metadata i64* %3, metadata !3435, metadata !DIExpression()), !dbg !3438
-  %6 = call i32 @aws_is_big_endian() #14, !dbg !3439
+  %6 = call i32 @aws_is_big_endian() #17, !dbg !3439
   %7 = icmp ne i32 %6, 0, !dbg !3439
   br i1 %7, label %8, label %10, !dbg !3441
 
@@ -4949,14 +4949,14 @@ define internal i64 @aws_hton64(i64 %0) #2 !dbg !3433 {
 
 10:                                               ; preds = %1
   %11 = bitcast i32* %4 to i8*, !dbg !3445
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !3445
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !3445
   call void @llvm.dbg.declare(metadata i32* %4, metadata !3436, metadata !DIExpression()), !dbg !3446
   %12 = load i64, i64* %3, align 8, !dbg !3447, !tbaa !1986
   %13 = and i64 %12, 4294967295, !dbg !3448
   %14 = trunc i64 %13 to i32, !dbg !3447
   store i32 %14, i32* %4, align 4, !dbg !3446, !tbaa !805
   %15 = bitcast i32* %5 to i8*, !dbg !3449
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !3449
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !3449
   call void @llvm.dbg.declare(metadata i32* %5, metadata !3437, metadata !DIExpression()), !dbg !3450
   %16 = load i64, i64* %3, align 8, !dbg !3451, !tbaa !1986
   %17 = lshr i64 %16, 32, !dbg !3452
@@ -4986,7 +4986,7 @@ define internal i64 @aws_hton64(i64 %0) #2 !dbg !3433 {
 
 37:                                               ; preds = %10
   %38 = load i32, i32* %4, align 4, !dbg !3454, !tbaa !805
-  %39 = call i32 @_OSSwapInt32(i32 %38) #14, !dbg !3454
+  %39 = call i32 @_OSSwapInt32(i32 %38) #17, !dbg !3454
   br label %40, !dbg !3454
 
 40:                                               ; preds = %37, %21
@@ -5017,7 +5017,7 @@ define internal i64 @aws_hton64(i64 %0) #2 !dbg !3433 {
 
 62:                                               ; preds = %40
   %63 = load i32, i32* %5, align 4, !dbg !3457, !tbaa !805
-  %64 = call i32 @_OSSwapInt32(i32 %63) #14, !dbg !3457
+  %64 = call i32 @_OSSwapInt32(i32 %63) #17, !dbg !3457
   br label %65, !dbg !3457
 
 65:                                               ; preds = %62, %46
@@ -5026,9 +5026,9 @@ define internal i64 @aws_hton64(i64 %0) #2 !dbg !3433 {
   %68 = or i64 %43, %67, !dbg !3458
   store i64 %68, i64* %2, align 4, !dbg !3459
   %69 = bitcast i32* %5 to i8*, !dbg !3460
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %69) #5, !dbg !3460
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %69) #19, !dbg !3460
   %70 = bitcast i32* %4 to i8*, !dbg !3460
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %70) #5, !dbg !3460
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %70) #19, !dbg !3460
   br label %71
 
 71:                                               ; preds = %65, %8
@@ -5052,7 +5052,7 @@ define zeroext i1 @aws_byte_cursor_read_hex_u8(%struct.aws_byte_cursor* %0, i8* 
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %3, metadata !3467, metadata !DIExpression()), !dbg !3474
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !3468, metadata !DIExpression()), !dbg !3475
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #5, !dbg !3476
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %5) #19, !dbg !3476
   call void @llvm.dbg.declare(metadata i8* %5, metadata !3469, metadata !DIExpression()), !dbg !3477
   store i8 0, i8* %5, align 1, !dbg !3477, !tbaa !844
   %8 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3478, !tbaa !657
@@ -5067,7 +5067,7 @@ define zeroext i1 @aws_byte_cursor_read_hex_u8(%struct.aws_byte_cursor* %0, i8* 
   br i1 %16, label %17, label %66, !dbg !3479
 
 17:                                               ; preds = %2
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !3480
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !3480
   call void @llvm.dbg.declare(metadata i8* %6, metadata !3470, metadata !DIExpression()), !dbg !3481
   %18 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3482, !tbaa !657
   %19 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %18, i32 0, i32 1, !dbg !3483
@@ -5078,7 +5078,7 @@ define zeroext i1 @aws_byte_cursor_read_hex_u8(%struct.aws_byte_cursor* %0, i8* 
   %24 = getelementptr inbounds [256 x i8], [256 x i8]* @s_hex_to_num_table, i32 0, i32 %23, !dbg !3484
   %25 = load i8, i8* %24, align 1, !dbg !3484, !tbaa !1034
   store i8 %25, i8* %6, align 1, !dbg !3481, !tbaa !1034
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #5, !dbg !3485
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #19, !dbg !3485
   call void @llvm.dbg.declare(metadata i8* %7, metadata !3473, metadata !DIExpression()), !dbg !3486
   %26 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %3, align 4, !dbg !3487, !tbaa !657
   %27 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %26, i32 0, i32 1, !dbg !3488
@@ -5133,14 +5133,14 @@ define zeroext i1 @aws_byte_cursor_read_hex_u8(%struct.aws_byte_cursor* %0, i8* 
   br label %65, !dbg !3509
 
 65:                                               ; preds = %48, %41
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5, !dbg !3510
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !3510
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #19, !dbg !3510
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !3510
   br label %66, !dbg !3511
 
 66:                                               ; preds = %65, %2
   %67 = load i8, i8* %5, align 1, !dbg !3512, !tbaa !844, !range !849
   %68 = trunc i8 %67 to i1, !dbg !3512
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #5, !dbg !3513
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %5) #19, !dbg !3513
   ret i1 %68, !dbg !3514
 }
 
@@ -5171,7 +5171,7 @@ define zeroext i1 @aws_byte_buf_advance(%struct.aws_byte_buf* noalias %0, %struc
 18:                                               ; preds = %3
   %19 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %6, align 4, !dbg !3535, !tbaa !657
   %20 = bitcast %struct.aws_byte_buf* %8 to i8*, !dbg !3537
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %20) #5, !dbg !3537
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %20) #19, !dbg !3537
   %21 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !3538, !tbaa !657
   %22 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %21, i32 0, i32 1, !dbg !3539
   %23 = load i8*, i8** %22, align 4, !dbg !3539, !tbaa !675
@@ -5194,12 +5194,12 @@ define zeroext i1 @aws_byte_buf_advance(%struct.aws_byte_buf* noalias %0, %struc
 34:                                               ; preds = %26, %25
   %35 = phi i8* [ null, %25 ], [ %33, %26 ], !dbg !3541
   %36 = load i32, i32* %7, align 4, !dbg !3547, !tbaa !663
-  call void @aws_byte_buf_from_array(%struct.aws_byte_buf* sret %8, i8* %35, i32 %36) #14, !dbg !3537
+  call void @aws_byte_buf_from_array(%struct.aws_byte_buf* sret(%struct.aws_byte_buf) %8, i8* %35, i32 %36) #17, !dbg !3537
   %37 = bitcast %struct.aws_byte_buf* %19 to i8*, !dbg !3537
   %38 = bitcast %struct.aws_byte_buf* %8 to i8*, !dbg !3537
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 4 %37, i8* align 4 %38, i32 16, i1 false), !dbg !3537, !tbaa.struct !739
   %39 = bitcast %struct.aws_byte_buf* %8 to i8*, !dbg !3537
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %39) #5, !dbg !3537
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %39) #19, !dbg !3537
   %40 = load i32, i32* %7, align 4, !dbg !3548, !tbaa !663
   %41 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !3549, !tbaa !657
   %42 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %41, i32 0, i32 0, !dbg !3550
@@ -5221,7 +5221,7 @@ define zeroext i1 @aws_byte_buf_advance(%struct.aws_byte_buf* noalias %0, %struc
   %51 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %6, align 4, !dbg !3558, !tbaa !657
   %52 = bitcast %struct.aws_byte_buf* %51 to i8*, !dbg !3558
   %53 = call i32 @llvm.objectsize.i32.p0i8(i8* %52, i1 false, i1 true, i1 false), !dbg !3558
-  %54 = call i8* @__memset_chk(i8* %50, i32 0, i32 16, i32 %53) #15, !dbg !3558
+  %54 = call i8* @__memset_chk(i8* %50, i32 0, i32 16, i32 %53) #18, !dbg !3558
   br label %55, !dbg !3558
 
 55:                                               ; preds = %48
@@ -5299,7 +5299,7 @@ define zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* noalias %0, i8* noal
   %45 = load i32, i32* %44, align 4, !dbg !3597, !tbaa !693
   %46 = getelementptr inbounds i8, i8* %42, i32 %45, !dbg !3597
   %47 = call i32 @llvm.objectsize.i32.p0i8(i8* %46, i1 false, i1 true, i1 false), !dbg !3597
-  %48 = call i8* @__memcpy_chk(i8* %37, i8* %38, i32 %39, i32 %47) #15, !dbg !3597
+  %48 = call i8* @__memcpy_chk(i8* %37, i8* %38, i32 %39, i32 %47) #18, !dbg !3597
   %49 = load i32, i32* %7, align 4, !dbg !3598, !tbaa !663
   %50 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !3599, !tbaa !657
   %51 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %50, i32 0, i32 0, !dbg !3600
@@ -5328,7 +5328,7 @@ define zeroext i1 @aws_byte_buf_write_from_whole_buffer(%struct.aws_byte_buf* no
   %8 = load i8*, i8** %7, align 4, !dbg !3613, !tbaa !675
   %9 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %3, i32 0, i32 0, !dbg !3614
   %10 = load i32, i32* %9, align 4, !dbg !3614, !tbaa !693
-  %11 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %6, i8* %8, i32 %10) #14, !dbg !3615
+  %11 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %6, i8* %8, i32 %10) #17, !dbg !3615
   ret i1 %11, !dbg !3616
 }
 
@@ -5346,12 +5346,12 @@ define zeroext i1 @aws_byte_buf_write_from_whole_cursor(%struct.aws_byte_buf* no
   %8 = load i8*, i8** %7, align 4, !dbg !3626, !tbaa !832
   %9 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %3, i32 0, i32 0, !dbg !3627
   %10 = load i32, i32* %9, align 4, !dbg !3627, !tbaa !822
-  %11 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %6, i8* %8, i32 %10) #14, !dbg !3628
+  %11 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %6, i8* %8, i32 %10) #17, !dbg !3628
   ret i1 %11, !dbg !3629
 }
 
 ; Function Attrs: nounwind ssp
-define void @aws_byte_buf_write_to_capacity(%struct.aws_byte_cursor* noalias sret %0, %struct.aws_byte_buf* %1, %struct.aws_byte_cursor* %2) #0 !dbg !3630 {
+define void @aws_byte_buf_write_to_capacity(%struct.aws_byte_cursor* noalias sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_buf* %1, %struct.aws_byte_cursor* %2) #0 !dbg !3630 {
   %4 = alloca %struct.aws_byte_buf*, align 4
   %5 = alloca %struct.aws_byte_cursor*, align 4
   %6 = alloca i32, align 4
@@ -5361,7 +5361,7 @@ define void @aws_byte_buf_write_to_capacity(%struct.aws_byte_cursor* noalias sre
   store %struct.aws_byte_cursor* %2, %struct.aws_byte_cursor** %5, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %5, metadata !3635, metadata !DIExpression()), !dbg !3640
   %8 = bitcast i32* %6 to i8*, !dbg !3641
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !3641
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !3641
   call void @llvm.dbg.declare(metadata i32* %6, metadata !3636, metadata !DIExpression()), !dbg !3642
   %9 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !3643, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %9, i32 0, i32 2, !dbg !3644
@@ -5372,26 +5372,26 @@ define void @aws_byte_buf_write_to_capacity(%struct.aws_byte_cursor* noalias sre
   %15 = sub i32 %11, %14, !dbg !3647
   store i32 %15, i32* %6, align 4, !dbg !3642, !tbaa !663
   %16 = bitcast i32* %7 to i8*, !dbg !3648
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #5, !dbg !3648
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #19, !dbg !3648
   call void @llvm.dbg.declare(metadata i32* %7, metadata !3637, metadata !DIExpression()), !dbg !3649
   %17 = load i32, i32* %6, align 4, !dbg !3650, !tbaa !663
   %18 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !3651, !tbaa !657
   %19 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %18, i32 0, i32 0, !dbg !3652
   %20 = load i32, i32* %19, align 4, !dbg !3652, !tbaa !822
-  %21 = call i32 @aws_min_size(i32 %17, i32 %20) #14, !dbg !3653
+  %21 = call i32 @aws_min_size(i32 %17, i32 %20) #17, !dbg !3653
   store i32 %21, i32* %7, align 4, !dbg !3649, !tbaa !663
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor* %0, metadata !3638, metadata !DIExpression()), !dbg !3654
   %22 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %5, align 4, !dbg !3655, !tbaa !657
   %23 = load i32, i32* %7, align 4, !dbg !3656, !tbaa !663
-  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret %0, %struct.aws_byte_cursor* %22, i32 %23) #14, !dbg !3657
+  call void @aws_byte_cursor_advance(%struct.aws_byte_cursor* sret(%struct.aws_byte_cursor) %0, %struct.aws_byte_cursor* %22, i32 %23) #17, !dbg !3657
   %24 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !3658, !tbaa !657
   %25 = bitcast %struct.aws_byte_cursor* %0 to [2 x i32]*, !dbg !3659
   %26 = load [2 x i32], [2 x i32]* %25, align 4, !dbg !3659
-  %27 = call zeroext i1 @aws_byte_buf_write_from_whole_cursor(%struct.aws_byte_buf* %24, [2 x i32] %26) #14, !dbg !3659
+  %27 = call zeroext i1 @aws_byte_buf_write_from_whole_cursor(%struct.aws_byte_buf* %24, [2 x i32] %26) #17, !dbg !3659
   %28 = bitcast i32* %7 to i8*, !dbg !3660
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %28) #5, !dbg !3660
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %28) #19, !dbg !3660
   %29 = bitcast i32* %6 to i8*, !dbg !3660
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #5, !dbg !3660
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #19, !dbg !3660
   ret void, !dbg !3660
 }
 
@@ -5430,7 +5430,7 @@ define zeroext i1 @aws_byte_buf_write_u8(%struct.aws_byte_buf* noalias %0, i8 ze
   store i8 %1, i8* %4, align 1, !tbaa !1034
   call void @llvm.dbg.declare(metadata i8* %4, metadata !3678, metadata !DIExpression()), !dbg !3680
   %5 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3681, !tbaa !657
-  %6 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %5, i8* %4, i32 1) #14, !dbg !3682
+  %6 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %5, i8* %4, i32 1) #17, !dbg !3682
   ret i1 %6, !dbg !3683
 }
 
@@ -5492,7 +5492,7 @@ define zeroext i1 @aws_byte_buf_write_u8_n(%struct.aws_byte_buf* %0, i8 zeroext 
   %42 = load i32, i32* %41, align 4, !dbg !3712, !tbaa !693
   %43 = getelementptr inbounds i8, i8* %39, i32 %42, !dbg !3712
   %44 = call i32 @llvm.objectsize.i32.p0i8(i8* %43, i1 false, i1 true, i1 false), !dbg !3712
-  %45 = call i8* @__memset_chk(i8* %33, i32 %35, i32 %36, i32 %44) #15, !dbg !3712
+  %45 = call i8* @__memset_chk(i8* %33, i32 %35, i32 %36, i32 %44) #18, !dbg !3712
   %46 = load i32, i32* %7, align 4, !dbg !3713, !tbaa !663
   %47 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %5, align 4, !dbg !3714, !tbaa !657
   %48 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %47, i32 0, i32 0, !dbg !3715
@@ -5516,11 +5516,11 @@ define zeroext i1 @aws_byte_buf_write_be16(%struct.aws_byte_buf* %0, i16 zeroext
   store i16 %1, i16* %4, align 2, !tbaa !3118
   call void @llvm.dbg.declare(metadata i16* %4, metadata !3724, metadata !DIExpression()), !dbg !3726
   %5 = load i16, i16* %4, align 2, !dbg !3727, !tbaa !3118
-  %6 = call zeroext i16 @aws_hton16(i16 zeroext %5) #14, !dbg !3728
+  %6 = call zeroext i16 @aws_hton16(i16 zeroext %5) #17, !dbg !3728
   store i16 %6, i16* %4, align 2, !dbg !3729, !tbaa !3118
   %7 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3730, !tbaa !657
   %8 = bitcast i16* %4 to i8*, !dbg !3731
-  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 2) #14, !dbg !3732
+  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 2) #17, !dbg !3732
   ret i1 %9, !dbg !3733
 }
 
@@ -5549,7 +5549,7 @@ define internal zeroext i16 @aws_hton16(i16 zeroext %0) #2 !dbg !3734 {
 
 17:                                               ; preds = %1
   %18 = load i16, i16* %2, align 2, !dbg !3738, !tbaa !3118
-  %19 = call zeroext i16 @_OSSwapInt16(i16 zeroext %18) #14, !dbg !3738
+  %19 = call zeroext i16 @_OSSwapInt16(i16 zeroext %18) #17, !dbg !3738
   %20 = zext i16 %19 to i32, !dbg !3738
   br label %21, !dbg !3738
 
@@ -5580,25 +5580,25 @@ define zeroext i1 @aws_byte_buf_write_be24(%struct.aws_byte_buf* %0, i32 %1) #0 
 
 11:                                               ; preds = %2
   %12 = bitcast i32* %6 to i8*, !dbg !3756
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !3756
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !3756
   call void @llvm.dbg.declare(metadata i32* %6, metadata !3746, metadata !DIExpression()), !dbg !3757
   %13 = load i32, i32* %5, align 4, !dbg !3758, !tbaa !805
-  %14 = call i32 @aws_hton32(i32 %13) #14, !dbg !3759
+  %14 = call i32 @aws_hton32(i32 %13) #17, !dbg !3759
   store i32 %14, i32* %6, align 4, !dbg !3757, !tbaa !805
   %15 = bitcast i8** %7 to i8*, !dbg !3760
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !3760
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !3760
   call void @llvm.dbg.declare(metadata i8** %7, metadata !3747, metadata !DIExpression()), !dbg !3761
   %16 = bitcast i32* %6 to i8*, !dbg !3762
   store i8* %16, i8** %7, align 4, !dbg !3761, !tbaa !657
   %17 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !3763, !tbaa !657
   %18 = load i8*, i8** %7, align 4, !dbg !3764, !tbaa !657
   %19 = getelementptr inbounds i8, i8* %18, i32 1, !dbg !3764
-  %20 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %17, i8* %19, i32 3) #14, !dbg !3765
+  %20 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %17, i8* %19, i32 3) #17, !dbg !3765
   store i1 %20, i1* %3, align 1, !dbg !3766
   %21 = bitcast i8** %7 to i8*, !dbg !3767
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %21) #5, !dbg !3767
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %21) #19, !dbg !3767
   %22 = bitcast i32* %6 to i8*, !dbg !3767
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %22) #5, !dbg !3767
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %22) #19, !dbg !3767
   br label %23
 
 23:                                               ; preds = %11, %10
@@ -5635,7 +5635,7 @@ define internal i32 @aws_hton32(i32 %0) #2 !dbg !3768 {
 
 21:                                               ; preds = %1
   %22 = load i32, i32* %2, align 4, !dbg !3772, !tbaa !805
-  %23 = call i32 @_OSSwapInt32(i32 %22) #14, !dbg !3772
+  %23 = call i32 @_OSSwapInt32(i32 %22) #17, !dbg !3772
   br label %24, !dbg !3772
 
 24:                                               ; preds = %21, %5
@@ -5652,11 +5652,11 @@ define zeroext i1 @aws_byte_buf_write_be32(%struct.aws_byte_buf* %0, i32 %1) #0 
   store i32 %1, i32* %4, align 4, !tbaa !805
   call void @llvm.dbg.declare(metadata i32* %4, metadata !3777, metadata !DIExpression()), !dbg !3779
   %5 = load i32, i32* %4, align 4, !dbg !3780, !tbaa !805
-  %6 = call i32 @aws_hton32(i32 %5) #14, !dbg !3781
+  %6 = call i32 @aws_hton32(i32 %5) #17, !dbg !3781
   store i32 %6, i32* %4, align 4, !dbg !3782, !tbaa !805
   %7 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3783, !tbaa !657
   %8 = bitcast i32* %4 to i8*, !dbg !3784
-  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 4) #14, !dbg !3785
+  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 4) #17, !dbg !3785
   ret i1 %9, !dbg !3786
 }
 
@@ -5669,11 +5669,11 @@ define zeroext i1 @aws_byte_buf_write_float_be32(%struct.aws_byte_buf* %0, float
   store float %1, float* %4, align 4, !tbaa !3246
   call void @llvm.dbg.declare(metadata float* %4, metadata !3792, metadata !DIExpression()), !dbg !3794
   %5 = load float, float* %4, align 4, !dbg !3795, !tbaa !3246
-  %6 = call float @aws_htonf32(float %5) #14, !dbg !3796
+  %6 = call float @aws_htonf32(float %5) #17, !dbg !3796
   store float %6, float* %4, align 4, !dbg !3797, !tbaa !3246
   %7 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3798, !tbaa !657
   %8 = bitcast float* %4 to i8*, !dbg !3799
-  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 4) #14, !dbg !3800
+  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 4) #17, !dbg !3800
   ret i1 %9, !dbg !3801
 }
 
@@ -5686,11 +5686,11 @@ define zeroext i1 @aws_byte_buf_write_be64(%struct.aws_byte_buf* %0, i64 %1) #0 
   store i64 %1, i64* %4, align 8, !tbaa !1986
   call void @llvm.dbg.declare(metadata i64* %4, metadata !3807, metadata !DIExpression()), !dbg !3809
   %5 = load i64, i64* %4, align 8, !dbg !3810, !tbaa !1986
-  %6 = call i64 @aws_hton64(i64 %5) #14, !dbg !3811
+  %6 = call i64 @aws_hton64(i64 %5) #17, !dbg !3811
   store i64 %6, i64* %4, align 8, !dbg !3812, !tbaa !1986
   %7 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3813, !tbaa !657
   %8 = bitcast i64* %4 to i8*, !dbg !3814
-  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 8) #14, !dbg !3815
+  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 8) #17, !dbg !3815
   ret i1 %9, !dbg !3816
 }
 
@@ -5703,11 +5703,11 @@ define zeroext i1 @aws_byte_buf_write_float_be64(%struct.aws_byte_buf* %0, doubl
   store double %1, double* %4, align 8, !tbaa !3330
   call void @llvm.dbg.declare(metadata double* %4, metadata !3822, metadata !DIExpression()), !dbg !3824
   %5 = load double, double* %4, align 8, !dbg !3825, !tbaa !3330
-  %6 = call double @aws_htonf64(double %5) #14, !dbg !3826
+  %6 = call double @aws_htonf64(double %5) #17, !dbg !3826
   store double %6, double* %4, align 8, !dbg !3827, !tbaa !3330
   %7 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !3828, !tbaa !657
   %8 = bitcast double* %4 to i8*, !dbg !3829
-  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 8) #14, !dbg !3830
+  %9 = call zeroext i1 @aws_byte_buf_write(%struct.aws_byte_buf* %7, i8* %8, i32 8) #17, !dbg !3830
   ret i1 %9, !dbg !3831
 }
 
@@ -5717,7 +5717,7 @@ define i32 @aws_byte_buf_append_null_terminator(%struct.aws_byte_buf* %0) #0 !db
   store %struct.aws_byte_buf* %0, %struct.aws_byte_buf** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %2, metadata !3836, metadata !DIExpression()), !dbg !3837
   %3 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !3838, !tbaa !657
-  %4 = call i32 @aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %3, %struct.aws_byte_cursor* @s_null_terminator_cursor) #14, !dbg !3839
+  %4 = call i32 @aws_byte_buf_append_dynamic(%struct.aws_byte_buf* %3, %struct.aws_byte_cursor* @s_null_terminator_cursor) #17, !dbg !3839
   ret i32 %4, !dbg !3840
 }
 
@@ -5918,39 +5918,39 @@ define i32 @main() #0 !dbg !3925 {
   %7 = alloca %struct.store_byte_from_buffer, align 4
   store i32 0, i32* %1, align 4
   %8 = bitcast i32* %2 to i8*, !dbg !3934
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !3934
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !3934
   call void @llvm.dbg.declare(metadata i32* %2, metadata !3928, metadata !DIExpression()), !dbg !3935
-  %9 = call i32 @nd_size_t() #17, !dbg !3936
+  %9 = call i32 @nd_size_t() #21, !dbg !3936
   store i32 %9, i32* %2, align 4, !dbg !3935, !tbaa !663
   %10 = load i32, i32* %2, align 4, !dbg !3937, !tbaa !663
   %11 = icmp ule i32 %10, 10, !dbg !3938
-  call void @__SEA_assume(i1 zeroext %11) #14, !dbg !3939
+  call void @__SEA_assume(i1 zeroext %11) #17, !dbg !3939
   %12 = bitcast i8** %3 to i8*, !dbg !3940
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !3940
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !3940
   call void @llvm.dbg.declare(metadata i8** %3, metadata !3929, metadata !DIExpression()), !dbg !3941
-  %13 = call i8* @can_fail_malloc(i32 10) #14, !dbg !3942
+  %13 = call i8* @can_fail_malloc(i32 10) #17, !dbg !3942
   store i8* %13, i8** %3, align 4, !dbg !3941, !tbaa !657
   %14 = bitcast i32* %4 to i8*, !dbg !3943
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !3943
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !3943
   call void @llvm.dbg.declare(metadata i32* %4, metadata !3930, metadata !DIExpression()), !dbg !3944
   store i32 0, i32* %4, align 4, !dbg !3944, !tbaa !663
   %15 = bitcast i8** %5 to i8*, !dbg !3945
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !3945
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !3945
   call void @llvm.dbg.declare(metadata i8** %5, metadata !3931, metadata !DIExpression()), !dbg !3946
-  %16 = call i8* @ensure_c_str_is_nd_allocated_safe(i32 10, i32* %4) #14, !dbg !3947
+  %16 = call i8* @ensure_c_str_is_nd_allocated_safe(i32 10, i32* %4) #17, !dbg !3947
   store i8* %16, i8** %5, align 4, !dbg !3946, !tbaa !657
   %17 = bitcast %struct.store_byte_from_buffer* %6 to i8*, !dbg !3948
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %17) #5, !dbg !3948
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %17) #19, !dbg !3948
   call void @llvm.dbg.declare(metadata %struct.store_byte_from_buffer* %6, metadata !3932, metadata !DIExpression()), !dbg !3949
   %18 = load i8*, i8** %3, align 4, !dbg !3950, !tbaa !657
   %19 = load i32, i32* %2, align 4, !dbg !3951, !tbaa !663
-  call void @save_byte_from_array(i8* %18, i32 %19, %struct.store_byte_from_buffer* %6) #14, !dbg !3952
+  call void @save_byte_from_array(i8* %18, i32 %19, %struct.store_byte_from_buffer* %6) #17, !dbg !3952
   %20 = bitcast %struct.store_byte_from_buffer* %7 to i8*, !dbg !3953
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %20) #5, !dbg !3953
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %20) #19, !dbg !3953
   call void @llvm.dbg.declare(metadata %struct.store_byte_from_buffer* %7, metadata !3933, metadata !DIExpression()), !dbg !3954
   %21 = load i8*, i8** %5, align 4, !dbg !3955, !tbaa !657
   %22 = load i32, i32* %4, align 4, !dbg !3956, !tbaa !663
-  call void @save_byte_from_array(i8* %21, i32 %22, %struct.store_byte_from_buffer* %7) #14, !dbg !3957
+  call void @save_byte_from_array(i8* %21, i32 %22, %struct.store_byte_from_buffer* %7) #17, !dbg !3957
   %23 = load i8*, i8** %3, align 4, !dbg !3958, !tbaa !657
   %24 = icmp ne i8* %23, null, !dbg !3958
   br i1 %24, label %28, label %25, !dbg !3959
@@ -5962,28 +5962,28 @@ define i32 @main() #0 !dbg !3925 {
 
 28:                                               ; preds = %25, %0
   %29 = phi i1 [ true, %0 ], [ %27, %25 ]
-  call void @__SEA_assume(i1 zeroext %29) #14, !dbg !3962
+  call void @__SEA_assume(i1 zeroext %29) #17, !dbg !3962
   %30 = load i8*, i8** %5, align 4, !dbg !3963, !tbaa !657
   %31 = icmp ne i8* %30, null, !dbg !3963
-  call void @__SEA_assume(i1 zeroext %31) #14, !dbg !3964
+  call void @__SEA_assume(i1 zeroext %31) #17, !dbg !3964
   %32 = load i8*, i8** %3, align 4, !dbg !3965, !tbaa !657
   %33 = load i32, i32* %2, align 4, !dbg !3967, !tbaa !663
   %34 = load i8*, i8** %5, align 4, !dbg !3968, !tbaa !657
-  %35 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %32, i32 %33, i8* %34) #14, !dbg !3969
+  %35 = call zeroext i1 @aws_array_eq_c_str_ignore_case(i8* %32, i32 %33, i8* %34) #17, !dbg !3969
   br i1 %35, label %36, label %47, !dbg !3970
 
 36:                                               ; preds = %28
   %37 = load i32, i32* %2, align 4, !dbg !3971, !tbaa !663
   %38 = load i32, i32* %4, align 4, !dbg !3971, !tbaa !663
   %39 = icmp eq i32 %37, %38, !dbg !3971
-  call void @__VERIFIER_assert(i1 zeroext %39) #14, !dbg !3971
+  call void @__VERIFIER_assert(i1 zeroext %39) #17, !dbg !3971
   %40 = load i32, i32* %2, align 4, !dbg !3971, !tbaa !663
   %41 = load i32, i32* %4, align 4, !dbg !3971, !tbaa !663
   %42 = icmp eq i32 %40, %41, !dbg !3971
   br i1 %42, label %44, label %43, !dbg !3971
 
 43:                                               ; preds = %36
-  call void @__VERIFIER_error() #14, !dbg !3971
+  call void @__VERIFIER_error() #17, !dbg !3971
   br label %44, !dbg !3971
 
 44:                                               ; preds = %43, %36
@@ -5998,7 +5998,7 @@ define i32 @main() #0 !dbg !3925 {
 
 50:                                               ; preds = %47
   %51 = load i8*, i8** %3, align 4, !dbg !3978, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %51, %struct.store_byte_from_buffer* %6) #14, !dbg !3980
+  call void @assert_byte_from_buffer_matches(i8* %51, %struct.store_byte_from_buffer* %6) #17, !dbg !3980
   br label %52, !dbg !3981
 
 52:                                               ; preds = %50, %47
@@ -6008,27 +6008,27 @@ define i32 @main() #0 !dbg !3925 {
 
 55:                                               ; preds = %52
   %56 = load i8*, i8** %5, align 4, !dbg !3986, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %56, %struct.store_byte_from_buffer* %7) #14, !dbg !3988
+  call void @assert_byte_from_buffer_matches(i8* %56, %struct.store_byte_from_buffer* %7) #17, !dbg !3988
   br label %57, !dbg !3989
 
 57:                                               ; preds = %55, %52
   %58 = bitcast %struct.store_byte_from_buffer* %7 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %58) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %58) #19, !dbg !3990
   %59 = bitcast %struct.store_byte_from_buffer* %6 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %59) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %59) #19, !dbg !3990
   %60 = bitcast i8** %5 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %60) #19, !dbg !3990
   %61 = bitcast i32* %4 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %61) #19, !dbg !3990
   %62 = bitcast i8** %3 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %62) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %62) #19, !dbg !3990
   %63 = bitcast i32* %2 to i8*, !dbg !3990
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %63) #5, !dbg !3990
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %63) #19, !dbg !3990
   ret i32 0, !dbg !3991
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !249 i32 @nd_size_t() #8
+declare !dbg !249 i32 @nd_size_t() #11
 
 declare void @__SEA_assume(i1 zeroext) #4
 
@@ -6041,26 +6041,26 @@ define void @initialize_array_list(%struct.aws_array_list* %0) #0 !dbg !3992 {
   %2 = alloca %struct.aws_array_list*, align 4
   store %struct.aws_array_list* %0, %struct.aws_array_list** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_array_list** %2, metadata !4006, metadata !DIExpression()), !dbg !4007
-  %3 = call i32 @nd_size_t() #17, !dbg !4008
+  %3 = call i32 @nd_size_t() #21, !dbg !4008
   %4 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4009, !tbaa !657
   %5 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %4, i32 0, i32 1, !dbg !4010
   store i32 %3, i32* %5, align 4, !dbg !4011, !tbaa !4012
-  %6 = call i32 @nd_size_t() #17, !dbg !4013
+  %6 = call i32 @nd_size_t() #21, !dbg !4013
   %7 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4014, !tbaa !657
   %8 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %7, i32 0, i32 2, !dbg !4015
   store i32 %6, i32* %8, align 4, !dbg !4016, !tbaa !1650
-  %9 = call i32 @nd_size_t() #17, !dbg !4017
+  %9 = call i32 @nd_size_t() #21, !dbg !4017
   %10 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4018, !tbaa !657
   %11 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %10, i32 0, i32 3, !dbg !4019
   store i32 %9, i32* %11, align 4, !dbg !4020, !tbaa !1685
   %12 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4021, !tbaa !657
   %13 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %12, i32 0, i32 1, !dbg !4022
   %14 = load i32, i32* %13, align 4, !dbg !4022, !tbaa !4012
-  %15 = call i8* @can_fail_malloc(i32 %14) #14, !dbg !4023
+  %15 = call i8* @can_fail_malloc(i32 %14) #17, !dbg !4023
   %16 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4024, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %16, i32 0, i32 4, !dbg !4025
   store i8* %15, i8** %17, align 4, !dbg !4026, !tbaa !1651
-  %18 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !4027
+  %18 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !4027
   %19 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4028, !tbaa !657
   %20 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %19, i32 0, i32 0, !dbg !4029
   store %struct.aws_allocator* %18, %struct.aws_allocator** %20, align 4, !dbg !4030, !tbaa !1629
@@ -6075,7 +6075,7 @@ define i8* @can_fail_malloc(i32 %0) #0 !dbg !4032 {
   %3 = load i32, i32* %2, align 4, !dbg !4038, !tbaa !663
   %4 = icmp uge i32 %3, 1, !dbg !4039
   %5 = zext i1 %4 to i32, !dbg !4039
-  call void @__VERIFIER_assume(i32 %5) #14, !dbg !4040
+  call void @__VERIFIER_assume(i32 %5) #17, !dbg !4040
   %6 = load i32, i32* %2, align 4, !dbg !4041, !tbaa !663
   %7 = icmp eq i32 %6, 0, !dbg !4042
   br i1 %7, label %8, label %9, !dbg !4041
@@ -6085,7 +6085,7 @@ define i8* @can_fail_malloc(i32 %0) #0 !dbg !4032 {
 
 9:                                                ; preds = %1
   %10 = load i32, i32* %2, align 4, !dbg !4043, !tbaa !663
-  %11 = call i8* @sea_malloc_havoc(i32 %10) #14, !dbg !4044
+  %11 = call i8* @sea_malloc_havoc(i32 %10) #17, !dbg !4044
   br label %12, !dbg !4041
 
 12:                                               ; preds = %9, %8
@@ -6108,7 +6108,7 @@ define internal i8* @s_malloc_allocator(%struct.aws_allocator* %0, i32 %1) #0 !d
   call void @llvm.dbg.declare(metadata i32* %4, metadata !4053, metadata !DIExpression()), !dbg !4055
   %5 = load %struct.aws_allocator*, %struct.aws_allocator** %3, align 4, !dbg !4056, !tbaa !657
   %6 = load i32, i32* %4, align 4, !dbg !4057, !tbaa !663
-  %7 = call i8* @bounded_malloc(i32 %6) #14, !dbg !4058
+  %7 = call i8* @bounded_malloc(i32 %6) #17, !dbg !4058
   ret i8* %7, !dbg !4059
 }
 
@@ -6122,7 +6122,7 @@ define internal void @s_free_allocator(%struct.aws_allocator* %0, i8* %1) #0 !db
   call void @llvm.dbg.declare(metadata i8** %4, metadata !4063, metadata !DIExpression()), !dbg !4065
   %5 = load %struct.aws_allocator*, %struct.aws_allocator** %3, align 4, !dbg !4066, !tbaa !657
   %6 = load i8*, i8** %4, align 4, !dbg !4067, !tbaa !657
-  call void @free(i8* %6) #14, !dbg !4068
+  call void @free(i8* %6) #17, !dbg !4068
   ret void, !dbg !4069
 }
 
@@ -6136,7 +6136,7 @@ define i8* @bounded_malloc(i32 %0) #0 !dbg !4070 {
   %3 = load i32, i32* %2, align 4, !dbg !4074, !tbaa !663
   %4 = icmp uge i32 %3, 1, !dbg !4075
   %5 = zext i1 %4 to i32, !dbg !4075
-  call void @__VERIFIER_assume(i32 %5) #14, !dbg !4076
+  call void @__VERIFIER_assume(i32 %5) #17, !dbg !4076
   %6 = load i32, i32* %2, align 4, !dbg !4077, !tbaa !663
   %7 = icmp eq i32 %6, 0, !dbg !4078
   br i1 %7, label %8, label %9, !dbg !4077
@@ -6146,7 +6146,7 @@ define i8* @bounded_malloc(i32 %0) #0 !dbg !4070 {
 
 9:                                                ; preds = %1
   %10 = load i32, i32* %2, align 4, !dbg !4079, !tbaa !663
-  %11 = call i8* @sea_malloc_havoc_safe(i32 %10) #14, !dbg !4080
+  %11 = call i8* @sea_malloc_havoc_safe(i32 %10) #17, !dbg !4080
   br label %12, !dbg !4077
 
 12:                                               ; preds = %9, %8
@@ -6157,53 +6157,53 @@ define i8* @bounded_malloc(i32 %0) #0 !dbg !4070 {
 declare void @__VERIFIER_assume(i32) #4
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_havoc_safe(i32 %0) #9 !dbg !4082 {
+define i8* @sea_malloc_havoc_safe(i32 %0) #12 !dbg !4082 {
   %2 = alloca i32, align 4
   %3 = alloca i8*, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !4084, metadata !DIExpression()), !dbg !4086
   %4 = bitcast i8** %3 to i8*, !dbg !4087
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !4087
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !4087
   call void @llvm.dbg.declare(metadata i8** %3, metadata !4085, metadata !DIExpression()), !dbg !4088
   %5 = load i32, i32* %2, align 4, !dbg !4089, !tbaa !663
-  %6 = call i8* @sea_malloc_havoc(i32 %5) #14, !dbg !4090
+  %6 = call i8* @sea_malloc_havoc(i32 %5) #17, !dbg !4090
   store i8* %6, i8** %3, align 4, !dbg !4088, !tbaa !657
   %7 = load i8*, i8** %3, align 4, !dbg !4091, !tbaa !657
   %8 = icmp ne i8* %7, null, !dbg !4091
-  call void @__SEA_assume(i1 zeroext %8) #14, !dbg !4092
+  call void @__SEA_assume(i1 zeroext %8) #17, !dbg !4092
   %9 = load i8*, i8** %3, align 4, !dbg !4093, !tbaa !657
   %10 = bitcast i8** %3 to i8*, !dbg !4094
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !4094
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !4094
   ret i8* %9, !dbg !4095
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_havoc(i32 %0) #9 !dbg !4096 {
+define i8* @sea_malloc_havoc(i32 %0) #12 !dbg !4096 {
   %2 = alloca i32, align 4
   %3 = alloca i8*, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !4098, metadata !DIExpression()), !dbg !4100
   %4 = bitcast i8** %3 to i8*, !dbg !4101
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !4101
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !4101
   call void @llvm.dbg.declare(metadata i8** %3, metadata !4099, metadata !DIExpression()), !dbg !4102
   %5 = load i32, i32* %2, align 4, !dbg !4103, !tbaa !663
-  %6 = call i8* @sea_malloc(i32 %5) #14, !dbg !4104
+  %6 = call i8* @sea_malloc(i32 %5) #17, !dbg !4104
   store i8* %6, i8** %3, align 4, !dbg !4102, !tbaa !657
   %7 = load i8*, i8** %3, align 4, !dbg !4105, !tbaa !657
   %8 = load i32, i32* %2, align 4, !dbg !4106, !tbaa !663
-  call void @memhavoc(i8* %7, i32 %8) #17, !dbg !4107
+  call void @memhavoc(i8* %7, i32 %8) #21, !dbg !4107
   %9 = load i8*, i8** %3, align 4, !dbg !4108, !tbaa !657
   %10 = bitcast i8** %3 to i8*, !dbg !4109
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !4109
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !4109
   ret i8* %9, !dbg !4110
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc(i32 %0) #9 !dbg !4111 {
+define i8* @sea_malloc(i32 %0) #12 !dbg !4111 {
   %2 = alloca i32, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !4113, metadata !DIExpression()), !dbg !4114
-  %3 = call zeroext i1 @nd_malloc_is_fail() #17, !dbg !4115
+  %3 = call zeroext i1 @nd_malloc_is_fail() #21, !dbg !4115
   br i1 %3, label %4, label %5, !dbg !4115
 
 4:                                                ; preds = %1
@@ -6211,7 +6211,7 @@ define i8* @sea_malloc(i32 %0) #9 !dbg !4111 {
 
 5:                                                ; preds = %1
   %6 = load i32, i32* %2, align 4, !dbg !4116, !tbaa !663
-  %7 = call i8* @malloc(i32 %6) #18, !dbg !4117
+  %7 = call i8* @malloc(i32 %6) #22, !dbg !4117
   br label %8, !dbg !4115
 
 8:                                                ; preds = %5, %4
@@ -6220,54 +6220,54 @@ define i8* @sea_malloc(i32 %0) #9 !dbg !4111 {
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !596 void @memhavoc(i8*, i32) #8
+declare !dbg !596 void @memhavoc(i8*, i32) #11
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !595 zeroext i1 @nd_malloc_is_fail() #8
+declare !dbg !595 zeroext i1 @nd_malloc_is_fail() #11
 
 ; Function Attrs: allocsize(0)
-declare i8* @malloc(i32) #10
+declare i8* @malloc(i32) #13
 
 ; Function Attrs: nounwind ssp
 define void @initialize_bounded_array_list(%struct.aws_array_list* %0) #0 !dbg !4119 {
   %2 = alloca %struct.aws_array_list*, align 4
   store %struct.aws_array_list* %0, %struct.aws_array_list** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_array_list** %2, metadata !4121, metadata !DIExpression()), !dbg !4122
-  %3 = call i32 @nd_size_t() #17, !dbg !4123
+  %3 = call i32 @nd_size_t() #21, !dbg !4123
   %4 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4124, !tbaa !657
   %5 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %4, i32 0, i32 1, !dbg !4125
   store i32 %3, i32* %5, align 4, !dbg !4126, !tbaa !4012
-  %6 = call i32 @nd_size_t() #17, !dbg !4127
+  %6 = call i32 @nd_size_t() #21, !dbg !4127
   %7 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4128, !tbaa !657
   %8 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %7, i32 0, i32 3, !dbg !4129
   store i32 %6, i32* %8, align 4, !dbg !4130, !tbaa !1685
-  %9 = call i32 @nd_size_t() #17, !dbg !4131
+  %9 = call i32 @nd_size_t() #21, !dbg !4131
   %10 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4132, !tbaa !657
   %11 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %10, i32 0, i32 2, !dbg !4133
   store i32 %9, i32* %11, align 4, !dbg !4134, !tbaa !1650
   %12 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4135, !tbaa !657
   %13 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %12, i32 0, i32 1, !dbg !4136
   %14 = load i32, i32* %13, align 4, !dbg !4136, !tbaa !4012
-  %15 = call i8* @can_fail_malloc(i32 %14) #14, !dbg !4137
+  %15 = call i8* @can_fail_malloc(i32 %14) #17, !dbg !4137
   %16 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4138, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %16, i32 0, i32 4, !dbg !4139
   store i8* %15, i8** %17, align 4, !dbg !4140, !tbaa !1651
-  %18 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !4141
+  %18 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !4141
   %19 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4142, !tbaa !657
   %20 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %19, i32 0, i32 0, !dbg !4143
   store %struct.aws_allocator* %18, %struct.aws_allocator** %20, align 4, !dbg !4144, !tbaa !1629
   %21 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4145, !tbaa !657
   %22 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %21, i32 0, i32 2, !dbg !4146
   %23 = load i32, i32* %22, align 4, !dbg !4146, !tbaa !1650
-  %24 = call i32 @sea_max_array_list_len() #14, !dbg !4147
+  %24 = call i32 @sea_max_array_list_len() #17, !dbg !4147
   %25 = icmp ule i32 %23, %24, !dbg !4148
-  call void @__SEA_assume(i1 zeroext %25) #14, !dbg !4149
+  call void @__SEA_assume(i1 zeroext %25) #17, !dbg !4149
   %26 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4150, !tbaa !657
   %27 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %26, i32 0, i32 3, !dbg !4151
   %28 = load i32, i32* %27, align 4, !dbg !4151, !tbaa !1685
-  %29 = call i32 @sea_max_array_list_item_size() #14, !dbg !4152
+  %29 = call i32 @sea_max_array_list_item_size() #17, !dbg !4152
   %30 = icmp eq i32 %28, %29, !dbg !4153
-  call void @__SEA_assume(i1 zeroext %30) #14, !dbg !4154
+  call void @__SEA_assume(i1 zeroext %30) #17, !dbg !4154
   %31 = load %struct.aws_array_list*, %struct.aws_array_list** %2, align 4, !dbg !4155, !tbaa !657
   %32 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %31, i32 0, i32 1, !dbg !4156
   %33 = load i32, i32* %32, align 4, !dbg !4156, !tbaa !4012
@@ -6279,7 +6279,7 @@ define void @initialize_bounded_array_list(%struct.aws_array_list* %0) #0 !dbg !
   %39 = load i32, i32* %38, align 4, !dbg !4160, !tbaa !1650
   %40 = mul i32 %36, %39, !dbg !4161
   %41 = icmp uge i32 %33, %40, !dbg !4162
-  call void @__SEA_assume(i1 zeroext %41) #14, !dbg !4163
+  call void @__SEA_assume(i1 zeroext %41) #17, !dbg !4163
   ret void, !dbg !4164
 }
 
@@ -6296,7 +6296,7 @@ define zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %0, i32 %1,
   call void @llvm.dbg.declare(metadata i32* %5, metadata !4173, metadata !DIExpression()), !dbg !4178
   store i32 %2, i32* %6, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %6, metadata !4174, metadata !DIExpression()), !dbg !4179
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #5, !dbg !4180
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #19, !dbg !4180
   call void @llvm.dbg.declare(metadata i8* %7, metadata !4175, metadata !DIExpression()), !dbg !4181
   %9 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !4182, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %9, i32 0, i32 3, !dbg !4183
@@ -6305,7 +6305,7 @@ define zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %0, i32 %1,
   %13 = icmp eq i32 %11, %12, !dbg !4185
   %14 = zext i1 %13 to i8, !dbg !4181
   store i8 %14, i8* %7, align 1, !dbg !4181, !tbaa !844
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #5, !dbg !4186
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #19, !dbg !4186
   call void @llvm.dbg.declare(metadata i8* %8, metadata !4176, metadata !DIExpression()), !dbg !4187
   %15 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !4188, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %15, i32 0, i32 2, !dbg !4189
@@ -6325,8 +6325,8 @@ define zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %0, i32 %1,
 
 26:                                               ; preds = %23, %3
   %27 = phi i1 [ false, %3 ], [ %25, %23 ], !dbg !4195
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5, !dbg !4196
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5, !dbg !4196
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #19, !dbg !4196
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #19, !dbg !4196
   ret i1 %27, !dbg !4197
 }
 
@@ -6338,23 +6338,23 @@ define void @initialize_byte_buf(%struct.aws_byte_buf* %0) #0 !dbg !4198 {
   store %struct.aws_byte_buf* %0, %struct.aws_byte_buf** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %2, metadata !4211, metadata !DIExpression()), !dbg !4214
   %5 = bitcast i32* %3 to i8*, !dbg !4215
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5, !dbg !4215
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #19, !dbg !4215
   call void @llvm.dbg.declare(metadata i32* %3, metadata !4212, metadata !DIExpression()), !dbg !4216
-  %6 = call i32 @nd_size_t() #17, !dbg !4217
+  %6 = call i32 @nd_size_t() #21, !dbg !4217
   store i32 %6, i32* %3, align 4, !dbg !4216, !tbaa !663
   %7 = bitcast i32* %4 to i8*, !dbg !4218
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !4218
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !4218
   call void @llvm.dbg.declare(metadata i32* %4, metadata !4213, metadata !DIExpression()), !dbg !4219
-  %8 = call i32 @nd_size_t() #17, !dbg !4220
+  %8 = call i32 @nd_size_t() #21, !dbg !4220
   store i32 %8, i32* %4, align 4, !dbg !4219, !tbaa !663
   %9 = load i32, i32* %3, align 4, !dbg !4221, !tbaa !663
   %10 = load i32, i32* %4, align 4, !dbg !4222, !tbaa !663
   %11 = icmp ule i32 %9, %10, !dbg !4223
-  call void @__SEA_assume(i1 zeroext %11) #14, !dbg !4224
+  call void @__SEA_assume(i1 zeroext %11) #17, !dbg !4224
   %12 = load i32, i32* %4, align 4, !dbg !4225, !tbaa !663
-  %13 = call i32 @sea_max_buffer_size() #14, !dbg !4226
+  %13 = call i32 @sea_max_buffer_size() #17, !dbg !4226
   %14 = icmp ule i32 %12, %13, !dbg !4227
-  call void @__SEA_assume(i1 zeroext %14) #14, !dbg !4228
+  call void @__SEA_assume(i1 zeroext %14) #17, !dbg !4228
   %15 = load i32, i32* %3, align 4, !dbg !4229, !tbaa !663
   %16 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4230, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %16, i32 0, i32 0, !dbg !4231
@@ -6365,18 +6365,18 @@ define void @initialize_byte_buf(%struct.aws_byte_buf* %0) #0 !dbg !4198 {
   store i32 %18, i32* %20, align 4, !dbg !4236, !tbaa !698
   %21 = load i32, i32* %4, align 4, !dbg !4237, !tbaa !663
   %22 = mul i32 %21, 1, !dbg !4238
-  %23 = call i8* @can_fail_malloc(i32 %22) #14, !dbg !4239
+  %23 = call i8* @can_fail_malloc(i32 %22) #17, !dbg !4239
   %24 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4240, !tbaa !657
   %25 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %24, i32 0, i32 1, !dbg !4241
   store i8* %23, i8** %25, align 4, !dbg !4242, !tbaa !675
-  %26 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !4243
+  %26 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !4243
   %27 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4244, !tbaa !657
   %28 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %27, i32 0, i32 3, !dbg !4245
   store %struct.aws_allocator* %26, %struct.aws_allocator** %28, align 4, !dbg !4246, !tbaa !703
   %29 = bitcast i32* %4 to i8*, !dbg !4247
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #5, !dbg !4247
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %29) #19, !dbg !4247
   %30 = bitcast i32* %3 to i8*, !dbg !4247
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %30) #5, !dbg !4247
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %30) #19, !dbg !4247
   ret void, !dbg !4247
 }
 
@@ -6386,29 +6386,29 @@ define void @initialize_byte_cursor(%struct.aws_byte_cursor* %0) #0 !dbg !4248 {
   %3 = alloca i32, align 4
   store %struct.aws_byte_cursor* %0, %struct.aws_byte_cursor** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %2, metadata !4258, metadata !DIExpression()), !dbg !4260
-  %4 = call i32 @nd_size_t() #17, !dbg !4261
+  %4 = call i32 @nd_size_t() #21, !dbg !4261
   %5 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4262, !tbaa !657
   %6 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %5, i32 0, i32 0, !dbg !4263
   store i32 %4, i32* %6, align 4, !dbg !4264, !tbaa !822
   %7 = bitcast i32* %3 to i8*, !dbg !4265
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !4265
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !4265
   call void @llvm.dbg.declare(metadata i32* %3, metadata !4259, metadata !DIExpression()), !dbg !4266
-  %8 = call i32 @sea_max_buffer_size() #14, !dbg !4267
+  %8 = call i32 @sea_max_buffer_size() #17, !dbg !4267
   store i32 %8, i32* %3, align 4, !dbg !4266, !tbaa !663
   %9 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4268, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %9, i32 0, i32 0, !dbg !4269
   %11 = load i32, i32* %10, align 4, !dbg !4269, !tbaa !822
   %12 = load i32, i32* %3, align 4, !dbg !4270, !tbaa !663
   %13 = icmp ule i32 %11, %12, !dbg !4271
-  call void @__SEA_assume(i1 zeroext %13) #14, !dbg !4272
+  call void @__SEA_assume(i1 zeroext %13) #17, !dbg !4272
   %14 = load i32, i32* %3, align 4, !dbg !4273, !tbaa !663
   %15 = mul i32 1, %14, !dbg !4274
-  %16 = call i8* @can_fail_malloc(i32 %15) #14, !dbg !4275
+  %16 = call i8* @can_fail_malloc(i32 %15) #17, !dbg !4275
   %17 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4276, !tbaa !657
   %18 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %17, i32 0, i32 1, !dbg !4277
   store i8* %16, i8** %18, align 4, !dbg !4278, !tbaa !832
   %19 = bitcast i32* %3 to i8*, !dbg !4279
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #5, !dbg !4279
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #19, !dbg !4279
   ret void, !dbg !4279
 }
 
@@ -6418,70 +6418,70 @@ define void @initialize_byte_cursor_aligned(%struct.aws_byte_cursor* %0) #0 !dbg
   %3 = alloca i32, align 4
   store %struct.aws_byte_cursor* %0, %struct.aws_byte_cursor** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_cursor** %2, metadata !4282, metadata !DIExpression()), !dbg !4284
-  %4 = call i32 @nd_size_t() #17, !dbg !4285
+  %4 = call i32 @nd_size_t() #21, !dbg !4285
   %5 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4286, !tbaa !657
   %6 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %5, i32 0, i32 0, !dbg !4287
   store i32 %4, i32* %6, align 4, !dbg !4288, !tbaa !822
   %7 = bitcast i32* %3 to i8*, !dbg !4289
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !4289
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !4289
   call void @llvm.dbg.declare(metadata i32* %3, metadata !4283, metadata !DIExpression()), !dbg !4290
-  %8 = call i32 @sea_max_buffer_size() #14, !dbg !4291
+  %8 = call i32 @sea_max_buffer_size() #17, !dbg !4291
   store i32 %8, i32* %3, align 4, !dbg !4290, !tbaa !663
   %9 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4292, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %9, i32 0, i32 0, !dbg !4293
   %11 = load i32, i32* %10, align 4, !dbg !4293, !tbaa !822
   %12 = load i32, i32* %3, align 4, !dbg !4294, !tbaa !663
   %13 = icmp ule i32 %11, %12, !dbg !4295
-  call void @__SEA_assume(i1 zeroext %13) #14, !dbg !4296
+  call void @__SEA_assume(i1 zeroext %13) #17, !dbg !4296
   %14 = load i32, i32* %3, align 4, !dbg !4297, !tbaa !663
   %15 = mul i32 1, %14, !dbg !4298
-  %16 = call i8* @sea_malloc_aligned_havoc(i32 %15) #14, !dbg !4299
+  %16 = call i8* @sea_malloc_aligned_havoc(i32 %15) #17, !dbg !4299
   %17 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %2, align 4, !dbg !4300, !tbaa !657
   %18 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %17, i32 0, i32 1, !dbg !4301
   store i8* %16, i8** %18, align 4, !dbg !4302, !tbaa !832
   %19 = bitcast i32* %3 to i8*, !dbg !4303
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #5, !dbg !4303
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #19, !dbg !4303
   ret void, !dbg !4303
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_aligned_havoc(i32 %0) #9 !dbg !4304 {
+define i8* @sea_malloc_aligned_havoc(i32 %0) #12 !dbg !4304 {
   %2 = alloca i32, align 4
   %3 = alloca i8*, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !4306, metadata !DIExpression()), !dbg !4308
   %4 = bitcast i8** %3 to i8*, !dbg !4309
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !4309
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !4309
   call void @llvm.dbg.declare(metadata i8** %3, metadata !4307, metadata !DIExpression()), !dbg !4310
   %5 = load i32, i32* %2, align 4, !dbg !4311, !tbaa !663
-  %6 = call i8* @sea_malloc_aligned(i32 %5) #14, !dbg !4312
+  %6 = call i8* @sea_malloc_aligned(i32 %5) #17, !dbg !4312
   store i8* %6, i8** %3, align 4, !dbg !4310, !tbaa !657
   %7 = load i8*, i8** %3, align 4, !dbg !4313, !tbaa !657
   %8 = load i32, i32* %2, align 4, !dbg !4314, !tbaa !663
-  call void @memhavoc(i8* %7, i32 %8) #17, !dbg !4315
+  call void @memhavoc(i8* %7, i32 %8) #21, !dbg !4315
   %9 = load i8*, i8** %3, align 4, !dbg !4316, !tbaa !657
   %10 = bitcast i8** %3 to i8*, !dbg !4317
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !4317
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !4317
   ret i8* %9, !dbg !4318
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_aligned(i32 %0) #9 !dbg !586 {
+define i8* @sea_malloc_aligned(i32 %0) #12 !dbg !586 {
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !590, metadata !DIExpression()), !dbg !4319
   %4 = bitcast i32* %3 to i8*, !dbg !4320
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !4320
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !4320
   call void @llvm.dbg.declare(metadata i32* %3, metadata !591, metadata !DIExpression()), !dbg !4321
   %5 = load i32, i32* %2, align 4, !dbg !4322, !tbaa !663
   %6 = add i32 %5, 7, !dbg !4322
   %7 = and i32 %6, -8, !dbg !4322
   store i32 %7, i32* %3, align 4, !dbg !4321, !tbaa !663
   %8 = load i32, i32* %3, align 4, !dbg !4323, !tbaa !663
-  %9 = call i8* @sea_malloc(i32 %8) #14, !dbg !4324
+  %9 = call i8* @sea_malloc(i32 %8) #17, !dbg !4324
   %10 = bitcast i32* %3 to i8*, !dbg !4325
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !4325
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !4325
   ret i8* %9, !dbg !4326
 }
 
@@ -6522,13 +6522,13 @@ define void @ensure_byte_buf_has_allocated_buffer_member(%struct.aws_byte_buf* %
   %2 = alloca %struct.aws_byte_buf*, align 4
   store %struct.aws_byte_buf* %0, %struct.aws_byte_buf** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %2, metadata !4361, metadata !DIExpression()), !dbg !4362
-  %3 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !4363
+  %3 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !4363
   %4 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4364, !tbaa !657
   %5 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %4, i32 0, i32 3, !dbg !4365
   store %struct.aws_allocator* %3, %struct.aws_allocator** %5, align 4, !dbg !4366, !tbaa !703
-  %6 = call i32 @sea_max_buffer_size() #14, !dbg !4367
+  %6 = call i32 @sea_max_buffer_size() #17, !dbg !4367
   %7 = mul i32 1, %6, !dbg !4368
-  %8 = call i8* @bounded_malloc(i32 %7) #14, !dbg !4369
+  %8 = call i8* @bounded_malloc(i32 %7) #17, !dbg !4369
   %9 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4370, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %9, i32 0, i32 1, !dbg !4371
   store i8* %8, i8** %10, align 4, !dbg !4372, !tbaa !675
@@ -6543,7 +6543,7 @@ define zeroext i1 @aws_byte_buf_has_allocator(%struct.aws_byte_buf* %0) #0 !dbg 
   %3 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %2, align 4, !dbg !4380, !tbaa !657
   %4 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %3, i32 0, i32 3, !dbg !4381
   %5 = load %struct.aws_allocator*, %struct.aws_allocator** %4, align 4, !dbg !4381, !tbaa !703
-  %6 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !4382
+  %6 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !4382
   %7 = icmp eq %struct.aws_allocator* %5, %6, !dbg !4383
   ret i1 %7, !dbg !4384
 }
@@ -6630,7 +6630,7 @@ define void @init_node(%struct.aws_linked_list_node* %0) #0 !dbg !4428 {
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %2, metadata !4433, metadata !DIExpression()), !dbg !4434
   %3 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %2, align 4, !dbg !4435, !tbaa !657
   %4 = icmp ne %struct.aws_linked_list_node* %3, null, !dbg !4435
-  call void @__SEA_assume(i1 zeroext %4) #14, !dbg !4436
+  call void @__SEA_assume(i1 zeroext %4) #17, !dbg !4436
   %5 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %2, align 4, !dbg !4437, !tbaa !657
   %6 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %5, i32 0, i32 0, !dbg !4438
   store %struct.aws_linked_list_node* null, %struct.aws_linked_list_node** %6, align 4, !dbg !4439, !tbaa !4440
@@ -6660,9 +6660,9 @@ define void @sea_nd_init_aws_linked_list_from_head(%struct.aws_linked_list* %0, 
   %13 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %12, i32 0, i32 0, !dbg !4473
   store %struct.aws_linked_list_node* null, %struct.aws_linked_list_node** %13, align 4, !dbg !4474, !tbaa !4475
   %14 = bitcast i32* %5 to i8*, !dbg !4476
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !4476
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !4476
   call void @llvm.dbg.declare(metadata i32* %5, metadata !4458, metadata !DIExpression()), !dbg !4477
-  %15 = call i32 @nd_size_t() #17, !dbg !4478
+  %15 = call i32 @nd_size_t() #21, !dbg !4478
   store i32 %15, i32* %5, align 4, !dbg !4477, !tbaa !663
   %16 = load i32, i32* %5, align 4, !dbg !4479, !tbaa !663
   %17 = load i32*, i32** %4, align 4, !dbg !4480, !tbaa !657
@@ -6674,46 +6674,46 @@ define void @sea_nd_init_aws_linked_list_from_head(%struct.aws_linked_list* %0, 
 20:                                               ; preds = %2
   %21 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4485, !tbaa !657
   %22 = load i32, i32* %5, align 4, !dbg !4487, !tbaa !663
-  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #14, !dbg !4488
+  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #17, !dbg !4488
   br label %42, !dbg !4489
 
 23:                                               ; preds = %2
   %24 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4490
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #5, !dbg !4490
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #19, !dbg !4490
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %6, metadata !4459, metadata !DIExpression()), !dbg !4491
-  %25 = call i8* @malloc(i32 8) #18, !dbg !4492
+  %25 = call i8* @malloc(i32 8) #22, !dbg !4492
   %26 = bitcast i8* %25 to %struct.aws_linked_list_node*, !dbg !4492
   store %struct.aws_linked_list_node* %26, %struct.aws_linked_list_node** %6, align 4, !dbg !4491, !tbaa !657
   %27 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4493, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %27) #14, !dbg !4494
+  call void @init_node(%struct.aws_linked_list_node* %27) #17, !dbg !4494
   %28 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4495
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #5, !dbg !4495
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #19, !dbg !4495
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %7, metadata !4462, metadata !DIExpression()), !dbg !4496
-  %29 = call i8* @malloc(i32 8) #18, !dbg !4497
+  %29 = call i8* @malloc(i32 8) #22, !dbg !4497
   %30 = bitcast i8* %29 to %struct.aws_linked_list_node*, !dbg !4497
   store %struct.aws_linked_list_node* %30, %struct.aws_linked_list_node** %7, align 4, !dbg !4496, !tbaa !657
   %31 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4498, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %31) #14, !dbg !4499
+  call void @init_node(%struct.aws_linked_list_node* %31) #17, !dbg !4499
   %32 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4500, !tbaa !657
   %33 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %32, i32 0, i32 0, !dbg !4501
   %34 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4502, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext true) #14, !dbg !4503
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext true) #17, !dbg !4503
   %35 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4504, !tbaa !657
   %36 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4505, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext true) #14, !dbg !4506
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext true) #17, !dbg !4506
   %37 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4507, !tbaa !657
   %38 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4508, !tbaa !657
   %39 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %38, i32 0, i32 1, !dbg !4509
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext false) #14, !dbg !4510
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext false) #17, !dbg !4510
   %40 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4511
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #5, !dbg !4511
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #19, !dbg !4511
   %41 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4511
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #5, !dbg !4511
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #19, !dbg !4511
   br label %42
 
 42:                                               ; preds = %23, %20
   %43 = bitcast i32* %5 to i8*, !dbg !4512
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !4512
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !4512
   ret void, !dbg !4512
 }
 
@@ -6728,10 +6728,10 @@ define internal void @init_short_aws_linked_list(%struct.aws_linked_list* %0, i3
   store i32 %1, i32* %4, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %4, metadata !4518, metadata !DIExpression()), !dbg !4522
   %7 = bitcast %struct.aws_linked_list_node** %5 to i8*, !dbg !4523
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !4523
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !4523
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %5, metadata !4519, metadata !DIExpression()), !dbg !4524
   %8 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4525
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !4525
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !4525
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %6, metadata !4520, metadata !DIExpression()), !dbg !4526
   %9 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4527, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %9, i32 0, i32 0, !dbg !4528
@@ -6750,7 +6750,7 @@ define internal void @init_short_aws_linked_list(%struct.aws_linked_list* %0, i3
   %19 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %18, i32 0, i32 0, !dbg !4541
   %20 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4542, !tbaa !657
   %21 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %20, i32 0, i32 1, !dbg !4543
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %19, %struct.aws_linked_list_node* %21, i1 zeroext true) #14, !dbg !4544
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %19, %struct.aws_linked_list_node* %21, i1 zeroext true) #17, !dbg !4544
   br label %52, !dbg !4545
 
 22:                                               ; preds = %2
@@ -6759,17 +6759,17 @@ define internal void @init_short_aws_linked_list(%struct.aws_linked_list* %0, i3
   br i1 %24, label %25, label %34, !dbg !4549
 
 25:                                               ; preds = %22
-  %26 = call i8* @malloc(i32 8) #18, !dbg !4550
+  %26 = call i8* @malloc(i32 8) #22, !dbg !4550
   %27 = bitcast i8* %26 to %struct.aws_linked_list_node*, !dbg !4550
   store %struct.aws_linked_list_node* %27, %struct.aws_linked_list_node** %5, align 4, !dbg !4552, !tbaa !657
   %28 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4553, !tbaa !657
   %29 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %28, i32 0, i32 0, !dbg !4554
   %30 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %5, align 4, !dbg !4555, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %29, %struct.aws_linked_list_node* %30, i1 zeroext true) #14, !dbg !4556
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %29, %struct.aws_linked_list_node* %30, i1 zeroext true) #17, !dbg !4556
   %31 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %5, align 4, !dbg !4557, !tbaa !657
   %32 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4558, !tbaa !657
   %33 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %32, i32 0, i32 1, !dbg !4559
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %31, %struct.aws_linked_list_node* %33, i1 zeroext true) #14, !dbg !4560
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %31, %struct.aws_linked_list_node* %33, i1 zeroext true) #17, !dbg !4560
   br label %51, !dbg !4561
 
 34:                                               ; preds = %22
@@ -6778,23 +6778,23 @@ define internal void @init_short_aws_linked_list(%struct.aws_linked_list* %0, i3
   br i1 %36, label %37, label %50, !dbg !4565
 
 37:                                               ; preds = %34
-  %38 = call i8* @malloc(i32 8) #18, !dbg !4566
+  %38 = call i8* @malloc(i32 8) #22, !dbg !4566
   %39 = bitcast i8* %38 to %struct.aws_linked_list_node*, !dbg !4566
   store %struct.aws_linked_list_node* %39, %struct.aws_linked_list_node** %5, align 4, !dbg !4568, !tbaa !657
-  %40 = call i8* @malloc(i32 8) #18, !dbg !4569
+  %40 = call i8* @malloc(i32 8) #22, !dbg !4569
   %41 = bitcast i8* %40 to %struct.aws_linked_list_node*, !dbg !4569
   store %struct.aws_linked_list_node* %41, %struct.aws_linked_list_node** %6, align 4, !dbg !4570, !tbaa !657
   %42 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4571, !tbaa !657
   %43 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %42, i32 0, i32 0, !dbg !4572
   %44 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %5, align 4, !dbg !4573, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %43, %struct.aws_linked_list_node* %44, i1 zeroext true) #14, !dbg !4574
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %43, %struct.aws_linked_list_node* %44, i1 zeroext true) #17, !dbg !4574
   %45 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %5, align 4, !dbg !4575, !tbaa !657
   %46 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4576, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %45, %struct.aws_linked_list_node* %46, i1 zeroext true) #14, !dbg !4577
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %45, %struct.aws_linked_list_node* %46, i1 zeroext true) #17, !dbg !4577
   %47 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4578, !tbaa !657
   %48 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4579, !tbaa !657
   %49 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %48, i32 0, i32 1, !dbg !4580
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %47, %struct.aws_linked_list_node* %49, i1 zeroext true) #14, !dbg !4581
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %47, %struct.aws_linked_list_node* %49, i1 zeroext true) #17, !dbg !4581
   br label %50, !dbg !4582
 
 50:                                               ; preds = %37, %34
@@ -6805,9 +6805,9 @@ define internal void @init_short_aws_linked_list(%struct.aws_linked_list* %0, i3
 
 52:                                               ; preds = %51, %17
   %53 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4583
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %53) #5, !dbg !4583
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %53) #19, !dbg !4583
   %54 = bitcast %struct.aws_linked_list_node** %5 to i8*, !dbg !4583
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %54) #5, !dbg !4583
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %54) #19, !dbg !4583
   ret void, !dbg !4583
 }
 
@@ -6839,7 +6839,7 @@ define void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %0, %str
   br label %32, !dbg !4604
 
 17:                                               ; preds = %3
-  %18 = call %struct.aws_linked_list_node* @nd_linked_list_node() #17, !dbg !4605
+  %18 = call %struct.aws_linked_list_node* @nd_linked_list_node() #21, !dbg !4605
   %19 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %4, align 4, !dbg !4607, !tbaa !657
   %20 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %19, i32 0, i32 0, !dbg !4608
   store %struct.aws_linked_list_node* %18, %struct.aws_linked_list_node** %20, align 4, !dbg !4609, !tbaa !4440
@@ -6847,8 +6847,8 @@ define void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %0, %str
   %22 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %21, i32 0, i32 0, !dbg !4611
   %23 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %22, align 4, !dbg !4611, !tbaa !4440
   %24 = icmp ne %struct.aws_linked_list_node* %23, null, !dbg !4612
-  call void @__SEA_assume(i1 zeroext %24) #14, !dbg !4613
-  %25 = call %struct.aws_linked_list_node* @nd_linked_list_node() #17, !dbg !4614
+  call void @__SEA_assume(i1 zeroext %24) #17, !dbg !4613
+  %25 = call %struct.aws_linked_list_node* @nd_linked_list_node() #21, !dbg !4614
   %26 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %5, align 4, !dbg !4615, !tbaa !657
   %27 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %26, i32 0, i32 1, !dbg !4616
   store %struct.aws_linked_list_node* %25, %struct.aws_linked_list_node** %27, align 4, !dbg !4617, !tbaa !4445
@@ -6856,7 +6856,7 @@ define void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %0, %str
   %29 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %28, i32 0, i32 1, !dbg !4619
   %30 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %29, align 4, !dbg !4619, !tbaa !4445
   %31 = icmp ne %struct.aws_linked_list_node* %30, null, !dbg !4620
-  call void @__SEA_assume(i1 zeroext %31) #14, !dbg !4621
+  call void @__SEA_assume(i1 zeroext %31) #17, !dbg !4621
   br label %32
 
 32:                                               ; preds = %17, %10
@@ -6864,7 +6864,7 @@ define void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %0, %str
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !347 %struct.aws_linked_list_node* @nd_linked_list_node() #8
+declare !dbg !347 %struct.aws_linked_list_node* @nd_linked_list_node() #11
 
 ; Function Attrs: nounwind ssp
 define void @sea_nd_init_aws_linked_list_from_tail(%struct.aws_linked_list* %0, i32* %1) #0 !dbg !4623 {
@@ -6886,9 +6886,9 @@ define void @sea_nd_init_aws_linked_list_from_tail(%struct.aws_linked_list* %0, 
   %13 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %12, i32 0, i32 0, !dbg !4640
   store %struct.aws_linked_list_node* null, %struct.aws_linked_list_node** %13, align 4, !dbg !4641, !tbaa !4475
   %14 = bitcast i32* %5 to i8*, !dbg !4642
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !4642
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !4642
   call void @llvm.dbg.declare(metadata i32* %5, metadata !4627, metadata !DIExpression()), !dbg !4643
-  %15 = call i32 @nd_size_t() #17, !dbg !4644
+  %15 = call i32 @nd_size_t() #21, !dbg !4644
   store i32 %15, i32* %5, align 4, !dbg !4643, !tbaa !663
   %16 = load i32, i32* %5, align 4, !dbg !4645, !tbaa !663
   %17 = load i32*, i32** %4, align 4, !dbg !4646, !tbaa !657
@@ -6900,46 +6900,46 @@ define void @sea_nd_init_aws_linked_list_from_tail(%struct.aws_linked_list* %0, 
 20:                                               ; preds = %2
   %21 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4651, !tbaa !657
   %22 = load i32, i32* %5, align 4, !dbg !4653, !tbaa !663
-  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #14, !dbg !4654
+  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #17, !dbg !4654
   br label %42, !dbg !4655
 
 23:                                               ; preds = %2
   %24 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4656
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #5, !dbg !4656
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #19, !dbg !4656
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %6, metadata !4628, metadata !DIExpression()), !dbg !4657
-  %25 = call i8* @malloc(i32 8) #18, !dbg !4658
+  %25 = call i8* @malloc(i32 8) #22, !dbg !4658
   %26 = bitcast i8* %25 to %struct.aws_linked_list_node*, !dbg !4658
   store %struct.aws_linked_list_node* %26, %struct.aws_linked_list_node** %6, align 4, !dbg !4657, !tbaa !657
   %27 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4659, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %27) #14, !dbg !4660
+  call void @init_node(%struct.aws_linked_list_node* %27) #17, !dbg !4660
   %28 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4661
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #5, !dbg !4661
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #19, !dbg !4661
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %7, metadata !4631, metadata !DIExpression()), !dbg !4662
-  %29 = call i8* @malloc(i32 8) #18, !dbg !4663
+  %29 = call i8* @malloc(i32 8) #22, !dbg !4663
   %30 = bitcast i8* %29 to %struct.aws_linked_list_node*, !dbg !4663
   store %struct.aws_linked_list_node* %30, %struct.aws_linked_list_node** %7, align 4, !dbg !4662, !tbaa !657
   %31 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4664, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %31) #14, !dbg !4665
+  call void @init_node(%struct.aws_linked_list_node* %31) #17, !dbg !4665
   %32 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4666, !tbaa !657
   %33 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %32, i32 0, i32 0, !dbg !4667
   %34 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4668, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext false) #14, !dbg !4669
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext false) #17, !dbg !4669
   %35 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4670, !tbaa !657
   %36 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4671, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext true) #14, !dbg !4672
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext true) #17, !dbg !4672
   %37 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4673, !tbaa !657
   %38 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4674, !tbaa !657
   %39 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %38, i32 0, i32 1, !dbg !4675
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext true) #14, !dbg !4676
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext true) #17, !dbg !4676
   %40 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4677
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #5, !dbg !4677
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #19, !dbg !4677
   %41 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4677
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #5, !dbg !4677
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #19, !dbg !4677
   br label %42
 
 42:                                               ; preds = %23, %20
   %43 = bitcast i32* %5 to i8*, !dbg !4678
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !4678
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !4678
   ret void, !dbg !4678
 }
 
@@ -6963,9 +6963,9 @@ define void @sea_nd_init_aws_linked_list(%struct.aws_linked_list* %0, i32* %1) #
   %13 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %12, i32 0, i32 0, !dbg !4696
   store %struct.aws_linked_list_node* null, %struct.aws_linked_list_node** %13, align 4, !dbg !4697, !tbaa !4475
   %14 = bitcast i32* %5 to i8*, !dbg !4698
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !4698
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !4698
   call void @llvm.dbg.declare(metadata i32* %5, metadata !4683, metadata !DIExpression()), !dbg !4699
-  %15 = call i32 @nd_size_t() #17, !dbg !4700
+  %15 = call i32 @nd_size_t() #21, !dbg !4700
   store i32 %15, i32* %5, align 4, !dbg !4699, !tbaa !663
   %16 = load i32, i32* %5, align 4, !dbg !4701, !tbaa !663
   %17 = load i32*, i32** %4, align 4, !dbg !4702, !tbaa !657
@@ -6977,46 +6977,46 @@ define void @sea_nd_init_aws_linked_list(%struct.aws_linked_list* %0, i32* %1) #
 20:                                               ; preds = %2
   %21 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4707, !tbaa !657
   %22 = load i32, i32* %5, align 4, !dbg !4709, !tbaa !663
-  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #14, !dbg !4710
+  call void @init_short_aws_linked_list(%struct.aws_linked_list* %21, i32 %22) #17, !dbg !4710
   br label %42, !dbg !4711
 
 23:                                               ; preds = %2
   %24 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4712
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #5, !dbg !4712
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %24) #19, !dbg !4712
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %6, metadata !4684, metadata !DIExpression()), !dbg !4713
-  %25 = call i8* @malloc(i32 8) #18, !dbg !4714
+  %25 = call i8* @malloc(i32 8) #22, !dbg !4714
   %26 = bitcast i8* %25 to %struct.aws_linked_list_node*, !dbg !4714
   store %struct.aws_linked_list_node* %26, %struct.aws_linked_list_node** %6, align 4, !dbg !4713, !tbaa !657
   %27 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4715, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %27) #14, !dbg !4716
+  call void @init_node(%struct.aws_linked_list_node* %27) #17, !dbg !4716
   %28 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4717
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #5, !dbg !4717
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %28) #19, !dbg !4717
   call void @llvm.dbg.declare(metadata %struct.aws_linked_list_node** %7, metadata !4687, metadata !DIExpression()), !dbg !4718
-  %29 = call i8* @malloc(i32 8) #18, !dbg !4719
+  %29 = call i8* @malloc(i32 8) #22, !dbg !4719
   %30 = bitcast i8* %29 to %struct.aws_linked_list_node*, !dbg !4719
   store %struct.aws_linked_list_node* %30, %struct.aws_linked_list_node** %7, align 4, !dbg !4718, !tbaa !657
   %31 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4720, !tbaa !657
-  call void @init_node(%struct.aws_linked_list_node* %31) #14, !dbg !4721
+  call void @init_node(%struct.aws_linked_list_node* %31) #17, !dbg !4721
   %32 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4722, !tbaa !657
   %33 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %32, i32 0, i32 0, !dbg !4723
   %34 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4724, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext true) #14, !dbg !4725
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %33, %struct.aws_linked_list_node* %34, i1 zeroext true) #17, !dbg !4725
   %35 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %6, align 4, !dbg !4726, !tbaa !657
   %36 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4727, !tbaa !657
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext false) #14, !dbg !4728
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %35, %struct.aws_linked_list_node* %36, i1 zeroext false) #17, !dbg !4728
   %37 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !4729, !tbaa !657
   %38 = load %struct.aws_linked_list*, %struct.aws_linked_list** %3, align 4, !dbg !4730, !tbaa !657
   %39 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %38, i32 0, i32 1, !dbg !4731
-  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext true) #14, !dbg !4732
+  call void @aws_linked_list_attach_after(%struct.aws_linked_list_node* %37, %struct.aws_linked_list_node* %39, i1 zeroext true) #17, !dbg !4732
   %40 = bitcast %struct.aws_linked_list_node** %7 to i8*, !dbg !4733
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #5, !dbg !4733
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %40) #19, !dbg !4733
   %41 = bitcast %struct.aws_linked_list_node** %6 to i8*, !dbg !4733
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #5, !dbg !4733
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #19, !dbg !4733
   br label %42
 
 42:                                               ; preds = %23, %20
   %43 = bitcast i32* %5 to i8*, !dbg !4734
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !4734
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !4734
   ret void, !dbg !4734
 }
 
@@ -7090,13 +7090,13 @@ define zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %0, %struct.saved_a
   call void @llvm.dbg.declare(metadata %struct.saved_aws_linked_list_node** %4, metadata !4786, metadata !DIExpression()), !dbg !4788
   %5 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %3, align 4, !dbg !4789, !tbaa !657
   %6 = load %struct.saved_aws_linked_list_node*, %struct.saved_aws_linked_list_node** %4, align 4, !dbg !4790, !tbaa !657
-  %7 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %5, %struct.saved_aws_linked_list_node* %6) #14, !dbg !4791
+  %7 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %5, %struct.saved_aws_linked_list_node* %6) #17, !dbg !4791
   br i1 %7, label %8, label %12, !dbg !4792
 
 8:                                                ; preds = %2
   %9 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %3, align 4, !dbg !4793, !tbaa !657
   %10 = load %struct.saved_aws_linked_list_node*, %struct.saved_aws_linked_list_node** %4, align 4, !dbg !4794, !tbaa !657
-  %11 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %9, %struct.saved_aws_linked_list_node* %10) #14, !dbg !4795
+  %11 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %9, %struct.saved_aws_linked_list_node* %10) #17, !dbg !4795
   br label %12
 
 12:                                               ; preds = %8, %2
@@ -7143,7 +7143,7 @@ define zeroext i1 @check_tail_unchanged(%struct.aws_linked_list* %0, %struct.sav
   %6 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %5, i32 0, i32 1, !dbg !4842
   %7 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %4, align 4, !dbg !4843, !tbaa !657
   %8 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %7, i32 0, i32 4, !dbg !4844
-  %9 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %6, %struct.saved_aws_linked_list_node* %8) #14, !dbg !4845
+  %9 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %6, %struct.saved_aws_linked_list_node* %8) #17, !dbg !4845
   ret i1 %9, !dbg !4846
 }
 
@@ -7167,7 +7167,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %12 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %11, i32 0, i32 1, !dbg !4862
   %13 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4863, !tbaa !657
   %14 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %13, i32 0, i32 4, !dbg !4864
-  %15 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %12, %struct.saved_aws_linked_list_node* %14) #14, !dbg !4865
+  %15 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %12, %struct.saved_aws_linked_list_node* %14) #17, !dbg !4865
   store i1 %15, i1* %3, align 1, !dbg !4866
   br label %112, !dbg !4866
 
@@ -7185,7 +7185,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %25 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4876, !tbaa !657
   %26 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %25, i32 0, i32 5, !dbg !4877
   %27 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %26, i32 0, i32 0, !dbg !4876
-  %28 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %24, %struct.saved_aws_linked_list_node* %27) #14, !dbg !4878
+  %28 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %24, %struct.saved_aws_linked_list_node* %27) #17, !dbg !4878
   br i1 %28, label %29, label %35, !dbg !4879
 
 29:                                               ; preds = %21
@@ -7193,7 +7193,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %31 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %30, i32 0, i32 1, !dbg !4881
   %32 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4882, !tbaa !657
   %33 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %32, i32 0, i32 4, !dbg !4883
-  %34 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list_node* %33) #14, !dbg !4884
+  %34 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list_node* %33) #17, !dbg !4884
   br label %35
 
 35:                                               ; preds = %29, %21
@@ -7215,7 +7215,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %46 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4895, !tbaa !657
   %47 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %46, i32 0, i32 5, !dbg !4896
   %48 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %47, i32 0, i32 0, !dbg !4895
-  %49 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %45, %struct.saved_aws_linked_list_node* %48) #14, !dbg !4897
+  %49 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %45, %struct.saved_aws_linked_list_node* %48) #17, !dbg !4897
   br i1 %49, label %50, label %66, !dbg !4898
 
 50:                                               ; preds = %42
@@ -7227,7 +7227,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %56 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4902, !tbaa !657
   %57 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %56, i32 0, i32 5, !dbg !4903
   %58 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %57, i32 0, i32 1, !dbg !4902
-  %59 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %55, %struct.saved_aws_linked_list_node* %58) #14, !dbg !4904
+  %59 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %55, %struct.saved_aws_linked_list_node* %58) #17, !dbg !4904
   br i1 %59, label %60, label %66, !dbg !4905
 
 60:                                               ; preds = %50
@@ -7235,7 +7235,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %62 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %61, i32 0, i32 1, !dbg !4907
   %63 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4908, !tbaa !657
   %64 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %63, i32 0, i32 4, !dbg !4909
-  %65 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %62, %struct.saved_aws_linked_list_node* %64) #14, !dbg !4910
+  %65 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %62, %struct.saved_aws_linked_list_node* %64) #17, !dbg !4910
   br label %66
 
 66:                                               ; preds = %60, %50, %42
@@ -7257,7 +7257,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %77 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4921, !tbaa !657
   %78 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %77, i32 0, i32 5, !dbg !4922
   %79 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %78, i32 0, i32 0, !dbg !4921
-  %80 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %76, %struct.saved_aws_linked_list_node* %79) #14, !dbg !4923
+  %80 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %76, %struct.saved_aws_linked_list_node* %79) #17, !dbg !4923
   br i1 %80, label %81, label %109, !dbg !4924
 
 81:                                               ; preds = %73
@@ -7269,7 +7269,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %87 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4928, !tbaa !657
   %88 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %87, i32 0, i32 5, !dbg !4929
   %89 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %88, i32 0, i32 1, !dbg !4928
-  %90 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %86, %struct.saved_aws_linked_list_node* %89) #14, !dbg !4930
+  %90 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %86, %struct.saved_aws_linked_list_node* %89) #17, !dbg !4930
   br i1 %90, label %91, label %109, !dbg !4931
 
 91:                                               ; preds = %81
@@ -7283,7 +7283,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %99 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4936, !tbaa !657
   %100 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %99, i32 0, i32 5, !dbg !4937
   %101 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %100, i32 0, i32 2, !dbg !4936
-  %102 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %98, %struct.saved_aws_linked_list_node* %101) #14, !dbg !4938
+  %102 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %98, %struct.saved_aws_linked_list_node* %101) #17, !dbg !4938
   br i1 %102, label %103, label %109, !dbg !4939
 
 103:                                              ; preds = %91
@@ -7291,7 +7291,7 @@ define zeroext i1 @is_aws_list_unchanged_to_tail(%struct.aws_linked_list* %0, %s
   %105 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %104, i32 0, i32 1, !dbg !4941
   %106 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4942, !tbaa !657
   %107 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %106, i32 0, i32 4, !dbg !4943
-  %108 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %105, %struct.saved_aws_linked_list_node* %107) #14, !dbg !4944
+  %108 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %105, %struct.saved_aws_linked_list_node* %107) #17, !dbg !4944
   br label %109
 
 109:                                              ; preds = %103, %91, %81, %73
@@ -7328,7 +7328,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %12 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %11, i32 0, i32 0, !dbg !4963
   %13 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4964, !tbaa !657
   %14 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %13, i32 0, i32 3, !dbg !4965
-  %15 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %12, %struct.saved_aws_linked_list_node* %14) #14, !dbg !4966
+  %15 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %12, %struct.saved_aws_linked_list_node* %14) #17, !dbg !4966
   store i1 %15, i1* %3, align 1, !dbg !4967
   br label %112, !dbg !4967
 
@@ -7346,7 +7346,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %25 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4976, !tbaa !657
   %26 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %25, i32 0, i32 5, !dbg !4977
   %27 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %26, i32 0, i32 0, !dbg !4976
-  %28 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %24, %struct.saved_aws_linked_list_node* %27) #14, !dbg !4978
+  %28 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %24, %struct.saved_aws_linked_list_node* %27) #17, !dbg !4978
   br i1 %28, label %29, label %35, !dbg !4979
 
 29:                                               ; preds = %21
@@ -7354,7 +7354,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %31 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %30, i32 0, i32 0, !dbg !4981
   %32 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4982, !tbaa !657
   %33 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %32, i32 0, i32 3, !dbg !4983
-  %34 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list_node* %33) #14, !dbg !4984
+  %34 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list_node* %33) #17, !dbg !4984
   br label %35
 
 35:                                               ; preds = %29, %21
@@ -7376,7 +7376,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %46 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !4995, !tbaa !657
   %47 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %46, i32 0, i32 5, !dbg !4996
   %48 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %47, i32 0, i32 0, !dbg !4995
-  %49 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %45, %struct.saved_aws_linked_list_node* %48) #14, !dbg !4997
+  %49 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %45, %struct.saved_aws_linked_list_node* %48) #17, !dbg !4997
   br i1 %49, label %50, label %66, !dbg !4998
 
 50:                                               ; preds = %42
@@ -7388,7 +7388,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %56 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5002, !tbaa !657
   %57 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %56, i32 0, i32 5, !dbg !5003
   %58 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %57, i32 0, i32 1, !dbg !5002
-  %59 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %55, %struct.saved_aws_linked_list_node* %58) #14, !dbg !5004
+  %59 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %55, %struct.saved_aws_linked_list_node* %58) #17, !dbg !5004
   br i1 %59, label %60, label %66, !dbg !5005
 
 60:                                               ; preds = %50
@@ -7396,7 +7396,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %62 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %61, i32 0, i32 0, !dbg !5007
   %63 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5008, !tbaa !657
   %64 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %63, i32 0, i32 3, !dbg !5009
-  %65 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %62, %struct.saved_aws_linked_list_node* %64) #14, !dbg !5010
+  %65 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %62, %struct.saved_aws_linked_list_node* %64) #17, !dbg !5010
   br label %66
 
 66:                                               ; preds = %60, %50, %42
@@ -7418,7 +7418,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %77 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5021, !tbaa !657
   %78 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %77, i32 0, i32 5, !dbg !5022
   %79 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %78, i32 0, i32 0, !dbg !5021
-  %80 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %76, %struct.saved_aws_linked_list_node* %79) #14, !dbg !5023
+  %80 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %76, %struct.saved_aws_linked_list_node* %79) #17, !dbg !5023
   br i1 %80, label %81, label %109, !dbg !5024
 
 81:                                               ; preds = %73
@@ -7430,7 +7430,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %87 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5028, !tbaa !657
   %88 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %87, i32 0, i32 5, !dbg !5029
   %89 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %88, i32 0, i32 1, !dbg !5028
-  %90 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %86, %struct.saved_aws_linked_list_node* %89) #14, !dbg !5030
+  %90 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %86, %struct.saved_aws_linked_list_node* %89) #17, !dbg !5030
   br i1 %90, label %91, label %109, !dbg !5031
 
 91:                                               ; preds = %81
@@ -7444,7 +7444,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %99 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5036, !tbaa !657
   %100 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %99, i32 0, i32 5, !dbg !5037
   %101 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %100, i32 0, i32 2, !dbg !5036
-  %102 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %98, %struct.saved_aws_linked_list_node* %101) #14, !dbg !5038
+  %102 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %98, %struct.saved_aws_linked_list_node* %101) #17, !dbg !5038
   br i1 %102, label %103, label %109, !dbg !5039
 
 103:                                              ; preds = %91
@@ -7452,7 +7452,7 @@ define zeroext i1 @is_aws_list_unchanged_to_head(%struct.aws_linked_list* %0, %s
   %105 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %104, i32 0, i32 0, !dbg !5041
   %106 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5042, !tbaa !657
   %107 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %106, i32 0, i32 3, !dbg !5043
-  %108 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %105, %struct.saved_aws_linked_list_node* %107) #14, !dbg !5044
+  %108 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %105, %struct.saved_aws_linked_list_node* %107) #17, !dbg !5044
   br label %109
 
 109:                                              ; preds = %103, %91, %81, %73
@@ -7561,7 +7561,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %66 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5112, !tbaa !657
   %67 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %66, i32 0, i32 5, !dbg !5113
   %68 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %67, i32 0, i32 0, !dbg !5112
-  %69 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %65, %struct.saved_aws_linked_list_node* %68) #14, !dbg !5114
+  %69 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %65, %struct.saved_aws_linked_list_node* %68) #17, !dbg !5114
   br i1 %69, label %70, label %78, !dbg !5115
 
 70:                                               ; preds = %62
@@ -7571,7 +7571,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %74 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5118, !tbaa !657
   %75 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %74, i32 0, i32 5, !dbg !5119
   %76 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %75, i32 0, i32 1, !dbg !5118
-  %77 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %73, %struct.saved_aws_linked_list_node* %76) #14, !dbg !5120
+  %77 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %73, %struct.saved_aws_linked_list_node* %76) #17, !dbg !5120
   br label %78
 
 78:                                               ; preds = %70, %62
@@ -7593,7 +7593,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %89 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5132, !tbaa !657
   %90 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %89, i32 0, i32 5, !dbg !5133
   %91 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %90, i32 0, i32 0, !dbg !5132
-  %92 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %88, %struct.saved_aws_linked_list_node* %91) #14, !dbg !5134
+  %92 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %88, %struct.saved_aws_linked_list_node* %91) #17, !dbg !5134
   br i1 %92, label %93, label %146, !dbg !5135
 
 93:                                               ; preds = %85
@@ -7603,7 +7603,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %97 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5138, !tbaa !657
   %98 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %97, i32 0, i32 5, !dbg !5139
   %99 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %98, i32 0, i32 2, !dbg !5138
-  %100 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %96, %struct.saved_aws_linked_list_node* %99) #14, !dbg !5140
+  %100 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %96, %struct.saved_aws_linked_list_node* %99) #17, !dbg !5140
   br i1 %100, label %101, label %146, !dbg !5141
 
 101:                                              ; preds = %93
@@ -7629,7 +7629,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %119 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5156, !tbaa !657
   %120 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %119, i32 0, i32 5, !dbg !5157
   %121 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %120, i32 0, i32 1, !dbg !5156
-  %122 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %118, %struct.saved_aws_linked_list_node* %121) #14, !dbg !5158
+  %122 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %118, %struct.saved_aws_linked_list_node* %121) #17, !dbg !5158
   store i1 %122, i1* %3, align 1, !dbg !5159
   br label %191, !dbg !5159
 
@@ -7656,7 +7656,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %141 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5173, !tbaa !657
   %142 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %141, i32 0, i32 5, !dbg !5174
   %143 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %142, i32 0, i32 1, !dbg !5173
-  %144 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %140, %struct.saved_aws_linked_list_node* %143) #14, !dbg !5175
+  %144 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %140, %struct.saved_aws_linked_list_node* %143) #17, !dbg !5175
   store i1 %144, i1* %3, align 1, !dbg !5176
   br label %191, !dbg !5176
 
@@ -7682,7 +7682,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %156 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5187, !tbaa !657
   %157 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %156, i32 0, i32 5, !dbg !5188
   %158 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %157, i32 0, i32 0, !dbg !5187
-  %159 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %155, %struct.saved_aws_linked_list_node* %158) #14, !dbg !5189
+  %159 = call zeroext i1 @nodes_next_equal(%struct.aws_linked_list_node* %155, %struct.saved_aws_linked_list_node* %158) #17, !dbg !5189
   br i1 %159, label %160, label %188, !dbg !5190
 
 160:                                              ; preds = %152
@@ -7694,7 +7694,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %166 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5194, !tbaa !657
   %167 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %166, i32 0, i32 5, !dbg !5195
   %168 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %167, i32 0, i32 1, !dbg !5194
-  %169 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %165, %struct.saved_aws_linked_list_node* %168) #14, !dbg !5196
+  %169 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %165, %struct.saved_aws_linked_list_node* %168) #17, !dbg !5196
   br i1 %169, label %170, label %188, !dbg !5197
 
 170:                                              ; preds = %160
@@ -7706,7 +7706,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %176 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5201, !tbaa !657
   %177 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %176, i32 0, i32 5, !dbg !5202
   %178 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %177, i32 0, i32 2, !dbg !5201
-  %179 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %175, %struct.saved_aws_linked_list_node* %178) #14, !dbg !5203
+  %179 = call zeroext i1 @nodes_equal(%struct.aws_linked_list_node* %175, %struct.saved_aws_linked_list_node* %178) #17, !dbg !5203
   br i1 %179, label %180, label %188, !dbg !5204
 
 180:                                              ; preds = %170
@@ -7716,7 +7716,7 @@ define zeroext i1 @is_aws_list_unchanged_full(%struct.aws_linked_list* %0, %stru
   %184 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5207, !tbaa !657
   %185 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %184, i32 0, i32 5, !dbg !5208
   %186 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %185, i32 0, i32 3, !dbg !5207
-  %187 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %183, %struct.saved_aws_linked_list_node* %186) #14, !dbg !5209
+  %187 = call zeroext i1 @nodes_prev_equal(%struct.aws_linked_list_node* %183, %struct.saved_aws_linked_list_node* %186) #17, !dbg !5209
   br label %188
 
 188:                                              ; preds = %180, %170, %160, %152
@@ -7767,7 +7767,7 @@ define void @save_one_node(%struct.aws_linked_list_node* %0, %struct.saved_aws_l
   %6 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %4, align 4, !dbg !5239, !tbaa !657
   %7 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %6, i32 0, i32 5, !dbg !5240
   %8 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %7, i32 0, i32 0, !dbg !5239
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %5, %struct.saved_aws_linked_list_node* %8) #14, !dbg !5241
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %5, %struct.saved_aws_linked_list_node* %8) #17, !dbg !5241
   %9 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %4, align 4, !dbg !5242, !tbaa !657
   %10 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %9, i32 0, i32 0, !dbg !5243
   store i32 1, i32* %10, align 4, !dbg !5244, !tbaa !4856
@@ -7789,14 +7789,14 @@ define void @save_two_nodes(%struct.aws_linked_list_node* %0, %struct.saved_aws_
   %8 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5258, !tbaa !657
   %9 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %8, i32 0, i32 5, !dbg !5259
   %10 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %9, i32 0, i32 0, !dbg !5258
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %7, %struct.saved_aws_linked_list_node* %10) #14, !dbg !5260
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %7, %struct.saved_aws_linked_list_node* %10) #17, !dbg !5260
   %11 = load %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)*, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)** %6, align 4, !dbg !5261, !tbaa !657
   %12 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %4, align 4, !dbg !5262, !tbaa !657
   %13 = call %struct.aws_linked_list_node* %11(%struct.aws_linked_list_node* %12), !dbg !5263
   %14 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5264, !tbaa !657
   %15 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %14, i32 0, i32 5, !dbg !5265
   %16 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %15, i32 0, i32 1, !dbg !5264
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %13, %struct.saved_aws_linked_list_node* %16) #14, !dbg !5266
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %13, %struct.saved_aws_linked_list_node* %16) #17, !dbg !5266
   %17 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5267, !tbaa !657
   %18 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %17, i32 0, i32 0, !dbg !5268
   store i32 2, i32* %18, align 4, !dbg !5269, !tbaa !4856
@@ -7818,14 +7818,14 @@ define void @save_three_nodes(%struct.aws_linked_list_node* %0, %struct.saved_aw
   %8 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5280, !tbaa !657
   %9 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %8, i32 0, i32 5, !dbg !5281
   %10 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %9, i32 0, i32 0, !dbg !5280
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %7, %struct.saved_aws_linked_list_node* %10) #14, !dbg !5282
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %7, %struct.saved_aws_linked_list_node* %10) #17, !dbg !5282
   %11 = load %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)*, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)** %6, align 4, !dbg !5283, !tbaa !657
   %12 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %4, align 4, !dbg !5284, !tbaa !657
   %13 = call %struct.aws_linked_list_node* %11(%struct.aws_linked_list_node* %12), !dbg !5285
   %14 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5286, !tbaa !657
   %15 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %14, i32 0, i32 5, !dbg !5287
   %16 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %15, i32 0, i32 1, !dbg !5286
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %13, %struct.saved_aws_linked_list_node* %16) #14, !dbg !5288
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %13, %struct.saved_aws_linked_list_node* %16) #17, !dbg !5288
   %17 = load %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)*, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)** %6, align 4, !dbg !5289, !tbaa !657
   %18 = load %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)*, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)** %6, align 4, !dbg !5290, !tbaa !657
   %19 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %4, align 4, !dbg !5291, !tbaa !657
@@ -7834,7 +7834,7 @@ define void @save_three_nodes(%struct.aws_linked_list_node* %0, %struct.saved_aw
   %22 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5294, !tbaa !657
   %23 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %22, i32 0, i32 5, !dbg !5295
   %24 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %23, i32 0, i32 2, !dbg !5294
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %21, %struct.saved_aws_linked_list_node* %24) #14, !dbg !5296
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %21, %struct.saved_aws_linked_list_node* %24) #17, !dbg !5296
   %25 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %5, align 4, !dbg !5297, !tbaa !657
   %26 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %25, i32 0, i32 0, !dbg !5298
   store i32 3, i32* %26, align 4, !dbg !5299, !tbaa !4856
@@ -7859,12 +7859,12 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
   %10 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %9, i32 0, i32 0, !dbg !5314
   %11 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5315, !tbaa !657
   %12 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %11, i32 0, i32 3, !dbg !5316
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %10, %struct.saved_aws_linked_list_node* %12) #14, !dbg !5317
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %10, %struct.saved_aws_linked_list_node* %12) #17, !dbg !5317
   %13 = load %struct.aws_linked_list*, %struct.aws_linked_list** %5, align 4, !dbg !5318, !tbaa !657
   %14 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %13, i32 0, i32 1, !dbg !5319
   %15 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5320, !tbaa !657
   %16 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %15, i32 0, i32 4, !dbg !5321
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #14, !dbg !5322
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #17, !dbg !5322
   %17 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5323, !tbaa !657
   %18 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5324, !tbaa !657
   %19 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %18, i32 0, i32 1, !dbg !5325
@@ -7883,7 +7883,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 27:                                               ; preds = %22
   %28 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5338, !tbaa !657
   %29 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5340, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %28, %struct.saved_aws_linked_list* %29) #14, !dbg !5341
+  call void @save_one_node(%struct.aws_linked_list_node* %28, %struct.saved_aws_linked_list* %29) #17, !dbg !5341
   br label %33, !dbg !5342
 
 30:                                               ; preds = %22
@@ -7910,7 +7910,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 42:                                               ; preds = %37
   %43 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5359, !tbaa !657
   %44 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5361, !tbaa !657
-  call void @save_two_nodes(%struct.aws_linked_list_node* %43, %struct.saved_aws_linked_list* %44, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #14, !dbg !5362
+  call void @save_two_nodes(%struct.aws_linked_list_node* %43, %struct.saved_aws_linked_list* %44, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #17, !dbg !5362
   br label %59, !dbg !5363
 
 45:                                               ; preds = %37
@@ -7925,7 +7925,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 52:                                               ; preds = %45
   %53 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5372, !tbaa !657
   %54 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5374, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %53, %struct.saved_aws_linked_list* %54) #14, !dbg !5375
+  call void @save_one_node(%struct.aws_linked_list_node* %53, %struct.saved_aws_linked_list* %54) #17, !dbg !5375
   br label %58, !dbg !5376
 
 55:                                               ; preds = %45
@@ -7955,7 +7955,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 68:                                               ; preds = %63
   %69 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5393, !tbaa !657
   %70 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5395, !tbaa !657
-  call void @save_three_nodes(%struct.aws_linked_list_node* %69, %struct.saved_aws_linked_list* %70, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #14, !dbg !5396
+  call void @save_three_nodes(%struct.aws_linked_list_node* %69, %struct.saved_aws_linked_list* %70, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #17, !dbg !5396
   br label %98, !dbg !5397
 
 71:                                               ; preds = %63
@@ -7970,7 +7970,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 78:                                               ; preds = %71
   %79 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5405, !tbaa !657
   %80 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5407, !tbaa !657
-  call void @save_two_nodes(%struct.aws_linked_list_node* %79, %struct.saved_aws_linked_list* %80, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #14, !dbg !5408
+  call void @save_two_nodes(%struct.aws_linked_list_node* %79, %struct.saved_aws_linked_list* %80, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #17, !dbg !5408
   br label %97, !dbg !5409
 
 81:                                               ; preds = %71
@@ -7987,7 +7987,7 @@ define void @aws_linked_list_save_to_tail(%struct.aws_linked_list* %0, i32 %1, %
 90:                                               ; preds = %81
   %91 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5418, !tbaa !657
   %92 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5420, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %91, %struct.saved_aws_linked_list* %92) #14, !dbg !5421
+  call void @save_one_node(%struct.aws_linked_list_node* %91, %struct.saved_aws_linked_list* %92) #17, !dbg !5421
   br label %96, !dbg !5422
 
 93:                                               ; preds = %81
@@ -8033,12 +8033,12 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
   %10 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %9, i32 0, i32 0, !dbg !5440
   %11 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5441, !tbaa !657
   %12 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %11, i32 0, i32 3, !dbg !5442
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %10, %struct.saved_aws_linked_list_node* %12) #14, !dbg !5443
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %10, %struct.saved_aws_linked_list_node* %12) #17, !dbg !5443
   %13 = load %struct.aws_linked_list*, %struct.aws_linked_list** %5, align 4, !dbg !5444, !tbaa !657
   %14 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %13, i32 0, i32 1, !dbg !5445
   %15 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5446, !tbaa !657
   %16 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %15, i32 0, i32 4, !dbg !5447
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #14, !dbg !5448
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #17, !dbg !5448
   %17 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5449, !tbaa !657
   %18 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5450, !tbaa !657
   %19 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %18, i32 0, i32 1, !dbg !5451
@@ -8057,7 +8057,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 27:                                               ; preds = %22
   %28 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5464, !tbaa !657
   %29 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5466, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %28, %struct.saved_aws_linked_list* %29) #14, !dbg !5467
+  call void @save_one_node(%struct.aws_linked_list_node* %28, %struct.saved_aws_linked_list* %29) #17, !dbg !5467
   br label %33, !dbg !5468
 
 30:                                               ; preds = %22
@@ -8084,7 +8084,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 42:                                               ; preds = %37
   %43 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5485, !tbaa !657
   %44 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5487, !tbaa !657
-  call void @save_two_nodes(%struct.aws_linked_list_node* %43, %struct.saved_aws_linked_list* %44, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #14, !dbg !5488
+  call void @save_two_nodes(%struct.aws_linked_list_node* %43, %struct.saved_aws_linked_list* %44, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #17, !dbg !5488
   br label %59, !dbg !5489
 
 45:                                               ; preds = %37
@@ -8099,7 +8099,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 52:                                               ; preds = %45
   %53 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5498, !tbaa !657
   %54 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5500, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %53, %struct.saved_aws_linked_list* %54) #14, !dbg !5501
+  call void @save_one_node(%struct.aws_linked_list_node* %53, %struct.saved_aws_linked_list* %54) #17, !dbg !5501
   br label %58, !dbg !5502
 
 55:                                               ; preds = %45
@@ -8129,7 +8129,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 68:                                               ; preds = %63
   %69 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5519, !tbaa !657
   %70 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5521, !tbaa !657
-  call void @save_three_nodes(%struct.aws_linked_list_node* %69, %struct.saved_aws_linked_list* %70, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #14, !dbg !5522
+  call void @save_three_nodes(%struct.aws_linked_list_node* %69, %struct.saved_aws_linked_list* %70, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #17, !dbg !5522
   br label %98, !dbg !5523
 
 71:                                               ; preds = %63
@@ -8144,7 +8144,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 78:                                               ; preds = %71
   %79 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5531, !tbaa !657
   %80 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5533, !tbaa !657
-  call void @save_two_nodes(%struct.aws_linked_list_node* %79, %struct.saved_aws_linked_list* %80, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #14, !dbg !5534
+  call void @save_two_nodes(%struct.aws_linked_list_node* %79, %struct.saved_aws_linked_list* %80, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getPrev) #17, !dbg !5534
   br label %97, !dbg !5535
 
 81:                                               ; preds = %71
@@ -8161,7 +8161,7 @@ define void @aws_linked_list_save_to_head(%struct.aws_linked_list* %0, i32 %1, %
 90:                                               ; preds = %81
   %91 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %7, align 4, !dbg !5544, !tbaa !657
   %92 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %8, align 4, !dbg !5546, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %91, %struct.saved_aws_linked_list* %92) #14, !dbg !5547
+  call void @save_one_node(%struct.aws_linked_list_node* %91, %struct.saved_aws_linked_list* %92) #17, !dbg !5547
   br label %96, !dbg !5548
 
 93:                                               ; preds = %81
@@ -8212,12 +8212,12 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %14 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %13, i32 0, i32 0, !dbg !5577
   %15 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5578, !tbaa !657
   %16 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %15, i32 0, i32 3, !dbg !5579
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #14, !dbg !5580
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %14, %struct.saved_aws_linked_list_node* %16) #17, !dbg !5580
   %17 = load %struct.aws_linked_list*, %struct.aws_linked_list** %6, align 4, !dbg !5581, !tbaa !657
   %18 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %17, i32 0, i32 1, !dbg !5582
   %19 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5583, !tbaa !657
   %20 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %19, i32 0, i32 4, !dbg !5584
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %18, %struct.saved_aws_linked_list_node* %20) #14, !dbg !5585
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %18, %struct.saved_aws_linked_list_node* %20) #17, !dbg !5585
   %21 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %8, align 4, !dbg !5586, !tbaa !657
   %22 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5587, !tbaa !657
   %23 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %22, i32 0, i32 1, !dbg !5588
@@ -8234,7 +8234,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 30:                                               ; preds = %5
   %31 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %8, align 4, !dbg !5599, !tbaa !657
   %32 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5601, !tbaa !657
-  call void @save_one_node(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list* %32) #14, !dbg !5602
+  call void @save_one_node(%struct.aws_linked_list_node* %31, %struct.saved_aws_linked_list* %32) #17, !dbg !5602
   br label %199, !dbg !5603
 
 33:                                               ; preds = %5
@@ -8252,7 +8252,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 41:                                               ; preds = %36
   %42 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %8, align 4, !dbg !5614, !tbaa !657
   %43 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5616, !tbaa !657
-  call void @save_two_nodes(%struct.aws_linked_list_node* %42, %struct.saved_aws_linked_list* %43, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #14, !dbg !5617
+  call void @save_two_nodes(%struct.aws_linked_list_node* %42, %struct.saved_aws_linked_list* %43, %struct.aws_linked_list_node* (%struct.aws_linked_list_node*)* @getNext) #17, !dbg !5617
   br label %47, !dbg !5618
 
 44:                                               ; preds = %36
@@ -8271,7 +8271,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 
 51:                                               ; preds = %48
   %52 = bitcast i32* %11 to i8*, !dbg !5627
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %52) #5, !dbg !5627
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %52) #19, !dbg !5627
   call void @llvm.dbg.declare(metadata i32* %11, metadata !5564, metadata !DIExpression()), !dbg !5628
   store i32 0, i32* %11, align 4, !dbg !5628, !tbaa !663
   %53 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %8, align 4, !dbg !5629, !tbaa !657
@@ -8286,7 +8286,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %60 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5638, !tbaa !657
   %61 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %60, i32 0, i32 5, !dbg !5639
   %62 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %61, i32 0, i32 0, !dbg !5638
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %59, %struct.saved_aws_linked_list_node* %62) #14, !dbg !5640
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %59, %struct.saved_aws_linked_list_node* %62) #17, !dbg !5640
   %63 = load %struct.aws_linked_list*, %struct.aws_linked_list** %6, align 4, !dbg !5641, !tbaa !657
   %64 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %63, i32 0, i32 0, !dbg !5642
   %65 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %64, i32 0, i32 0, !dbg !5643
@@ -8294,7 +8294,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %67 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5644, !tbaa !657
   %68 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %67, i32 0, i32 5, !dbg !5645
   %69 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %68, i32 0, i32 1, !dbg !5644
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %66, %struct.saved_aws_linked_list_node* %69) #14, !dbg !5646
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %66, %struct.saved_aws_linked_list_node* %69) #17, !dbg !5646
   %70 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5647, !tbaa !657
   %71 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %70, i32 0, i32 0, !dbg !5648
   store i32 2, i32* %71, align 4, !dbg !5649, !tbaa !4856
@@ -8318,7 +8318,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %84 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5663, !tbaa !657
   %85 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %84, i32 0, i32 5, !dbg !5664
   %86 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %85, i32 0, i32 0, !dbg !5663
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %83, %struct.saved_aws_linked_list_node* %86) #14, !dbg !5665
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %83, %struct.saved_aws_linked_list_node* %86) #17, !dbg !5665
   %87 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5666, !tbaa !657
   %88 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %87, i32 0, i32 0, !dbg !5667
   store i32 1, i32* %88, align 4, !dbg !5668, !tbaa !4856
@@ -8341,7 +8341,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %98 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %97, i32 0, i32 5, !dbg !5680
   %99 = load i32, i32* %11, align 4, !dbg !5681, !tbaa !663
   %100 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %98, i32 0, i32 %99, !dbg !5679
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %96, %struct.saved_aws_linked_list_node* %100) #14, !dbg !5682
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %96, %struct.saved_aws_linked_list_node* %100) #17, !dbg !5682
   %101 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5683, !tbaa !657
   %102 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %101, i32 0, i32 0, !dbg !5684
   %103 = load i32, i32* %102, align 4, !dbg !5685, !tbaa !4856
@@ -8351,7 +8351,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 
 105:                                              ; preds = %95, %90
   %106 = bitcast i32* %11 to i8*, !dbg !5687
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %106) #5, !dbg !5687
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %106) #19, !dbg !5687
   br label %198, !dbg !5688
 
 107:                                              ; preds = %48
@@ -8361,7 +8361,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 
 110:                                              ; preds = %107
   %111 = bitcast i32* %12 to i8*, !dbg !5692
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %111) #5, !dbg !5692
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %111) #19, !dbg !5692
   call void @llvm.dbg.declare(metadata i32* %12, metadata !5568, metadata !DIExpression()), !dbg !5693
   store i32 0, i32* %12, align 4, !dbg !5693, !tbaa !663
   %112 = load %struct.aws_linked_list_node*, %struct.aws_linked_list_node** %8, align 4, !dbg !5694, !tbaa !657
@@ -8376,7 +8376,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %119 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5703, !tbaa !657
   %120 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %119, i32 0, i32 5, !dbg !5704
   %121 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %120, i32 0, i32 0, !dbg !5703
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %118, %struct.saved_aws_linked_list_node* %121) #14, !dbg !5705
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %118, %struct.saved_aws_linked_list_node* %121) #17, !dbg !5705
   %122 = load %struct.aws_linked_list*, %struct.aws_linked_list** %6, align 4, !dbg !5706, !tbaa !657
   %123 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %122, i32 0, i32 0, !dbg !5707
   %124 = getelementptr inbounds %struct.aws_linked_list_node, %struct.aws_linked_list_node* %123, i32 0, i32 0, !dbg !5708
@@ -8384,7 +8384,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %126 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5709, !tbaa !657
   %127 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %126, i32 0, i32 5, !dbg !5710
   %128 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %127, i32 0, i32 1, !dbg !5709
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %125, %struct.saved_aws_linked_list_node* %128) #14, !dbg !5711
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %125, %struct.saved_aws_linked_list_node* %128) #17, !dbg !5711
   %129 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5712, !tbaa !657
   %130 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %129, i32 0, i32 0, !dbg !5713
   store i32 2, i32* %130, align 4, !dbg !5714, !tbaa !4856
@@ -8408,7 +8408,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %143 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5728, !tbaa !657
   %144 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %143, i32 0, i32 5, !dbg !5729
   %145 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %144, i32 0, i32 0, !dbg !5728
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %142, %struct.saved_aws_linked_list_node* %145) #14, !dbg !5730
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %142, %struct.saved_aws_linked_list_node* %145) #17, !dbg !5730
   %146 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5731, !tbaa !657
   %147 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %146, i32 0, i32 0, !dbg !5732
   store i32 1, i32* %147, align 4, !dbg !5733, !tbaa !4856
@@ -8434,7 +8434,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %160 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %159, i32 0, i32 5, !dbg !5747
   %161 = load i32, i32* %12, align 4, !dbg !5748, !tbaa !663
   %162 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %160, i32 0, i32 %161, !dbg !5746
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %158, %struct.saved_aws_linked_list_node* %162) #14, !dbg !5749
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %158, %struct.saved_aws_linked_list_node* %162) #17, !dbg !5749
   %163 = load %struct.aws_linked_list*, %struct.aws_linked_list** %6, align 4, !dbg !5750, !tbaa !657
   %164 = getelementptr inbounds %struct.aws_linked_list, %struct.aws_linked_list* %163, i32 0, i32 1, !dbg !5751
   %165 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5752, !tbaa !657
@@ -8442,7 +8442,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %167 = load i32, i32* %12, align 4, !dbg !5754, !tbaa !663
   %168 = add i32 %167, 1, !dbg !5755
   %169 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %166, i32 0, i32 %168, !dbg !5752
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %164, %struct.saved_aws_linked_list_node* %169) #14, !dbg !5756
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %164, %struct.saved_aws_linked_list_node* %169) #17, !dbg !5756
   %170 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5757, !tbaa !657
   %171 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %170, i32 0, i32 0, !dbg !5758
   %172 = load i32, i32* %171, align 4, !dbg !5759, !tbaa !4856
@@ -8468,7 +8468,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
   %187 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %186, i32 0, i32 5, !dbg !5773
   %188 = load i32, i32* %12, align 4, !dbg !5774, !tbaa !663
   %189 = getelementptr inbounds [4 x %struct.saved_aws_linked_list_node], [4 x %struct.saved_aws_linked_list_node]* %187, i32 0, i32 %188, !dbg !5772
-  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %185, %struct.saved_aws_linked_list_node* %189) #14, !dbg !5775
+  call void @sea_save_aws_node_to_sea_node(%struct.aws_linked_list_node* %185, %struct.saved_aws_linked_list_node* %189) #17, !dbg !5775
   %190 = load %struct.saved_aws_linked_list*, %struct.saved_aws_linked_list** %10, align 4, !dbg !5776, !tbaa !657
   %191 = getelementptr inbounds %struct.saved_aws_linked_list, %struct.saved_aws_linked_list* %190, i32 0, i32 0, !dbg !5777
   %192 = load i32, i32* %191, align 4, !dbg !5778, !tbaa !4856
@@ -8481,7 +8481,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 
 195:                                              ; preds = %194, %154
   %196 = bitcast i32* %12 to i8*, !dbg !5780
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %196) #5, !dbg !5780
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %196) #19, !dbg !5780
   br label %197, !dbg !5781
 
 197:                                              ; preds = %195, %107
@@ -8490,7 +8490,7 @@ define void @aws_linked_list_save_full(%struct.aws_linked_list* %0, i32 %1, %str
 198:                                              ; preds = %197, %105
   br label %199
 
-199:                                              ; preds = %30, %198, %47
+199:                                              ; preds = %198, %47, %30
   ret void, !dbg !5782
 }
 
@@ -8529,12 +8529,12 @@ define %struct.aws_string* @ensure_string_is_allocated(i32 %0) #0 !dbg !5802 {
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !5819, metadata !DIExpression()), !dbg !5821
   %4 = bitcast %struct.aws_string** %3 to i8*, !dbg !5822
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !5822
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !5822
   call void @llvm.dbg.declare(metadata %struct.aws_string** %3, metadata !5820, metadata !DIExpression()), !dbg !5823
   %5 = load i32, i32* %2, align 4, !dbg !5824, !tbaa !663
   %6 = add i32 12, %5, !dbg !5825
   %7 = add i32 %6, 1, !dbg !5826
-  %8 = call i8* @sea_malloc_havoc_safe(i32 %7) #14, !dbg !5827
+  %8 = call i8* @sea_malloc_havoc_safe(i32 %7) #17, !dbg !5827
   %9 = bitcast i8* %8 to %struct.aws_string*, !dbg !5827
   store %struct.aws_string* %9, %struct.aws_string** %3, align 4, !dbg !5823, !tbaa !657
   %10 = load %struct.aws_string*, %struct.aws_string** %3, align 4, !dbg !5828, !tbaa !657
@@ -8542,7 +8542,7 @@ define %struct.aws_string* @ensure_string_is_allocated(i32 %0) #0 !dbg !5802 {
   br i1 %11, label %12, label %23, !dbg !5830
 
 12:                                               ; preds = %1
-  %13 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !5831
+  %13 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !5831
   %14 = load %struct.aws_string*, %struct.aws_string** %3, align 4, !dbg !5833, !tbaa !657
   %15 = getelementptr inbounds %struct.aws_string, %struct.aws_string* %14, i32 0, i32 0, !dbg !5834
   store %struct.aws_allocator* %13, %struct.aws_allocator** %15, align 4, !dbg !5835, !tbaa !657
@@ -8560,7 +8560,7 @@ define %struct.aws_string* @ensure_string_is_allocated(i32 %0) #0 !dbg !5802 {
 23:                                               ; preds = %12, %1
   %24 = load %struct.aws_string*, %struct.aws_string** %3, align 4, !dbg !5845, !tbaa !657
   %25 = bitcast %struct.aws_string** %3 to i8*, !dbg !5846
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %25) #5, !dbg !5846
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %25) #19, !dbg !5846
   ret %struct.aws_string* %24, !dbg !5847
 }
 
@@ -8571,27 +8571,27 @@ define %struct.aws_string* @ensure_string_is_allocated_bounded_length(i32 %0) #0
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !5850, metadata !DIExpression()), !dbg !5852
   %4 = bitcast i32* %3 to i8*, !dbg !5853
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !5853
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !5853
   call void @llvm.dbg.declare(metadata i32* %3, metadata !5851, metadata !DIExpression()), !dbg !5854
-  %5 = call i32 @nd_size_t() #17, !dbg !5855
+  %5 = call i32 @nd_size_t() #21, !dbg !5855
   store i32 %5, i32* %3, align 4, !dbg !5854, !tbaa !663
   %6 = load i32, i32* %3, align 4, !dbg !5856, !tbaa !663
   %7 = icmp ugt i32 %6, 0, !dbg !5857
-  call void @__SEA_assume(i1 zeroext %7) #14, !dbg !5858
+  call void @__SEA_assume(i1 zeroext %7) #17, !dbg !5858
   %8 = load i32, i32* %3, align 4, !dbg !5859, !tbaa !663
   %9 = load i32, i32* %2, align 4, !dbg !5860, !tbaa !663
   %10 = icmp ult i32 %8, %9, !dbg !5861
-  call void @__SEA_assume(i1 zeroext %10) #14, !dbg !5862
+  call void @__SEA_assume(i1 zeroext %10) #17, !dbg !5862
   %11 = load i32, i32* %3, align 4, !dbg !5863, !tbaa !663
-  %12 = call %struct.aws_string* @ensure_string_is_allocated(i32 %11) #14, !dbg !5864
+  %12 = call %struct.aws_string* @ensure_string_is_allocated(i32 %11) #17, !dbg !5864
   %13 = bitcast i32* %3 to i8*, !dbg !5865
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #5, !dbg !5865
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #19, !dbg !5865
   ret %struct.aws_string* %12, !dbg !5866
 }
 
 ; Function Attrs: nounwind ssp
 define %struct.aws_string* @ensure_string_is_allocated_nondet_length() #0 !dbg !5867 {
-  %1 = call %struct.aws_string* @ensure_string_is_allocated_bounded_length(i32 -14) #14, !dbg !5870
+  %1 = call %struct.aws_string* @ensure_string_is_allocated_bounded_length(i32 -14) #17, !dbg !5870
   ret %struct.aws_string* %1, !dbg !5871
 }
 
@@ -8605,7 +8605,7 @@ define i8* @ensure_c_str_is_nd_allocated(i32 %0, i32* %1) #0 !dbg !5872 {
   call void @llvm.dbg.declare(metadata i32** %4, metadata !5877, metadata !DIExpression()), !dbg !5879
   %5 = load i32, i32* %3, align 4, !dbg !5880, !tbaa !663
   %6 = load i32*, i32** %4, align 4, !dbg !5881, !tbaa !657
-  %7 = call i8* @_ensure_c_str_is_nd_allocated(i32 %5, i32* %6, i1 zeroext false) #14, !dbg !5882
+  %7 = call i8* @_ensure_c_str_is_nd_allocated(i32 %5, i32* %6, i1 zeroext false) #17, !dbg !5882
   ret i8* %7, !dbg !5883
 }
 
@@ -8626,23 +8626,23 @@ define internal i8* @_ensure_c_str_is_nd_allocated(i32 %0, i32* %1, i1 zeroext %
   store i8 %11, i8* %7, align 1, !tbaa !844
   call void @llvm.dbg.declare(metadata i8* %7, metadata !5890, metadata !DIExpression()), !dbg !5896
   %12 = bitcast i32* %8 to i8*, !dbg !5897
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !5897
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !5897
   call void @llvm.dbg.declare(metadata i32* %8, metadata !5891, metadata !DIExpression()), !dbg !5898
-  %13 = call i32 @nd_size_t() #17, !dbg !5899
+  %13 = call i32 @nd_size_t() #21, !dbg !5899
   store i32 %13, i32* %8, align 4, !dbg !5900, !tbaa !663
   %14 = load i32, i32* %8, align 4, !dbg !5901, !tbaa !663
   %15 = icmp ugt i32 %14, 0, !dbg !5902
-  call void @__SEA_assume(i1 zeroext %15) #14, !dbg !5903
+  call void @__SEA_assume(i1 zeroext %15) #17, !dbg !5903
   %16 = load i32, i32* %8, align 4, !dbg !5904, !tbaa !663
   %17 = load i32, i32* %5, align 4, !dbg !5905, !tbaa !663
   %18 = icmp ule i32 %16, %17, !dbg !5906
-  call void @__SEA_assume(i1 zeroext %18) #14, !dbg !5907
+  call void @__SEA_assume(i1 zeroext %18) #17, !dbg !5907
   %19 = load i32, i32* %5, align 4, !dbg !5908, !tbaa !663
-  %20 = call i32 @sea_max_string_len() #14, !dbg !5909
+  %20 = call i32 @sea_max_string_len() #17, !dbg !5909
   %21 = icmp ule i32 %19, %20, !dbg !5910
-  call void @__SEA_assume(i1 zeroext %21) #14, !dbg !5911
+  call void @__SEA_assume(i1 zeroext %21) #17, !dbg !5911
   %22 = bitcast i8** %9 to i8*, !dbg !5912
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #5, !dbg !5912
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #19, !dbg !5912
   call void @llvm.dbg.declare(metadata i8** %9, metadata !5892, metadata !DIExpression()), !dbg !5913
   %23 = load i8, i8* %7, align 1, !dbg !5914, !tbaa !844, !range !849
   %24 = trunc i8 %23 to i1, !dbg !5914
@@ -8650,13 +8650,13 @@ define internal i8* @_ensure_c_str_is_nd_allocated(i32 %0, i32* %1, i1 zeroext %
 
 25:                                               ; preds = %3
   %26 = load i32, i32* %8, align 4, !dbg !5917, !tbaa !663
-  %27 = call i8* @sea_malloc_havoc_safe(i32 %26) #14, !dbg !5919
+  %27 = call i8* @sea_malloc_havoc_safe(i32 %26) #17, !dbg !5919
   store i8* %27, i8** %9, align 4, !dbg !5920, !tbaa !657
   br label %35, !dbg !5921
 
 28:                                               ; preds = %3
   %29 = load i32, i32* %8, align 4, !dbg !5922, !tbaa !663
-  %30 = call i8* @sea_malloc_havoc(i32 %29) #14, !dbg !5924
+  %30 = call i8* @sea_malloc_havoc(i32 %29) #17, !dbg !5924
   store i8* %30, i8** %9, align 4, !dbg !5925, !tbaa !657
   %31 = load i8*, i8** %9, align 4, !dbg !5926, !tbaa !657
   %32 = icmp ne i8* %31, null, !dbg !5926
@@ -8674,7 +8674,7 @@ define internal i8* @_ensure_c_str_is_nd_allocated(i32 %0, i32* %1, i1 zeroext %
   %36 = load i8*, i8** %9, align 4, !dbg !5931, !tbaa !657
   %37 = load i32, i32* %8, align 4, !dbg !5932, !tbaa !663
   %38 = sub i32 %37, 1, !dbg !5933
-  call void @sea_init_str(i8* %36, i32 %38) #14, !dbg !5934
+  call void @sea_init_str(i8* %36, i32 %38) #17, !dbg !5934
   %39 = load i32, i32* %8, align 4, !dbg !5935, !tbaa !663
   %40 = sub i32 %39, 1, !dbg !5936
   %41 = load i32*, i32** %6, align 4, !dbg !5937, !tbaa !657
@@ -8686,9 +8686,9 @@ define internal i8* @_ensure_c_str_is_nd_allocated(i32 %0, i32* %1, i1 zeroext %
 
 43:                                               ; preds = %35, %33
   %44 = bitcast i8** %9 to i8*, !dbg !5941
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #5, !dbg !5941
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #19, !dbg !5941
   %45 = bitcast i32* %8 to i8*, !dbg !5941
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %45) #5, !dbg !5941
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %45) #19, !dbg !5941
   %46 = load i8*, i8** %4, align 4, !dbg !5941
   ret i8* %46, !dbg !5941
 }
@@ -8708,12 +8708,12 @@ define internal void @sea_init_str(i8* %0, i32 %1) #0 !dbg !5942 {
   %9 = getelementptr inbounds i8, i8* %7, i32 %8, !dbg !5953
   store i8 0, i8* %9, align 1, !dbg !5955, !tbaa !1034
   %10 = bitcast i32* %5 to i8*, !dbg !5956
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #5, !dbg !5956
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #19, !dbg !5956
   call void @llvm.dbg.declare(metadata i32* %5, metadata !5948, metadata !DIExpression()), !dbg !5957
-  %11 = call i32 @sea_max_string_len() #14, !dbg !5958
+  %11 = call i32 @sea_max_string_len() #17, !dbg !5958
   store i32 %11, i32* %5, align 4, !dbg !5957, !tbaa !663
   %12 = bitcast i32* %6 to i8*, !dbg !5959
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !5959
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !5959
   call void @llvm.dbg.declare(metadata i32* %6, metadata !5949, metadata !DIExpression()), !dbg !5960
   store i32 0, i32* %6, align 4, !dbg !5960, !tbaa !663
   br label %13, !dbg !5959
@@ -8726,7 +8726,7 @@ define internal void @sea_init_str(i8* %0, i32 %1) #0 !dbg !5942 {
 
 17:                                               ; preds = %13
   %18 = bitcast i32* %6 to i8*, !dbg !5966
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #5, !dbg !5966
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #19, !dbg !5966
   br label %34
 
 19:                                               ; preds = %13
@@ -8742,7 +8742,7 @@ define internal void @sea_init_str(i8* %0, i32 %1) #0 !dbg !5942 {
   %27 = load i8, i8* %26, align 1, !dbg !5973, !tbaa !1034
   %28 = sext i8 %27 to i32, !dbg !5973
   %29 = icmp ne i32 %28, 0, !dbg !5976
-  call void @__SEA_assume(i1 zeroext %29) #14, !dbg !5977
+  call void @__SEA_assume(i1 zeroext %29) #17, !dbg !5977
   br label %30, !dbg !5978
 
 30:                                               ; preds = %23, %19
@@ -8756,7 +8756,7 @@ define internal void @sea_init_str(i8* %0, i32 %1) #0 !dbg !5942 {
 
 34:                                               ; preds = %17
   %35 = bitcast i32* %5 to i8*, !dbg !5983
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #5, !dbg !5983
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #19, !dbg !5983
   ret void, !dbg !5983
 }
 
@@ -8770,7 +8770,7 @@ define i8* @ensure_c_str_is_nd_allocated_aligned(i32 %0, i32* %1) #0 !dbg !5984 
   call void @llvm.dbg.declare(metadata i32** %4, metadata !5987, metadata !DIExpression()), !dbg !5989
   %5 = load i32, i32* %3, align 4, !dbg !5990, !tbaa !663
   %6 = load i32*, i32** %4, align 4, !dbg !5991, !tbaa !657
-  %7 = call i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %5, i32* %6, i1 zeroext false) #14, !dbg !5992
+  %7 = call i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %5, i32* %6, i1 zeroext false) #17, !dbg !5992
   ret i8* %7, !dbg !5993
 }
 
@@ -8791,26 +8791,26 @@ define internal i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %0, i32* %1, i1 z
   store i8 %11, i8* %7, align 1, !tbaa !844
   call void @llvm.dbg.declare(metadata i8* %7, metadata !5998, metadata !DIExpression()), !dbg !6003
   %12 = bitcast i32* %8 to i8*, !dbg !6004
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !6004
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !6004
   call void @llvm.dbg.declare(metadata i32* %8, metadata !5999, metadata !DIExpression()), !dbg !6005
-  %13 = call i32 @nd_size_t() #17, !dbg !6006
+  %13 = call i32 @nd_size_t() #21, !dbg !6006
   store i32 %13, i32* %8, align 4, !dbg !6007, !tbaa !663
   %14 = load i32, i32* %8, align 4, !dbg !6008, !tbaa !663
   %15 = icmp ugt i32 %14, 0, !dbg !6009
-  call void @__SEA_assume(i1 zeroext %15) #14, !dbg !6010
+  call void @__SEA_assume(i1 zeroext %15) #17, !dbg !6010
   %16 = load i32, i32* %8, align 4, !dbg !6011, !tbaa !663
   %17 = load i32, i32* %5, align 4, !dbg !6012, !tbaa !663
   %18 = icmp ule i32 %16, %17, !dbg !6013
-  call void @__SEA_assume(i1 zeroext %18) #14, !dbg !6014
+  call void @__SEA_assume(i1 zeroext %18) #17, !dbg !6014
   %19 = load i32, i32* %5, align 4, !dbg !6015, !tbaa !663
-  %20 = call i32 @sea_max_string_len() #14, !dbg !6016
+  %20 = call i32 @sea_max_string_len() #17, !dbg !6016
   %21 = icmp ule i32 %19, %20, !dbg !6017
-  call void @__SEA_assume(i1 zeroext %21) #14, !dbg !6018
+  call void @__SEA_assume(i1 zeroext %21) #17, !dbg !6018
   %22 = bitcast i8** %9 to i8*, !dbg !6019
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #5, !dbg !6019
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #19, !dbg !6019
   call void @llvm.dbg.declare(metadata i8** %9, metadata !6000, metadata !DIExpression()), !dbg !6020
   %23 = load i32, i32* %8, align 4, !dbg !6021, !tbaa !663
-  %24 = call i8* @sea_malloc_aligned_havoc(i32 %23) #14, !dbg !6022
+  %24 = call i8* @sea_malloc_aligned_havoc(i32 %23) #17, !dbg !6022
   store i8* %24, i8** %9, align 4, !dbg !6023, !tbaa !657
   %25 = load i8, i8* %7, align 1, !dbg !6024, !tbaa !844, !range !849
   %26 = trunc i8 %25 to i1, !dbg !6024
@@ -8819,7 +8819,7 @@ define internal i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %0, i32* %1, i1 z
 27:                                               ; preds = %3
   %28 = load i8*, i8** %9, align 4, !dbg !6027, !tbaa !657
   %29 = icmp ne i8* %28, null, !dbg !6027
-  call void @__SEA_assume(i1 zeroext %29) #14, !dbg !6028
+  call void @__SEA_assume(i1 zeroext %29) #17, !dbg !6028
   br label %30, !dbg !6028
 
 30:                                               ; preds = %27, %3
@@ -8836,7 +8836,7 @@ define internal i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %0, i32* %1, i1 z
   %35 = load i8*, i8** %9, align 4, !dbg !6033, !tbaa !657
   %36 = load i32, i32* %8, align 4, !dbg !6034, !tbaa !663
   %37 = sub i32 %36, 1, !dbg !6035
-  call void @sea_init_str(i8* %35, i32 %37) #14, !dbg !6036
+  call void @sea_init_str(i8* %35, i32 %37) #17, !dbg !6036
   %38 = load i32, i32* %8, align 4, !dbg !6037, !tbaa !663
   %39 = sub i32 %38, 1, !dbg !6038
   %40 = load i32*, i32** %6, align 4, !dbg !6039, !tbaa !657
@@ -8848,9 +8848,9 @@ define internal i8* @_ensure_c_str_is_nd_allocated_aligned(i32 %0, i32* %1, i1 z
 
 42:                                               ; preds = %34, %33
   %43 = bitcast i8** %9 to i8*, !dbg !6043
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !6043
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !6043
   %44 = bitcast i32* %8 to i8*, !dbg !6043
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #5, !dbg !6043
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #19, !dbg !6043
   %45 = load i8*, i8** %4, align 4, !dbg !6043
   ret i8* %45, !dbg !6043
 }
@@ -8865,7 +8865,7 @@ define i8* @ensure_c_str_is_nd_allocated_safe(i32 %0, i32* %1) #0 !dbg !6044 {
   call void @llvm.dbg.declare(metadata i32** %4, metadata !6047, metadata !DIExpression()), !dbg !6049
   %5 = load i32, i32* %3, align 4, !dbg !6050, !tbaa !663
   %6 = load i32*, i32** %4, align 4, !dbg !6051, !tbaa !657
-  %7 = call i8* @_ensure_c_str_is_nd_allocated(i32 %5, i32* %6, i1 zeroext true) #14, !dbg !6052
+  %7 = call i8* @_ensure_c_str_is_nd_allocated(i32 %5, i32* %6, i1 zeroext true) #17, !dbg !6052
   ret i8* %7, !dbg !6053
 }
 
@@ -8877,12 +8877,12 @@ define i32 @nd_aws_priority_queue_compare_fn(i8* %0, i8* %1) #0 !dbg !6054 {
   call void @llvm.dbg.declare(metadata i8** %3, metadata !6059, metadata !DIExpression()), !dbg !6061
   store i8* %1, i8** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %4, metadata !6060, metadata !DIExpression()), !dbg !6062
-  %5 = call i32 @nd_int() #17, !dbg !6063
+  %5 = call i32 @nd_int() #21, !dbg !6063
   ret i32 %5, !dbg !6064
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !384 i32 @nd_int() #8
+declare !dbg !384 i32 @nd_int() #11
 
 ; Function Attrs: nounwind ssp
 define void @initialize_priority_queue(%struct.aws_priority_queue* %0) #0 !dbg !6065 {
@@ -8894,10 +8894,10 @@ define void @initialize_priority_queue(%struct.aws_priority_queue* %0) #0 !dbg !
   store i32 (i8*, i8*)* @nd_aws_priority_queue_compare_fn, i32 (i8*, i8*)** %4, align 4, !dbg !6082, !tbaa !6083
   %5 = load %struct.aws_priority_queue*, %struct.aws_priority_queue** %2, align 4, !dbg !6085, !tbaa !657
   %6 = getelementptr inbounds %struct.aws_priority_queue, %struct.aws_priority_queue* %5, i32 0, i32 1, !dbg !6086
-  call void @initialize_array_list(%struct.aws_array_list* %6) #14, !dbg !6087
+  call void @initialize_array_list(%struct.aws_array_list* %6) #17, !dbg !6087
   %7 = load %struct.aws_priority_queue*, %struct.aws_priority_queue** %2, align 4, !dbg !6088, !tbaa !657
   %8 = getelementptr inbounds %struct.aws_priority_queue, %struct.aws_priority_queue* %7, i32 0, i32 2, !dbg !6089
-  call void @initialize_array_list(%struct.aws_array_list* %8) #14, !dbg !6090
+  call void @initialize_array_list(%struct.aws_array_list* %8) #17, !dbg !6090
   ret void, !dbg !6091
 }
 
@@ -8914,21 +8914,21 @@ define zeroext i1 @aws_priority_queue_is_bounded(%struct.aws_priority_queue* %0,
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6097, metadata !DIExpression()), !dbg !6102
   store i32 %2, i32* %6, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %6, metadata !6098, metadata !DIExpression()), !dbg !6103
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #5, !dbg !6104
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %7) #19, !dbg !6104
   call void @llvm.dbg.declare(metadata i8* %7, metadata !6099, metadata !DIExpression()), !dbg !6105
   %9 = load %struct.aws_priority_queue*, %struct.aws_priority_queue** %4, align 4, !dbg !6106, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_priority_queue, %struct.aws_priority_queue* %9, i32 0, i32 1, !dbg !6107
   %11 = load i32, i32* %5, align 4, !dbg !6108, !tbaa !663
   %12 = load i32, i32* %6, align 4, !dbg !6109, !tbaa !663
-  %13 = call zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %10, i32 %11, i32 %12) #14, !dbg !6110
+  %13 = call zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %10, i32 %11, i32 %12) #17, !dbg !6110
   %14 = zext i1 %13 to i8, !dbg !6105
   store i8 %14, i8* %7, align 1, !dbg !6105, !tbaa !844
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #5, !dbg !6111
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %8) #19, !dbg !6111
   call void @llvm.dbg.declare(metadata i8* %8, metadata !6100, metadata !DIExpression()), !dbg !6112
   %15 = load %struct.aws_priority_queue*, %struct.aws_priority_queue** %4, align 4, !dbg !6113, !tbaa !657
   %16 = getelementptr inbounds %struct.aws_priority_queue, %struct.aws_priority_queue* %15, i32 0, i32 2, !dbg !6114
   %17 = load i32, i32* %5, align 4, !dbg !6115, !tbaa !663
-  %18 = call zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %16, i32 %17, i32 4) #14, !dbg !6116
+  %18 = call zeroext i1 @aws_array_list_is_bounded(%struct.aws_array_list* %16, i32 %17, i32 4) #17, !dbg !6116
   %19 = zext i1 %18 to i8, !dbg !6112
   store i8 %19, i8* %8, align 1, !dbg !6112, !tbaa !844
   %20 = load i8, i8* %7, align 1, !dbg !6117, !tbaa !844, !range !849
@@ -8942,8 +8942,8 @@ define zeroext i1 @aws_priority_queue_is_bounded(%struct.aws_priority_queue* %0,
 
 25:                                               ; preds = %22, %3
   %26 = phi i1 [ false, %3 ], [ %24, %22 ], !dbg !6120
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #5, !dbg !6121
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #5, !dbg !6121
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %8) #19, !dbg !6121
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %7) #19, !dbg !6121
   ret i1 %26, !dbg !6122
 }
 
@@ -8957,36 +8957,36 @@ define void @initialize_ring_buffer(%struct.aws_ring_buffer* %0, i32 %1) #0 !dbg
   call void @llvm.dbg.declare(metadata %struct.aws_ring_buffer** %3, metadata !6140, metadata !DIExpression()), !dbg !6144
   store i32 %1, i32* %4, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %4, metadata !6141, metadata !DIExpression()), !dbg !6145
-  %7 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !6146
+  %7 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !6146
   %8 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6147, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %8, i32 0, i32 0, !dbg !6148
   store %struct.aws_allocator* %7, %struct.aws_allocator** %9, align 4, !dbg !6149, !tbaa !6150
   %10 = load i32, i32* %4, align 4, !dbg !6153, !tbaa !663
   %11 = icmp ult i32 0, %10, !dbg !6154
-  call void @__SEA_assume(i1 zeroext %11) #14, !dbg !6155
+  call void @__SEA_assume(i1 zeroext %11) #17, !dbg !6155
   %12 = load i32, i32* %4, align 4, !dbg !6156, !tbaa !663
-  %13 = call i8* @bounded_malloc(i32 %12) #14, !dbg !6157
+  %13 = call i8* @bounded_malloc(i32 %12) #17, !dbg !6157
   %14 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6158, !tbaa !657
   %15 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %14, i32 0, i32 1, !dbg !6159
   store i8* %13, i8** %15, align 4, !dbg !6160, !tbaa !6161
   %16 = bitcast i32* %5 to i8*, !dbg !6162
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #5, !dbg !6162
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #19, !dbg !6162
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6142, metadata !DIExpression()), !dbg !6163
-  %17 = call i32 @nd_size_t() #17, !dbg !6164
+  %17 = call i32 @nd_size_t() #21, !dbg !6164
   store i32 %17, i32* %5, align 4, !dbg !6163, !tbaa !663
   %18 = bitcast i32* %6 to i8*, !dbg !6165
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %18) #5, !dbg !6165
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %18) #19, !dbg !6165
   call void @llvm.dbg.declare(metadata i32* %6, metadata !6143, metadata !DIExpression()), !dbg !6166
-  %19 = call i32 @nd_size_t() #17, !dbg !6167
+  %19 = call i32 @nd_size_t() #21, !dbg !6167
   store i32 %19, i32* %6, align 4, !dbg !6166, !tbaa !663
   %20 = load i32, i32* %5, align 4, !dbg !6168, !tbaa !663
   %21 = load i32, i32* %4, align 4, !dbg !6169, !tbaa !663
   %22 = icmp ult i32 %20, %21, !dbg !6170
-  call void @__SEA_assume(i1 zeroext %22) #14, !dbg !6171
+  call void @__SEA_assume(i1 zeroext %22) #17, !dbg !6171
   %23 = load i32, i32* %6, align 4, !dbg !6172, !tbaa !663
   %24 = load i32, i32* %4, align 4, !dbg !6173, !tbaa !663
   %25 = icmp ult i32 %23, %24, !dbg !6174
-  call void @__SEA_assume(i1 zeroext %25) #14, !dbg !6175
+  call void @__SEA_assume(i1 zeroext %25) #17, !dbg !6175
   %26 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6176, !tbaa !657
   %27 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %26, i32 0, i32 2, !dbg !6177
   %28 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6178, !tbaa !657
@@ -8994,7 +8994,7 @@ define void @initialize_ring_buffer(%struct.aws_ring_buffer* %0, i32 %1) #0 !dbg
   %30 = load i8*, i8** %29, align 4, !dbg !6179, !tbaa !6161
   %31 = load i32, i32* %5, align 4, !dbg !6180, !tbaa !663
   %32 = getelementptr inbounds i8, i8* %30, i32 %31, !dbg !6181
-  call void @aws_atomic_store_ptr(%struct.aws_atomic_var* %27, i8* %32) #14, !dbg !6182
+  call void @aws_atomic_store_ptr(%struct.aws_atomic_var* %27, i8* %32) #17, !dbg !6182
   %33 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6183, !tbaa !657
   %34 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %33, i32 0, i32 3, !dbg !6184
   %35 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6185, !tbaa !657
@@ -9002,7 +9002,7 @@ define void @initialize_ring_buffer(%struct.aws_ring_buffer* %0, i32 %1) #0 !dbg
   %37 = load i8*, i8** %36, align 4, !dbg !6186, !tbaa !6161
   %38 = load i32, i32* %6, align 4, !dbg !6187, !tbaa !663
   %39 = getelementptr inbounds i8, i8* %37, i32 %38, !dbg !6188
-  call void @aws_atomic_store_ptr(%struct.aws_atomic_var* %34, i8* %39) #14, !dbg !6189
+  call void @aws_atomic_store_ptr(%struct.aws_atomic_var* %34, i8* %39) #17, !dbg !6189
   %40 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %3, align 4, !dbg !6190, !tbaa !657
   %41 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %40, i32 0, i32 1, !dbg !6191
   %42 = load i8*, i8** %41, align 4, !dbg !6191, !tbaa !6161
@@ -9012,9 +9012,9 @@ define void @initialize_ring_buffer(%struct.aws_ring_buffer* %0, i32 %1) #0 !dbg
   %46 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %45, i32 0, i32 4, !dbg !6195
   store i8* %44, i8** %46, align 4, !dbg !6196, !tbaa !6197
   %47 = bitcast i32* %6 to i8*, !dbg !6198
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #5, !dbg !6198
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %47) #19, !dbg !6198
   %48 = bitcast i32* %5 to i8*, !dbg !6198
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %48) #5, !dbg !6198
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %48) #19, !dbg !6198
   ret void, !dbg !6198
 }
 
@@ -9028,7 +9028,7 @@ define internal void @aws_atomic_store_ptr(%struct.aws_atomic_var* %0, i8* %1) #
   call void @llvm.dbg.declare(metadata i8** %4, metadata !6207, metadata !DIExpression()), !dbg !6209
   %5 = load %struct.aws_atomic_var*, %struct.aws_atomic_var** %3, align 4, !dbg !6210, !tbaa !657
   %6 = load i8*, i8** %4, align 4, !dbg !6211, !tbaa !657
-  call void @aws_atomic_store_ptr_explicit(%struct.aws_atomic_var* %5, i8* %6, i32 5) #14, !dbg !6212
+  call void @aws_atomic_store_ptr_explicit(%struct.aws_atomic_var* %5, i8* %6, i32 5) #17, !dbg !6212
   ret void, !dbg !6213
 }
 
@@ -9047,7 +9047,7 @@ define internal void @aws_atomic_store_ptr_explicit(%struct.aws_atomic_var* %0, 
   %8 = load %struct.aws_atomic_var*, %struct.aws_atomic_var** %4, align 4, !dbg !6225, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_atomic_var, %struct.aws_atomic_var* %8, i32 0, i32 0, !dbg !6225
   %10 = load i32, i32* %6, align 4, !dbg !6226, !tbaa !1034
-  %11 = call i32 @aws_atomic_priv_xlate_order(i32 %10) #14, !dbg !6227
+  %11 = call i32 @aws_atomic_priv_xlate_order(i32 %10) #17, !dbg !6227
   %12 = load i8*, i8** %5, align 4, !dbg !6228, !tbaa !657
   store i8* %12, i8** %7, align 4, !dbg !6229, !tbaa !657
   %13 = bitcast i8** %9 to i32*, !dbg !6229
@@ -9112,7 +9112,7 @@ define internal i32 @aws_atomic_priv_xlate_order(i32 %0) #2 !dbg !6231 {
   br label %11, !dbg !6244
 
 10:                                               ; preds = %1
-  call void @abort() #19, !dbg !6245
+  call void @abort() #23, !dbg !6245
   unreachable, !dbg !6245
 
 11:                                               ; preds = %9, %8, %7, %6, %5
@@ -9121,7 +9121,7 @@ define internal i32 @aws_atomic_priv_xlate_order(i32 %0) #2 !dbg !6231 {
 }
 
 ; Function Attrs: cold noreturn
-declare void @abort() #11
+declare void @abort() #14
 
 ; Function Attrs: nounwind ssp
 define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %0, i8* %1, i8* %2) #0 !dbg !6247 {
@@ -9140,21 +9140,21 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_by
   %10 = load i8*, i8** %5, align 4, !dbg !6267, !tbaa !657
   %11 = load i8*, i8** %6, align 4, !dbg !6267, !tbaa !657
   %12 = icmp ult i8* %10, %11, !dbg !6267
-  call void @__VERIFIER_assert(i1 zeroext %12) #14, !dbg !6267
+  call void @__VERIFIER_assert(i1 zeroext %12) #17, !dbg !6267
   %13 = load i8*, i8** %5, align 4, !dbg !6267, !tbaa !657
   %14 = load i8*, i8** %6, align 4, !dbg !6267, !tbaa !657
   %15 = icmp ult i8* %13, %14, !dbg !6267
   br i1 %15, label %17, label %16, !dbg !6267
 
 16:                                               ; preds = %3
-  call void @__VERIFIER_error() #14, !dbg !6267
+  call void @__VERIFIER_error() #17, !dbg !6267
   br label %17, !dbg !6267
 
 17:                                               ; preds = %16, %3
   %18 = phi i1 [ true, %3 ], [ false, %16 ]
   %19 = zext i1 %18 to i32, !dbg !6267
   %20 = bitcast i32* %7 to i8*, !dbg !6268
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #5, !dbg !6268
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #19, !dbg !6268
   call void @llvm.dbg.declare(metadata i32* %7, metadata !6261, metadata !DIExpression()), !dbg !6269
   %21 = load i8*, i8** %6, align 4, !dbg !6270, !tbaa !657
   %22 = load i8*, i8** %5, align 4, !dbg !6271, !tbaa !657
@@ -9163,14 +9163,14 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_by
   %25 = sub i32 %23, %24, !dbg !6272
   store i32 %25, i32* %7, align 4, !dbg !6269, !tbaa !663
   %26 = bitcast i32* %8 to i8*, !dbg !6273
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %26) #5, !dbg !6273
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %26) #19, !dbg !6273
   call void @llvm.dbg.declare(metadata i32* %8, metadata !6262, metadata !DIExpression()), !dbg !6274
-  %27 = call i32 @nd_size_t() #17, !dbg !6275
+  %27 = call i32 @nd_size_t() #21, !dbg !6275
   store i32 %27, i32* %8, align 4, !dbg !6274, !tbaa !663
   %28 = load i32, i32* %8, align 4, !dbg !6276, !tbaa !663
   %29 = load i32, i32* %7, align 4, !dbg !6277, !tbaa !663
   %30 = icmp ult i32 %28, %29, !dbg !6278
-  call void @__SEA_assume(i1 zeroext %30) #14, !dbg !6279
+  call void @__SEA_assume(i1 zeroext %30) #17, !dbg !6279
   %31 = load i8*, i8** %5, align 4, !dbg !6280, !tbaa !657
   %32 = load i32, i32* %8, align 4, !dbg !6281, !tbaa !663
   %33 = getelementptr inbounds i8, i8* %31, i32 %32, !dbg !6282
@@ -9178,7 +9178,7 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_by
   %35 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %34, i32 0, i32 1, !dbg !6284
   store i8* %33, i8** %35, align 4, !dbg !6285, !tbaa !675
   %36 = bitcast i32* %9 to i8*, !dbg !6286
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %36) #5, !dbg !6286
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %36) #19, !dbg !6286
   call void @llvm.dbg.declare(metadata i32* %9, metadata !6263, metadata !DIExpression()), !dbg !6287
   %37 = load i8*, i8** %6, align 4, !dbg !6288, !tbaa !657
   %38 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !6289, !tbaa !657
@@ -9190,13 +9190,13 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_by
   store i32 %43, i32* %9, align 4, !dbg !6287, !tbaa !663
   %44 = load i32, i32* %9, align 4, !dbg !6292, !tbaa !663
   %45 = icmp ult i32 0, %44, !dbg !6292
-  call void @__VERIFIER_assert(i1 zeroext %45) #14, !dbg !6292
+  call void @__VERIFIER_assert(i1 zeroext %45) #17, !dbg !6292
   %46 = load i32, i32* %9, align 4, !dbg !6292, !tbaa !663
   %47 = icmp ult i32 0, %46, !dbg !6292
   br i1 %47, label %49, label %48, !dbg !6292
 
 48:                                               ; preds = %17
-  call void @__VERIFIER_error() #14, !dbg !6292
+  call void @__VERIFIER_error() #17, !dbg !6292
   br label %49, !dbg !6292
 
 49:                                               ; preds = %48, %17
@@ -9218,13 +9218,13 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_by
 
 62:                                               ; preds = %56, %49
   %63 = phi i1 [ false, %49 ], [ %61, %56 ], !dbg !6301
-  call void @__SEA_assume(i1 zeroext %63) #14, !dbg !6302
+  call void @__SEA_assume(i1 zeroext %63) #17, !dbg !6302
   %64 = bitcast i32* %9 to i8*, !dbg !6303
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %64) #5, !dbg !6303
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %64) #19, !dbg !6303
   %65 = bitcast i32* %8 to i8*, !dbg !6303
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %65) #5, !dbg !6303
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %65) #19, !dbg !6303
   %66 = bitcast i32* %7 to i8*, !dbg !6303
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %66) #5, !dbg !6303
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %66) #19, !dbg !6303
   ret void, !dbg !6303
 }
 
@@ -9238,14 +9238,14 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   call void @llvm.dbg.declare(metadata %struct.aws_byte_buf** %3, metadata !6308, metadata !DIExpression()), !dbg !6312
   store %struct.aws_ring_buffer* %1, %struct.aws_ring_buffer** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_ring_buffer** %4, metadata !6309, metadata !DIExpression()), !dbg !6313
-  %7 = call zeroext i1 @nd_bool() #17, !dbg !6314
+  %7 = call zeroext i1 @nd_bool() #21, !dbg !6314
   br i1 %7, label %8, label %9, !dbg !6314
 
 8:                                                ; preds = %2
   br label %11, !dbg !6314
 
 9:                                                ; preds = %2
-  %10 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !6315
+  %10 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !6315
   br label %11, !dbg !6314
 
 11:                                               ; preds = %9, %8
@@ -9254,18 +9254,18 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   %14 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %13, i32 0, i32 3, !dbg !6317
   store %struct.aws_allocator* %12, %struct.aws_allocator** %14, align 4, !dbg !6318, !tbaa !703
   %15 = bitcast i8** %5 to i8*, !dbg !6319
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !6319
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !6319
   call void @llvm.dbg.declare(metadata i8** %5, metadata !6310, metadata !DIExpression()), !dbg !6320
   %16 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6321, !tbaa !657
   %17 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %16, i32 0, i32 2, !dbg !6322
-  %18 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %17) #14, !dbg !6323
+  %18 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %17) #17, !dbg !6323
   store i8* %18, i8** %5, align 4, !dbg !6320, !tbaa !657
   %19 = bitcast i8** %6 to i8*, !dbg !6324
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #5, !dbg !6324
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #19, !dbg !6324
   call void @llvm.dbg.declare(metadata i8** %6, metadata !6311, metadata !DIExpression()), !dbg !6325
   %20 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6326, !tbaa !657
   %21 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %20, i32 0, i32 3, !dbg !6327
-  %22 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %21) #14, !dbg !6328
+  %22 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %21) #17, !dbg !6328
   store i8* %22, i8** %6, align 4, !dbg !6325, !tbaa !657
   %23 = load i8*, i8** %5, align 4, !dbg !6329, !tbaa !657
   %24 = load i8*, i8** %6, align 4, !dbg !6331, !tbaa !657
@@ -9273,7 +9273,7 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   br i1 %25, label %26, label %51, !dbg !6333
 
 26:                                               ; preds = %11
-  %27 = call zeroext i1 @nd_bool() #17, !dbg !6334
+  %27 = call zeroext i1 @nd_bool() #21, !dbg !6334
   br i1 %27, label %28, label %39, !dbg !6337
 
 28:                                               ; preds = %26
@@ -9282,13 +9282,13 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   %31 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %30, i32 0, i32 4, !dbg !6341
   %32 = load i8*, i8** %31, align 4, !dbg !6341, !tbaa !6197
   %33 = icmp ult i8* %29, %32, !dbg !6342
-  call void @__SEA_assume(i1 zeroext %33) #14, !dbg !6343
+  call void @__SEA_assume(i1 zeroext %33) #17, !dbg !6343
   %34 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !6344, !tbaa !657
   %35 = load i8*, i8** %6, align 4, !dbg !6345, !tbaa !657
   %36 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6346, !tbaa !657
   %37 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %36, i32 0, i32 4, !dbg !6347
   %38 = load i8*, i8** %37, align 4, !dbg !6347, !tbaa !6197
-  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %34, i8* %35, i8* %38) #14, !dbg !6348
+  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %34, i8* %35, i8* %38) #17, !dbg !6348
   br label %50, !dbg !6349
 
 39:                                               ; preds = %26
@@ -9297,13 +9297,13 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   %42 = load i8*, i8** %41, align 4, !dbg !6352, !tbaa !6161
   %43 = load i8*, i8** %5, align 4, !dbg !6353, !tbaa !657
   %44 = icmp ult i8* %42, %43, !dbg !6354
-  call void @__SEA_assume(i1 zeroext %44) #14, !dbg !6355
+  call void @__SEA_assume(i1 zeroext %44) #17, !dbg !6355
   %45 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !6356, !tbaa !657
   %46 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6357, !tbaa !657
   %47 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %46, i32 0, i32 1, !dbg !6358
   %48 = load i8*, i8** %47, align 4, !dbg !6358, !tbaa !6161
   %49 = load i8*, i8** %5, align 4, !dbg !6359, !tbaa !657
-  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %45, i8* %48, i8* %49) #14, !dbg !6360
+  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %45, i8* %48, i8* %49) #17, !dbg !6360
   br label %50
 
 50:                                               ; preds = %39, %28
@@ -9313,19 +9313,19 @@ define void @ensure_byte_buf_has_allocated_buffer_member_in_ring_buf(%struct.aws
   %52 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %3, align 4, !dbg !6362, !tbaa !657
   %53 = load i8*, i8** %6, align 4, !dbg !6364, !tbaa !657
   %54 = load i8*, i8** %5, align 4, !dbg !6365, !tbaa !657
-  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %52, i8* %53, i8* %54) #14, !dbg !6366
+  call void @ensure_byte_buf_has_allocated_buffer_member_in_range(%struct.aws_byte_buf* %52, i8* %53, i8* %54) #17, !dbg !6366
   br label %55
 
 55:                                               ; preds = %51, %50
   %56 = bitcast i8** %6 to i8*, !dbg !6367
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %56) #5, !dbg !6367
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %56) #19, !dbg !6367
   %57 = bitcast i8** %5 to i8*, !dbg !6367
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %57) #5, !dbg !6367
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %57) #19, !dbg !6367
   ret void, !dbg !6367
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !457 zeroext i1 @nd_bool() #8
+declare !dbg !457 zeroext i1 @nd_bool() #11
 
 ; Function Attrs: inlinehint nounwind ssp
 define internal i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %0) #2 !dbg !6368 {
@@ -9333,7 +9333,7 @@ define internal i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %0) #2 !dbg !63
   store %struct.aws_atomic_var* %0, %struct.aws_atomic_var** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_atomic_var** %2, metadata !6374, metadata !DIExpression()), !dbg !6375
   %3 = load %struct.aws_atomic_var*, %struct.aws_atomic_var** %2, align 4, !dbg !6376, !tbaa !657
-  %4 = call i8* @aws_atomic_load_ptr_explicit(%struct.aws_atomic_var* %3, i32 5) #14, !dbg !6377
+  %4 = call i8* @aws_atomic_load_ptr_explicit(%struct.aws_atomic_var* %3, i32 5) #17, !dbg !6377
   ret i8* %4, !dbg !6378
 }
 
@@ -9349,7 +9349,7 @@ define internal i8* @aws_atomic_load_ptr_explicit(%struct.aws_atomic_var* %0, i3
   %6 = load %struct.aws_atomic_var*, %struct.aws_atomic_var** %3, align 4, !dbg !6387, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_atomic_var, %struct.aws_atomic_var* %6, i32 0, i32 0, !dbg !6387
   %8 = load i32, i32* %4, align 4, !dbg !6388, !tbaa !1034
-  %9 = call i32 @aws_atomic_priv_xlate_order(i32 %8) #14, !dbg !6389
+  %9 = call i32 @aws_atomic_priv_xlate_order(i32 %8) #17, !dbg !6389
   %10 = bitcast i8** %7 to i32*, !dbg !6390
   %11 = bitcast i8** %5 to i32*, !dbg !6390
   switch i32 %9, label %12 [
@@ -9411,7 +9411,7 @@ define zeroext i1 @ring_buffers_are_equal(%struct.aws_ring_buffer* %0, %struct.a
   br label %82, !dbg !6413
 
 21:                                               ; preds = %14
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !6414
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !6414
   call void @llvm.dbg.declare(metadata i8* %6, metadata !6398, metadata !DIExpression()), !dbg !6415
   %22 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6416, !tbaa !657
   %23 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %22, i32 0, i32 0, !dbg !6417
@@ -9457,32 +9457,32 @@ define zeroext i1 @ring_buffers_are_equal(%struct.aws_ring_buffer* %0, %struct.a
 
 51:                                               ; preds = %45
   %52 = bitcast i8** %8 to i8*, !dbg !6438
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %52) #5, !dbg !6438
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %52) #19, !dbg !6438
   call void @llvm.dbg.declare(metadata i8** %8, metadata !6399, metadata !DIExpression()), !dbg !6439
   %53 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6440, !tbaa !657
   %54 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %53, i32 0, i32 2, !dbg !6441
-  %55 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %54) #14, !dbg !6442
+  %55 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %54) #17, !dbg !6442
   store i8* %55, i8** %8, align 4, !dbg !6439, !tbaa !657
   %56 = bitcast i8** %9 to i8*, !dbg !6443
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %56) #5, !dbg !6443
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %56) #19, !dbg !6443
   call void @llvm.dbg.declare(metadata i8** %9, metadata !6400, metadata !DIExpression()), !dbg !6444
   %57 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %4, align 4, !dbg !6445, !tbaa !657
   %58 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %57, i32 0, i32 3, !dbg !6446
-  %59 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %58) #14, !dbg !6447
+  %59 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %58) #17, !dbg !6447
   store i8* %59, i8** %9, align 4, !dbg !6444, !tbaa !657
   %60 = bitcast i8** %10 to i8*, !dbg !6448
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %60) #5, !dbg !6448
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %60) #19, !dbg !6448
   call void @llvm.dbg.declare(metadata i8** %10, metadata !6401, metadata !DIExpression()), !dbg !6449
   %61 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %5, align 4, !dbg !6450, !tbaa !657
   %62 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %61, i32 0, i32 2, !dbg !6451
-  %63 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %62) #14, !dbg !6452
+  %63 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %62) #17, !dbg !6452
   store i8* %63, i8** %10, align 4, !dbg !6449, !tbaa !657
   %64 = bitcast i8** %11 to i8*, !dbg !6453
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %64) #5, !dbg !6453
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %64) #19, !dbg !6453
   call void @llvm.dbg.declare(metadata i8** %11, metadata !6402, metadata !DIExpression()), !dbg !6454
   %65 = load %struct.aws_ring_buffer*, %struct.aws_ring_buffer** %5, align 4, !dbg !6455, !tbaa !657
   %66 = getelementptr inbounds %struct.aws_ring_buffer, %struct.aws_ring_buffer* %65, i32 0, i32 3, !dbg !6456
-  %67 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %66) #14, !dbg !6457
+  %67 = call i8* @aws_atomic_load_ptr(%struct.aws_atomic_var* %66) #17, !dbg !6457
   store i8* %67, i8** %11, align 4, !dbg !6454, !tbaa !657
   %68 = load i8*, i8** %8, align 4, !dbg !6458, !tbaa !657
   %69 = load i8*, i8** %10, align 4, !dbg !6459, !tbaa !657
@@ -9500,17 +9500,17 @@ define zeroext i1 @ring_buffers_are_equal(%struct.aws_ring_buffer* %0, %struct.a
   store i1 %76, i1* %3, align 1, !dbg !6465
   store i32 1, i32* %7, align 4
   %77 = bitcast i8** %11 to i8*, !dbg !6466
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %77) #5, !dbg !6466
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %77) #19, !dbg !6466
   %78 = bitcast i8** %10 to i8*, !dbg !6466
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %78) #5, !dbg !6466
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %78) #19, !dbg !6466
   %79 = bitcast i8** %9 to i8*, !dbg !6466
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %79) #5, !dbg !6466
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %79) #19, !dbg !6466
   %80 = bitcast i8** %8 to i8*, !dbg !6466
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %80) #5, !dbg !6466
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %80) #19, !dbg !6466
   br label %81
 
 81:                                               ; preds = %75, %50
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !6466
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !6466
   br label %82
 
 82:                                               ; preds = %81, %17
@@ -9538,31 +9538,31 @@ define void @initialize_bounded_aws_hash_table(%struct.aws_hash_table* %0, i32 %
   store i32 %1, i32* %4, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %4, metadata !6478, metadata !DIExpression()), !dbg !6483
   %8 = bitcast i32* %5 to i8*, !dbg !6484
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !6484
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !6484
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6479, metadata !DIExpression()), !dbg !6485
-  %9 = call i32 @nd_size_t() #17, !dbg !6486
+  %9 = call i32 @nd_size_t() #21, !dbg !6486
   store i32 %9, i32* %5, align 4, !dbg !6485, !tbaa !663
   %10 = load i32, i32* %5, align 4, !dbg !6487, !tbaa !663
   %11 = load i32, i32* %4, align 4, !dbg !6488, !tbaa !663
   %12 = icmp ule i32 %10, %11, !dbg !6489
-  call void @__SEA_assume(i1 zeroext %12) #14, !dbg !6490
+  call void @__SEA_assume(i1 zeroext %12) #17, !dbg !6490
   %13 = load i32, i32* %5, align 4, !dbg !6491, !tbaa !663
-  %14 = call zeroext i1 @aws_is_power_of_two(i32 %13) #14, !dbg !6492
-  call void @__SEA_assume(i1 zeroext %14) #14, !dbg !6493
+  %14 = call zeroext i1 @aws_is_power_of_two(i32 %13) #17, !dbg !6492
+  call void @__SEA_assume(i1 zeroext %14) #17, !dbg !6493
   %15 = bitcast i32* %6 to i8*, !dbg !6494
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !6494
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !6494
   call void @llvm.dbg.declare(metadata i32* %6, metadata !6480, metadata !DIExpression()), !dbg !6495
-  %16 = call i32 @nd_size_t() #17, !dbg !6496
+  %16 = call i32 @nd_size_t() #21, !dbg !6496
   store i32 %16, i32* %6, align 4, !dbg !6495, !tbaa !663
   %17 = load i32, i32* %5, align 4, !dbg !6497, !tbaa !663
-  %18 = call i32 @hash_table_state_required_bytes(i32 %17, i32* %6) #14, !dbg !6498
+  %18 = call i32 @hash_table_state_required_bytes(i32 %17, i32* %6) #17, !dbg !6498
   %19 = icmp eq i32 %18, 0, !dbg !6499
-  call void @__SEA_assume(i1 zeroext %19) #14, !dbg !6500
+  call void @__SEA_assume(i1 zeroext %19) #17, !dbg !6500
   %20 = bitcast %struct.hash_table_state** %7 to i8*, !dbg !6501
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #5, !dbg !6501
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %20) #19, !dbg !6501
   call void @llvm.dbg.declare(metadata %struct.hash_table_state** %7, metadata !6481, metadata !DIExpression()), !dbg !6502
   %21 = load i32, i32* %6, align 4, !dbg !6503, !tbaa !663
-  %22 = call i8* @bounded_malloc(i32 %21) #14, !dbg !6504
+  %22 = call i8* @bounded_malloc(i32 %21) #17, !dbg !6504
   %23 = bitcast i8* %22 to %struct.hash_table_state*, !dbg !6504
   store %struct.hash_table_state* %23, %struct.hash_table_state** %7, align 4, !dbg !6502, !tbaa !657
   %24 = load i32, i32* %5, align 4, !dbg !6505, !tbaa !663
@@ -9577,7 +9577,7 @@ define void @initialize_bounded_aws_hash_table(%struct.aws_hash_table* %0, i32 %
   %31 = load %struct.hash_table_state*, %struct.hash_table_state** %7, align 4, !dbg !6514, !tbaa !657
   %32 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %31, i32 0, i32 9, !dbg !6515
   store double 0x3FEE666666666666, double* %32, align 4, !dbg !6516, !tbaa !3330
-  %33 = call %struct.aws_allocator* @sea_allocator() #14, !dbg !6517
+  %33 = call %struct.aws_allocator* @sea_allocator() #17, !dbg !6517
   %34 = load %struct.hash_table_state*, %struct.hash_table_state** %7, align 4, !dbg !6518, !tbaa !657
   %35 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %34, i32 0, i32 4, !dbg !6519
   store %struct.aws_allocator* %33, %struct.aws_allocator** %35, align 4, !dbg !6520, !tbaa !657
@@ -9592,11 +9592,11 @@ define void @initialize_bounded_aws_hash_table(%struct.aws_hash_table* %0, i32 %
   %42 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %41, i32 0, i32 0, !dbg !6529
   store %struct.hash_table_state* %40, %struct.hash_table_state** %42, align 4, !dbg !6530, !tbaa !6531
   %43 = bitcast %struct.hash_table_state** %7 to i8*, !dbg !6533
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !6533
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !6533
   %44 = bitcast i32* %6 to i8*, !dbg !6533
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #5, !dbg !6533
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %44) #19, !dbg !6533
   %45 = bitcast i32* %5 to i8*, !dbg !6533
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %45) #5, !dbg !6533
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %45) #19, !dbg !6533
   ret void, !dbg !6533
 }
 
@@ -9641,25 +9641,25 @@ define void @initialize_aws_hash_iter(%struct.aws_hash_iter* %0, %struct.aws_has
   %6 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6559, !tbaa !657
   %7 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %6, i32 0, i32 0, !dbg !6560
   store %struct.aws_hash_table* %5, %struct.aws_hash_table** %7, align 4, !dbg !6561, !tbaa !6562
-  %8 = call noalias i8* @nd_voidp() #14, !dbg !6565
+  %8 = call noalias i8* @nd_voidp() #17, !dbg !6565
   %9 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6566, !tbaa !657
   %10 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %9, i32 0, i32 1, !dbg !6567
   %11 = getelementptr inbounds %struct.aws_hash_element, %struct.aws_hash_element* %10, i32 0, i32 0, !dbg !6568
   store i8* %8, i8** %11, align 4, !dbg !6569, !tbaa !6570
-  %12 = call noalias i8* @nd_voidp() #14, !dbg !6571
+  %12 = call noalias i8* @nd_voidp() #17, !dbg !6571
   %13 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6572, !tbaa !657
   %14 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %13, i32 0, i32 1, !dbg !6573
   %15 = getelementptr inbounds %struct.aws_hash_element, %struct.aws_hash_element* %14, i32 0, i32 1, !dbg !6574
   store i8* %12, i8** %15, align 4, !dbg !6575, !tbaa !6576
-  %16 = call i32 @nd_size_t() #17, !dbg !6577
+  %16 = call i32 @nd_size_t() #21, !dbg !6577
   %17 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6578, !tbaa !657
   %18 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %17, i32 0, i32 2, !dbg !6579
   store i32 %16, i32* %18, align 4, !dbg !6580, !tbaa !6581
-  %19 = call i32 @nd_size_t() #17, !dbg !6582
+  %19 = call i32 @nd_size_t() #21, !dbg !6582
   %20 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6583, !tbaa !657
   %21 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %20, i32 0, i32 3, !dbg !6584
   store i32 %19, i32* %21, align 4, !dbg !6585, !tbaa !6586
-  %22 = call i32 @nd_hash_iter_status() #17, !dbg !6587
+  %22 = call i32 @nd_hash_iter_status() #21, !dbg !6587
   %23 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6588, !tbaa !657
   %24 = getelementptr inbounds %struct.aws_hash_iter, %struct.aws_hash_iter* %23, i32 0, i32 4, !dbg !6589
   store i32 %22, i32* %24, align 4, !dbg !6590, !tbaa !6591
@@ -9669,7 +9669,7 @@ define void @initialize_aws_hash_iter(%struct.aws_hash_iter* %0, %struct.aws_has
 declare !dbg !497 noalias i8* @nd_voidp() #4
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !500 i32 @nd_hash_iter_status() #8
+declare !dbg !500 i32 @nd_hash_iter_status() #11
 
 ; Function Attrs: nounwind ssp
 define void @mk_valid_aws_hash_iter(%struct.aws_hash_iter* %0, %struct.aws_hash_table* %1) #0 !dbg !6593 {
@@ -9681,10 +9681,10 @@ define void @mk_valid_aws_hash_iter(%struct.aws_hash_iter* %0, %struct.aws_hash_
   call void @llvm.dbg.declare(metadata %struct.aws_hash_table** %4, metadata !6596, metadata !DIExpression()), !dbg !6598
   %5 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6599, !tbaa !657
   %6 = load %struct.aws_hash_table*, %struct.aws_hash_table** %4, align 4, !dbg !6600, !tbaa !657
-  call void @initialize_aws_hash_iter(%struct.aws_hash_iter* %5, %struct.aws_hash_table* %6) #14, !dbg !6601
+  call void @initialize_aws_hash_iter(%struct.aws_hash_iter* %5, %struct.aws_hash_table* %6) #17, !dbg !6601
   %7 = load %struct.aws_hash_iter*, %struct.aws_hash_iter** %3, align 4, !dbg !6602, !tbaa !657
-  %8 = call zeroext i1 @aws_hash_iter_is_valid(%struct.aws_hash_iter* %7) #14, !dbg !6603
-  call void @__SEA_assume(i1 zeroext %8) #14, !dbg !6604
+  %8 = call zeroext i1 @aws_hash_iter_is_valid(%struct.aws_hash_iter* %7) #17, !dbg !6603
+  call void @__SEA_assume(i1 zeroext %8) #17, !dbg !6604
   ret void, !dbg !6605
 }
 
@@ -9701,32 +9701,32 @@ define void @save_byte_from_hash_table(%struct.aws_hash_table* %0, %struct.store
   store %struct.store_byte_from_buffer* %1, %struct.store_byte_from_buffer** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.store_byte_from_buffer** %4, metadata !6611, metadata !DIExpression()), !dbg !6615
   %7 = bitcast %struct.hash_table_state** %5 to i8*, !dbg !6616
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !6616
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !6616
   call void @llvm.dbg.declare(metadata %struct.hash_table_state** %5, metadata !6612, metadata !DIExpression()), !dbg !6617
   %8 = load %struct.aws_hash_table*, %struct.aws_hash_table** %3, align 4, !dbg !6618, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %8, i32 0, i32 0, !dbg !6619
   %10 = load %struct.hash_table_state*, %struct.hash_table_state** %9, align 4, !dbg !6619, !tbaa !6531
   store %struct.hash_table_state* %10, %struct.hash_table_state** %5, align 4, !dbg !6617, !tbaa !657
   %11 = bitcast i32* %6 to i8*, !dbg !6620
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !6620
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !6620
   call void @llvm.dbg.declare(metadata i32* %6, metadata !6613, metadata !DIExpression()), !dbg !6621
-  %12 = call i32 @nd_size_t() #17, !dbg !6622
+  %12 = call i32 @nd_size_t() #21, !dbg !6622
   store i32 %12, i32* %6, align 4, !dbg !6621, !tbaa !663
   %13 = load %struct.hash_table_state*, %struct.hash_table_state** %5, align 4, !dbg !6623, !tbaa !657
   %14 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %13, i32 0, i32 5, !dbg !6624
   %15 = load i32, i32* %14, align 4, !dbg !6624, !tbaa !663
-  %16 = call i32 @hash_table_state_required_bytes(i32 %15, i32* %6) #14, !dbg !6625
+  %16 = call i32 @hash_table_state_required_bytes(i32 %15, i32* %6) #17, !dbg !6625
   %17 = icmp eq i32 %16, 0, !dbg !6626
-  call void @__SEA_assume(i1 zeroext %17) #14, !dbg !6627
+  call void @__SEA_assume(i1 zeroext %17) #17, !dbg !6627
   %18 = load %struct.hash_table_state*, %struct.hash_table_state** %5, align 4, !dbg !6628, !tbaa !657
   %19 = bitcast %struct.hash_table_state* %18 to i8*, !dbg !6629
   %20 = load i32, i32* %6, align 4, !dbg !6630, !tbaa !663
   %21 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %4, align 4, !dbg !6631, !tbaa !657
-  call void @save_byte_from_array(i8* %19, i32 %20, %struct.store_byte_from_buffer* %21) #14, !dbg !6632
+  call void @save_byte_from_array(i8* %19, i32 %20, %struct.store_byte_from_buffer* %21) #17, !dbg !6632
   %22 = bitcast i32* %6 to i8*, !dbg !6633
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %22) #5, !dbg !6633
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %22) #19, !dbg !6633
   %23 = bitcast %struct.hash_table_state** %5 to i8*, !dbg !6633
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %23) #5, !dbg !6633
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %23) #19, !dbg !6633
   ret void, !dbg !6633
 }
 
@@ -9741,7 +9741,7 @@ define void @save_byte_from_array(i8* %0, i32 %1, %struct.store_byte_from_buffer
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6647, metadata !DIExpression()), !dbg !6650
   store %struct.store_byte_from_buffer* %2, %struct.store_byte_from_buffer** %6, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.store_byte_from_buffer** %6, metadata !6648, metadata !DIExpression()), !dbg !6651
-  %7 = call i32 @nd_size_t() #17, !dbg !6652
+  %7 = call i32 @nd_size_t() #21, !dbg !6652
   %8 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !6653, !tbaa !657
   %9 = getelementptr inbounds %struct.store_byte_from_buffer, %struct.store_byte_from_buffer* %8, i32 0, i32 0, !dbg !6654
   store i32 %7, i32* %9, align 4, !dbg !6655, !tbaa !6656
@@ -9765,7 +9765,7 @@ define void @save_byte_from_array(i8* %0, i32 %1, %struct.store_byte_from_buffer
   %21 = load i32, i32* %20, align 4, !dbg !6668, !tbaa !6656
   %22 = load i32, i32* %5, align 4, !dbg !6669, !tbaa !663
   %23 = icmp ult i32 %21, %22, !dbg !6670
-  call void @__SEA_assume(i1 zeroext %23) #14, !dbg !6671
+  call void @__SEA_assume(i1 zeroext %23) #17, !dbg !6671
   %24 = load i8*, i8** %4, align 4, !dbg !6672, !tbaa !657
   %25 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !6673, !tbaa !657
   %26 = getelementptr inbounds %struct.store_byte_from_buffer, %struct.store_byte_from_buffer* %25, i32 0, i32 0, !dbg !6674
@@ -9778,7 +9778,7 @@ define void @save_byte_from_array(i8* %0, i32 %1, %struct.store_byte_from_buffer
   br label %36, !dbg !6679
 
 32:                                               ; preds = %15, %12, %3
-  %33 = call zeroext i8 @nd_uint8_t() #17, !dbg !6680
+  %33 = call zeroext i8 @nd_uint8_t() #21, !dbg !6680
   %34 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !6682, !tbaa !657
   %35 = getelementptr inbounds %struct.store_byte_from_buffer, %struct.store_byte_from_buffer* %34, i32 0, i32 1, !dbg !6683
   store i8 %33, i8* %35, align 4, !dbg !6684, !tbaa !6678
@@ -9789,7 +9789,7 @@ define void @save_byte_from_array(i8* %0, i32 %1, %struct.store_byte_from_buffer
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !575 zeroext i8 @nd_uint8_t() #8
+declare !dbg !575 zeroext i8 @nd_uint8_t() #11
 
 ; Function Attrs: nounwind ssp
 define void @assert_hash_table_unchanged(%struct.aws_hash_table* %0, %struct.store_byte_from_buffer* %1) #0 !dbg !6686 {
@@ -9802,14 +9802,14 @@ define void @assert_hash_table_unchanged(%struct.aws_hash_table* %0, %struct.sto
   store %struct.store_byte_from_buffer* %1, %struct.store_byte_from_buffer** %4, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.store_byte_from_buffer** %4, metadata !6691, metadata !DIExpression()), !dbg !6695
   %7 = bitcast %struct.hash_table_state** %5 to i8*, !dbg !6696
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !6696
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !6696
   call void @llvm.dbg.declare(metadata %struct.hash_table_state** %5, metadata !6692, metadata !DIExpression()), !dbg !6697
   %8 = load %struct.aws_hash_table*, %struct.aws_hash_table** %3, align 4, !dbg !6698, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %8, i32 0, i32 0, !dbg !6699
   %10 = load %struct.hash_table_state*, %struct.hash_table_state** %9, align 4, !dbg !6699, !tbaa !6531
   store %struct.hash_table_state* %10, %struct.hash_table_state** %5, align 4, !dbg !6697, !tbaa !657
   %11 = bitcast i8** %6 to i8*, !dbg !6700
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !6700
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !6700
   call void @llvm.dbg.declare(metadata i8** %6, metadata !6693, metadata !DIExpression()), !dbg !6701
   %12 = load %struct.hash_table_state*, %struct.hash_table_state** %5, align 4, !dbg !6702, !tbaa !657
   %13 = bitcast %struct.hash_table_state* %12 to i8*, !dbg !6703
@@ -9817,11 +9817,11 @@ define void @assert_hash_table_unchanged(%struct.aws_hash_table* %0, %struct.sto
   %14 = load %struct.hash_table_state*, %struct.hash_table_state** %5, align 4, !dbg !6704, !tbaa !657
   %15 = bitcast %struct.hash_table_state* %14 to i8*, !dbg !6705
   %16 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %4, align 4, !dbg !6706, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %15, %struct.store_byte_from_buffer* %16) #14, !dbg !6707
+  call void @assert_byte_from_buffer_matches(i8* %15, %struct.store_byte_from_buffer* %16) #17, !dbg !6707
   %17 = bitcast i8** %6 to i8*, !dbg !6708
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #5, !dbg !6708
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #19, !dbg !6708
   %18 = bitcast %struct.hash_table_state** %5 to i8*, !dbg !6708
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #5, !dbg !6708
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #19, !dbg !6708
   ret void, !dbg !6708
 }
 
@@ -9855,7 +9855,7 @@ define void @assert_byte_from_buffer_matches(i8* %0, %struct.store_byte_from_buf
   %20 = load i8, i8* %19, align 4, !dbg !6725, !tbaa !6678
   %21 = zext i8 %20 to i32, !dbg !6725
   %22 = icmp eq i32 %17, %21, !dbg !6725
-  call void @__VERIFIER_assert(i1 zeroext %22) #14, !dbg !6725
+  call void @__VERIFIER_assert(i1 zeroext %22) #17, !dbg !6725
   %23 = load i8*, i8** %3, align 4, !dbg !6725, !tbaa !657
   %24 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %4, align 4, !dbg !6725, !tbaa !657
   %25 = getelementptr inbounds %struct.store_byte_from_buffer, %struct.store_byte_from_buffer* %24, i32 0, i32 0, !dbg !6725
@@ -9871,7 +9871,7 @@ define void @assert_byte_from_buffer_matches(i8* %0, %struct.store_byte_from_buf
   br i1 %34, label %36, label %35, !dbg !6725
 
 35:                                               ; preds = %10
-  call void @__VERIFIER_error() #14, !dbg !6725
+  call void @__VERIFIER_error() #17, !dbg !6725
   br label %36, !dbg !6725
 
 36:                                               ; preds = %35, %10
@@ -9888,7 +9888,7 @@ define void @ensure_hash_table_has_valid_destroy_functions(%struct.aws_hash_tabl
   %2 = alloca %struct.aws_hash_table*, align 4
   store %struct.aws_hash_table* %0, %struct.aws_hash_table** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_hash_table** %2, metadata !6733, metadata !DIExpression()), !dbg !6734
-  %3 = call zeroext i1 @nd_bool() #17, !dbg !6735
+  %3 = call zeroext i1 @nd_bool() #21, !dbg !6735
   %4 = zext i1 %3 to i64, !dbg !6735
   %5 = select i1 %3, void (i8*)* null, void (i8*)* @hash_proof_destroy_noop, !dbg !6735
   %6 = load %struct.aws_hash_table*, %struct.aws_hash_table** %2, align 4, !dbg !6736, !tbaa !657
@@ -9896,7 +9896,7 @@ define void @ensure_hash_table_has_valid_destroy_functions(%struct.aws_hash_tabl
   %8 = load %struct.hash_table_state*, %struct.hash_table_state** %7, align 4, !dbg !6737, !tbaa !6531
   %9 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %8, i32 0, i32 2, !dbg !6738
   store void (i8*)* %5, void (i8*)** %9, align 4, !dbg !6739, !tbaa !657
-  %10 = call zeroext i1 @nd_bool() #17, !dbg !6740
+  %10 = call zeroext i1 @nd_bool() #21, !dbg !6740
   %11 = zext i1 %10 to i64, !dbg !6740
   %12 = select i1 %10, void (i8*)* null, void (i8*)* @hash_proof_destroy_noop, !dbg !6740
   %13 = load %struct.aws_hash_table*, %struct.aws_hash_table** %2, align 4, !dbg !6741, !tbaa !657
@@ -9920,18 +9920,18 @@ define zeroext i1 @hash_table_state_has_an_empty_slot(%struct.hash_table_state* 
   %7 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %6, i32 0, i32 6, !dbg !6760
   %8 = load i32, i32* %7, align 4, !dbg !6760, !tbaa !663
   %9 = icmp ugt i32 %8, 0, !dbg !6761
-  call void @__SEA_assume(i1 zeroext %9) #14, !dbg !6762
+  call void @__SEA_assume(i1 zeroext %9) #17, !dbg !6762
   %10 = bitcast i32* %5 to i8*, !dbg !6763
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #5, !dbg !6763
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #19, !dbg !6763
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6756, metadata !DIExpression()), !dbg !6764
-  %11 = call i32 @nd_size_t() #17, !dbg !6765
+  %11 = call i32 @nd_size_t() #21, !dbg !6765
   store i32 %11, i32* %5, align 4, !dbg !6764, !tbaa !663
   %12 = load i32, i32* %5, align 4, !dbg !6766, !tbaa !663
   %13 = load %struct.hash_table_state*, %struct.hash_table_state** %3, align 4, !dbg !6767, !tbaa !657
   %14 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %13, i32 0, i32 5, !dbg !6768
   %15 = load i32, i32* %14, align 4, !dbg !6768, !tbaa !663
   %16 = icmp ult i32 %12, %15, !dbg !6769
-  call void @__SEA_assume(i1 zeroext %16) #14, !dbg !6770
+  call void @__SEA_assume(i1 zeroext %16) #17, !dbg !6770
   %17 = load i32, i32* %5, align 4, !dbg !6771, !tbaa !663
   %18 = load i32*, i32** %4, align 4, !dbg !6772, !tbaa !657
   store i32 %17, i32* %18, align 4, !dbg !6773, !tbaa !663
@@ -9943,7 +9943,7 @@ define zeroext i1 @hash_table_state_has_an_empty_slot(%struct.hash_table_state* 
   %24 = load i64, i64* %23, align 4, !dbg !6777, !tbaa !6778
   %25 = icmp eq i64 %24, 0, !dbg !6780
   %26 = bitcast i32* %5 to i8*, !dbg !6781
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %26) #5, !dbg !6781
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %26) #19, !dbg !6781
   ret i1 %25, !dbg !6782
 }
 
@@ -9959,7 +9959,7 @@ define zeroext i1 @aws_hash_table_has_an_empty_slot(%struct.aws_hash_table* %0, 
   %6 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %5, i32 0, i32 0, !dbg !6793
   %7 = load %struct.hash_table_state*, %struct.hash_table_state** %6, align 4, !dbg !6793, !tbaa !6531
   %8 = load i32*, i32** %4, align 4, !dbg !6794, !tbaa !657
-  %9 = call zeroext i1 @hash_table_state_has_an_empty_slot(%struct.hash_table_state* %7, i32* %8) #14, !dbg !6795
+  %9 = call zeroext i1 @hash_table_state_has_an_empty_slot(%struct.hash_table_state* %7, i32* %8) #17, !dbg !6795
   ret i1 %9, !dbg !6796
 }
 
@@ -9973,18 +9973,18 @@ define i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %0) #0 !dbg 
   store %struct.aws_hash_table* %0, %struct.aws_hash_table** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_hash_table** %2, metadata !6801, metadata !DIExpression()), !dbg !6810
   %7 = bitcast %struct.hash_table_state** %3 to i8*, !dbg !6811
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !6811
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !6811
   call void @llvm.dbg.declare(metadata %struct.hash_table_state** %3, metadata !6802, metadata !DIExpression()), !dbg !6812
   %8 = load %struct.aws_hash_table*, %struct.aws_hash_table** %2, align 4, !dbg !6813, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %8, i32 0, i32 0, !dbg !6814
   %10 = load %struct.hash_table_state*, %struct.hash_table_state** %9, align 4, !dbg !6814, !tbaa !6531
   store %struct.hash_table_state* %10, %struct.hash_table_state** %3, align 4, !dbg !6812, !tbaa !657
   %11 = bitcast i32* %4 to i8*, !dbg !6815
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !6815
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !6815
   call void @llvm.dbg.declare(metadata i32* %4, metadata !6803, metadata !DIExpression()), !dbg !6816
   store i32 0, i32* %4, align 4, !dbg !6816, !tbaa !663
   %12 = bitcast i32* %5 to i8*, !dbg !6817
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !6817
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !6817
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6804, metadata !DIExpression()), !dbg !6818
   store i32 0, i32* %5, align 4, !dbg !6818, !tbaa !663
   br label %13, !dbg !6817
@@ -9999,12 +9999,12 @@ define i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %0) #0 !dbg 
 
 19:                                               ; preds = %13
   %20 = bitcast i32* %5 to i8*, !dbg !6824
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %20) #5, !dbg !6824
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %20) #19, !dbg !6824
   br label %39
 
 21:                                               ; preds = %13
   %22 = bitcast %struct.hash_table_entry** %6 to i8*, !dbg !6825
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #5, !dbg !6825
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %22) #19, !dbg !6825
   call void @llvm.dbg.declare(metadata %struct.hash_table_entry** %6, metadata !6806, metadata !DIExpression()), !dbg !6826
   %23 = load %struct.hash_table_state*, %struct.hash_table_state** %3, align 4, !dbg !6827, !tbaa !657
   %24 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %23, i32 0, i32 10, !dbg !6828
@@ -10025,7 +10025,7 @@ define i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %0) #0 !dbg 
 
 34:                                               ; preds = %31, %21
   %35 = bitcast %struct.hash_table_entry** %6 to i8*, !dbg !6837
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #5, !dbg !6837
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #19, !dbg !6837
   br label %36, !dbg !6838
 
 36:                                               ; preds = %34
@@ -10037,9 +10037,9 @@ define i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %0) #0 !dbg 
 39:                                               ; preds = %19
   %40 = load i32, i32* %4, align 4, !dbg !6842, !tbaa !663
   %41 = bitcast i32* %4 to i8*, !dbg !6843
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #5, !dbg !6843
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %41) #19, !dbg !6843
   %42 = bitcast %struct.hash_table_state** %3 to i8*, !dbg !6843
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #5, !dbg !6843
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %42) #19, !dbg !6843
   ret i32 %40, !dbg !6844
 }
 
@@ -10054,7 +10054,7 @@ define zeroext i1 @aws_hash_table_entry_count_is_valid(%struct.aws_hash_table* %
   %6 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %5, i32 0, i32 6, !dbg !6853
   %7 = load i32, i32* %6, align 4, !dbg !6853, !tbaa !663
   %8 = load %struct.aws_hash_table*, %struct.aws_hash_table** %2, align 4, !dbg !6854, !tbaa !657
-  %9 = call i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %8) #14, !dbg !6855
+  %9 = call i32 @aws_hash_table_deep_entry_count(%struct.aws_hash_table* %8) #17, !dbg !6855
   %10 = icmp eq i32 %7, %9, !dbg !6856
   ret i1 %10, !dbg !6857
 }
@@ -10069,17 +10069,17 @@ define zeroext i1 @aws_hash_table_deep_is_empty(%struct.aws_hash_table* %0) #0 !
   store %struct.aws_hash_table* %0, %struct.aws_hash_table** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_hash_table** %2, metadata !6860, metadata !DIExpression()), !dbg !6868
   %7 = bitcast %struct.hash_table_state** %3 to i8*, !dbg !6869
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #5, !dbg !6869
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %7) #19, !dbg !6869
   call void @llvm.dbg.declare(metadata %struct.hash_table_state** %3, metadata !6861, metadata !DIExpression()), !dbg !6870
   %8 = load %struct.aws_hash_table*, %struct.aws_hash_table** %2, align 4, !dbg !6871, !tbaa !657
   %9 = getelementptr inbounds %struct.aws_hash_table, %struct.aws_hash_table* %8, i32 0, i32 0, !dbg !6872
   %10 = load %struct.hash_table_state*, %struct.hash_table_state** %9, align 4, !dbg !6872, !tbaa !6531
   store %struct.hash_table_state* %10, %struct.hash_table_state** %3, align 4, !dbg !6870, !tbaa !657
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #5, !dbg !6873
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %4) #19, !dbg !6873
   call void @llvm.dbg.declare(metadata i8* %4, metadata !6862, metadata !DIExpression()), !dbg !6874
   store i8 1, i8* %4, align 1, !dbg !6874, !tbaa !844
   %11 = bitcast i32* %5 to i8*, !dbg !6875
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #5, !dbg !6875
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %11) #19, !dbg !6875
   call void @llvm.dbg.declare(metadata i32* %5, metadata !6863, metadata !DIExpression()), !dbg !6876
   store i32 0, i32* %5, align 4, !dbg !6876, !tbaa !663
   br label %12, !dbg !6875
@@ -10094,12 +10094,12 @@ define zeroext i1 @aws_hash_table_deep_is_empty(%struct.aws_hash_table* %0) #0 !
 
 18:                                               ; preds = %12
   %19 = bitcast i32* %5 to i8*, !dbg !6882
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #5, !dbg !6882
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %19) #19, !dbg !6882
   br label %40
 
 20:                                               ; preds = %12
   %21 = bitcast %struct.hash_table_entry** %6 to i8*, !dbg !6883
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #5, !dbg !6883
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #19, !dbg !6883
   call void @llvm.dbg.declare(metadata %struct.hash_table_entry** %6, metadata !6865, metadata !DIExpression()), !dbg !6884
   %22 = load %struct.hash_table_state*, %struct.hash_table_state** %3, align 4, !dbg !6885, !tbaa !657
   %23 = getelementptr inbounds %struct.hash_table_state, %struct.hash_table_state* %22, i32 0, i32 10, !dbg !6886
@@ -10122,7 +10122,7 @@ define zeroext i1 @aws_hash_table_deep_is_empty(%struct.aws_hash_table* %0) #0 !
   %35 = zext i1 %34 to i8, !dbg !6894
   store i8 %35, i8* %4, align 1, !dbg !6894, !tbaa !844
   %36 = bitcast %struct.hash_table_entry** %6 to i8*, !dbg !6895
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %36) #5, !dbg !6895
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %36) #19, !dbg !6895
   br label %37, !dbg !6896
 
 37:                                               ; preds = %33
@@ -10134,9 +10134,9 @@ define zeroext i1 @aws_hash_table_deep_is_empty(%struct.aws_hash_table* %0) #0 !
 40:                                               ; preds = %18
   %41 = load i8, i8* %4, align 1, !dbg !6900, !tbaa !844, !range !849
   %42 = trunc i8 %41 to i1, !dbg !6900
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %4) #5, !dbg !6901
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %4) #19, !dbg !6901
   %43 = bitcast %struct.hash_table_state** %3 to i8*, !dbg !6901
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #5, !dbg !6901
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %43) #19, !dbg !6901
   ret i1 %42, !dbg !6902
 }
 
@@ -10170,7 +10170,7 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
 
 20:                                               ; preds = %10, %3
   %21 = phi i1 [ true, %3 ], [ %19, %10 ]
-  call void @__VERIFIER_assert(i1 zeroext %21) #14, !dbg !6916
+  call void @__VERIFIER_assert(i1 zeroext %21) #17, !dbg !6916
   %22 = load i32, i32* %6, align 4, !dbg !6916, !tbaa !663
   %23 = icmp eq i32 %22, 0, !dbg !6916
   br i1 %23, label %34, label %24, !dbg !6916
@@ -10192,7 +10192,7 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
   br i1 %35, label %37, label %36, !dbg !6916
 
 36:                                               ; preds = %34
-  call void @__VERIFIER_error() #14, !dbg !6916
+  call void @__VERIFIER_error() #17, !dbg !6916
   br label %37, !dbg !6916
 
 37:                                               ; preds = %36, %34
@@ -10214,9 +10214,9 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
 
 48:                                               ; preds = %45
   %49 = bitcast i32* %7 to i8*, !dbg !6926
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %49) #5, !dbg !6926
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %49) #19, !dbg !6926
   call void @llvm.dbg.declare(metadata i32* %7, metadata !6910, metadata !DIExpression()), !dbg !6927
-  %50 = call i32 @nd_size_t() #17, !dbg !6928
+  %50 = call i32 @nd_size_t() #21, !dbg !6928
   store i32 %50, i32* %7, align 4, !dbg !6927, !tbaa !663
   %51 = load i32, i32* %7, align 4, !dbg !6929, !tbaa !663
   %52 = load i32, i32* %6, align 4, !dbg !6930, !tbaa !663
@@ -10230,7 +10230,7 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
 
 57:                                               ; preds = %54, %48
   %58 = phi i1 [ false, %48 ], [ %56, %54 ], !dbg !6935
-  call void @__SEA_assume(i1 zeroext %58) #14, !dbg !6936
+  call void @__SEA_assume(i1 zeroext %58) #17, !dbg !6936
   %59 = load i8*, i8** %4, align 4, !dbg !6937, !tbaa !657
   %60 = load i32, i32* %7, align 4, !dbg !6937, !tbaa !663
   %61 = getelementptr inbounds i8, i8* %59, i32 %60, !dbg !6937
@@ -10242,7 +10242,7 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
   %67 = load i8, i8* %66, align 1, !dbg !6937, !tbaa !1034
   %68 = zext i8 %67 to i32, !dbg !6937
   %69 = icmp eq i32 %63, %68, !dbg !6937
-  call void @__VERIFIER_assert(i1 zeroext %69) #14, !dbg !6937
+  call void @__VERIFIER_assert(i1 zeroext %69) #17, !dbg !6937
   %70 = load i8*, i8** %4, align 4, !dbg !6937, !tbaa !657
   %71 = load i32, i32* %7, align 4, !dbg !6937, !tbaa !663
   %72 = getelementptr inbounds i8, i8* %70, i32 %71, !dbg !6937
@@ -10257,14 +10257,14 @@ define void @assert_bytes_match(i8* %0, i8* %1, i32 %2) #0 !dbg !6903 {
   br i1 %80, label %82, label %81, !dbg !6937
 
 81:                                               ; preds = %57
-  call void @__VERIFIER_error() #14, !dbg !6937
+  call void @__VERIFIER_error() #17, !dbg !6937
   br label %82, !dbg !6937
 
 82:                                               ; preds = %81, %57
   %83 = phi i1 [ true, %57 ], [ false, %81 ]
   %84 = zext i1 %83 to i32, !dbg !6937
   %85 = bitcast i32* %7 to i8*, !dbg !6938
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %85) #5, !dbg !6938
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %85) #19, !dbg !6938
   br label %86, !dbg !6939
 
 86:                                               ; preds = %82, %45, %42, %37
@@ -10294,14 +10294,14 @@ define void @assert_all_bytes_are(i8* %0, i8 zeroext %1, i32 %2) #0 !dbg !6941 {
 
 13:                                               ; preds = %10
   %14 = bitcast i32* %7 to i8*, !dbg !6960
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !6960
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !6960
   call void @llvm.dbg.declare(metadata i32* %7, metadata !6948, metadata !DIExpression()), !dbg !6961
-  %15 = call i32 @nd_size_t() #17, !dbg !6962
+  %15 = call i32 @nd_size_t() #21, !dbg !6962
   store i32 %15, i32* %7, align 4, !dbg !6961, !tbaa !663
   %16 = load i32, i32* %7, align 4, !dbg !6963, !tbaa !663
   %17 = load i32, i32* %6, align 4, !dbg !6964, !tbaa !663
   %18 = icmp ult i32 %16, %17, !dbg !6965
-  call void @__SEA_assume(i1 zeroext %18) #14, !dbg !6966
+  call void @__SEA_assume(i1 zeroext %18) #17, !dbg !6966
   %19 = load i8*, i8** %4, align 4, !dbg !6967, !tbaa !657
   %20 = load i32, i32* %7, align 4, !dbg !6967, !tbaa !663
   %21 = getelementptr inbounds i8, i8* %19, i32 %20, !dbg !6967
@@ -10310,7 +10310,7 @@ define void @assert_all_bytes_are(i8* %0, i8 zeroext %1, i32 %2) #0 !dbg !6941 {
   %24 = load i8, i8* %5, align 1, !dbg !6967, !tbaa !1034
   %25 = zext i8 %24 to i32, !dbg !6967
   %26 = icmp eq i32 %23, %25, !dbg !6967
-  call void @__VERIFIER_assert(i1 zeroext %26) #14, !dbg !6967
+  call void @__VERIFIER_assert(i1 zeroext %26) #17, !dbg !6967
   %27 = load i8*, i8** %4, align 4, !dbg !6967, !tbaa !657
   %28 = load i32, i32* %7, align 4, !dbg !6967, !tbaa !663
   %29 = getelementptr inbounds i8, i8* %27, i32 %28, !dbg !6967
@@ -10322,14 +10322,14 @@ define void @assert_all_bytes_are(i8* %0, i8 zeroext %1, i32 %2) #0 !dbg !6941 {
   br i1 %34, label %36, label %35, !dbg !6967
 
 35:                                               ; preds = %13
-  call void @__VERIFIER_error() #14, !dbg !6967
+  call void @__VERIFIER_error() #17, !dbg !6967
   br label %36, !dbg !6967
 
 36:                                               ; preds = %35, %13
   %37 = phi i1 [ true, %13 ], [ false, %35 ]
   %38 = zext i1 %37 to i32, !dbg !6967
   %39 = bitcast i32* %7 to i8*, !dbg !6968
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %39) #5, !dbg !6968
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %39) #19, !dbg !6968
   br label %40, !dbg !6969
 
 40:                                               ; preds = %36, %10, %3
@@ -10346,7 +10346,7 @@ define void @assert_all_zeroes(i8* %0, i32 %1) #0 !dbg !6971 {
   call void @llvm.dbg.declare(metadata i32* %4, metadata !6976, metadata !DIExpression()), !dbg !6978
   %5 = load i8*, i8** %3, align 4, !dbg !6979, !tbaa !657
   %6 = load i32, i32* %4, align 4, !dbg !6980, !tbaa !663
-  call void @assert_all_bytes_are(i8* %5, i8 zeroext 0, i32 %6) #14, !dbg !6981
+  call void @assert_all_bytes_are(i8* %5, i8 zeroext 0, i32 %6) #17, !dbg !6981
   ret void, !dbg !6982
 }
 
@@ -10381,7 +10381,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
 
 17:                                               ; preds = %14, %11
   %18 = phi i1 [ false, %11 ], [ %16, %14 ], !dbg !7032
-  call void @__VERIFIER_assert(i1 zeroext %18) #14, !dbg !7030
+  call void @__VERIFIER_assert(i1 zeroext %18) #17, !dbg !7030
   %19 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !7030, !tbaa !657
   %20 = icmp ne %struct.aws_array_list* %19, null, !dbg !7030
   br i1 %20, label %21, label %24, !dbg !7030
@@ -10396,7 +10396,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   br i1 %25, label %27, label %26, !dbg !7030
 
 26:                                               ; preds = %24
-  call void @__VERIFIER_error() #14, !dbg !7030
+  call void @__VERIFIER_error() #17, !dbg !7030
   br label %27, !dbg !7030
 
 27:                                               ; preds = %26, %24
@@ -10412,7 +10412,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   %35 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %34, i32 0, i32 0, !dbg !7033
   %36 = load %struct.aws_allocator*, %struct.aws_allocator** %35, align 4, !dbg !7033, !tbaa !1629
   %37 = icmp eq %struct.aws_allocator* %33, %36, !dbg !7033
-  call void @__VERIFIER_assert(i1 zeroext %37) #14, !dbg !7033
+  call void @__VERIFIER_assert(i1 zeroext %37) #17, !dbg !7033
   %38 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !7033, !tbaa !657
   %39 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %38, i32 0, i32 0, !dbg !7033
   %40 = load %struct.aws_allocator*, %struct.aws_allocator** %39, align 4, !dbg !7033, !tbaa !1629
@@ -10423,7 +10423,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   br i1 %44, label %46, label %45, !dbg !7033
 
 45:                                               ; preds = %30
-  call void @__VERIFIER_error() #14, !dbg !7033
+  call void @__VERIFIER_error() #17, !dbg !7033
   br label %46, !dbg !7033
 
 46:                                               ; preds = %45, %30
@@ -10436,7 +10436,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   %53 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %52, i32 0, i32 1, !dbg !7034
   %54 = load i32, i32* %53, align 4, !dbg !7034, !tbaa !4012
   %55 = icmp eq i32 %51, %54, !dbg !7034
-  call void @__VERIFIER_assert(i1 zeroext %55) #14, !dbg !7034
+  call void @__VERIFIER_assert(i1 zeroext %55) #17, !dbg !7034
   %56 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !7034, !tbaa !657
   %57 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %56, i32 0, i32 1, !dbg !7034
   %58 = load i32, i32* %57, align 4, !dbg !7034, !tbaa !4012
@@ -10447,7 +10447,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   br i1 %62, label %64, label %63, !dbg !7034
 
 63:                                               ; preds = %46
-  call void @__VERIFIER_error() #14, !dbg !7034
+  call void @__VERIFIER_error() #17, !dbg !7034
   br label %64, !dbg !7034
 
 64:                                               ; preds = %63, %46
@@ -10460,7 +10460,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   %71 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %70, i32 0, i32 2, !dbg !7035
   %72 = load i32, i32* %71, align 4, !dbg !7035, !tbaa !1650
   %73 = icmp eq i32 %69, %72, !dbg !7035
-  call void @__VERIFIER_assert(i1 zeroext %73) #14, !dbg !7035
+  call void @__VERIFIER_assert(i1 zeroext %73) #17, !dbg !7035
   %74 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !7035, !tbaa !657
   %75 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %74, i32 0, i32 2, !dbg !7035
   %76 = load i32, i32* %75, align 4, !dbg !7035, !tbaa !1650
@@ -10471,7 +10471,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   br i1 %80, label %82, label %81, !dbg !7035
 
 81:                                               ; preds = %64
-  call void @__VERIFIER_error() #14, !dbg !7035
+  call void @__VERIFIER_error() #17, !dbg !7035
   br label %82, !dbg !7035
 
 82:                                               ; preds = %81, %64
@@ -10484,7 +10484,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   %89 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %88, i32 0, i32 3, !dbg !7036
   %90 = load i32, i32* %89, align 4, !dbg !7036, !tbaa !1685
   %91 = icmp eq i32 %87, %90, !dbg !7036
-  call void @__VERIFIER_assert(i1 zeroext %91) #14, !dbg !7036
+  call void @__VERIFIER_assert(i1 zeroext %91) #17, !dbg !7036
   %92 = load %struct.aws_array_list*, %struct.aws_array_list** %4, align 4, !dbg !7036, !tbaa !657
   %93 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %92, i32 0, i32 3, !dbg !7036
   %94 = load i32, i32* %93, align 4, !dbg !7036, !tbaa !1685
@@ -10495,7 +10495,7 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   br i1 %98, label %100, label %99, !dbg !7036
 
 99:                                               ; preds = %82
-  call void @__VERIFIER_error() #14, !dbg !7036
+  call void @__VERIFIER_error() #17, !dbg !7036
   br label %100, !dbg !7036
 
 100:                                              ; preds = %99, %82
@@ -10512,10 +10512,10 @@ define void @assert_array_list_equivalence(%struct.aws_array_list* %0, %struct.a
   %109 = getelementptr inbounds %struct.aws_array_list, %struct.aws_array_list* %108, i32 0, i32 4, !dbg !7044
   %110 = load i8*, i8** %109, align 4, !dbg !7044, !tbaa !1651
   %111 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !7045, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %110, %struct.store_byte_from_buffer* %111) #14, !dbg !7046
+  call void @assert_byte_from_buffer_matches(i8* %110, %struct.store_byte_from_buffer* %111) #17, !dbg !7046
   br label %112, !dbg !7047
 
-112:                                              ; preds = %10, %107, %100
+112:                                              ; preds = %107, %100, %10
   ret void, !dbg !7048
 }
 
@@ -10550,7 +10550,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
 
 17:                                               ; preds = %14, %11
   %18 = phi i1 [ false, %11 ], [ %16, %14 ], !dbg !7077
-  call void @__VERIFIER_assert(i1 zeroext %18) #14, !dbg !7075
+  call void @__VERIFIER_assert(i1 zeroext %18) #17, !dbg !7075
   %19 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !7075, !tbaa !657
   %20 = icmp ne %struct.aws_byte_buf* %19, null, !dbg !7075
   br i1 %20, label %21, label %24, !dbg !7075
@@ -10565,7 +10565,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   br i1 %25, label %27, label %26, !dbg !7075
 
 26:                                               ; preds = %24
-  call void @__VERIFIER_error() #14, !dbg !7075
+  call void @__VERIFIER_error() #17, !dbg !7075
   br label %27, !dbg !7075
 
 27:                                               ; preds = %26, %24
@@ -10581,7 +10581,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   %35 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %34, i32 0, i32 0, !dbg !7078
   %36 = load i32, i32* %35, align 4, !dbg !7078, !tbaa !693
   %37 = icmp eq i32 %33, %36, !dbg !7078
-  call void @__VERIFIER_assert(i1 zeroext %37) #14, !dbg !7078
+  call void @__VERIFIER_assert(i1 zeroext %37) #17, !dbg !7078
   %38 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !7078, !tbaa !657
   %39 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %38, i32 0, i32 0, !dbg !7078
   %40 = load i32, i32* %39, align 4, !dbg !7078, !tbaa !693
@@ -10592,7 +10592,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   br i1 %44, label %46, label %45, !dbg !7078
 
 45:                                               ; preds = %30
-  call void @__VERIFIER_error() #14, !dbg !7078
+  call void @__VERIFIER_error() #17, !dbg !7078
   br label %46, !dbg !7078
 
 46:                                               ; preds = %45, %30
@@ -10605,7 +10605,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   %53 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %52, i32 0, i32 2, !dbg !7079
   %54 = load i32, i32* %53, align 4, !dbg !7079, !tbaa !698
   %55 = icmp eq i32 %51, %54, !dbg !7079
-  call void @__VERIFIER_assert(i1 zeroext %55) #14, !dbg !7079
+  call void @__VERIFIER_assert(i1 zeroext %55) #17, !dbg !7079
   %56 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !7079, !tbaa !657
   %57 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %56, i32 0, i32 2, !dbg !7079
   %58 = load i32, i32* %57, align 4, !dbg !7079, !tbaa !698
@@ -10616,7 +10616,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   br i1 %62, label %64, label %63, !dbg !7079
 
 63:                                               ; preds = %46
-  call void @__VERIFIER_error() #14, !dbg !7079
+  call void @__VERIFIER_error() #17, !dbg !7079
   br label %64, !dbg !7079
 
 64:                                               ; preds = %63, %46
@@ -10629,7 +10629,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   %71 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %70, i32 0, i32 3, !dbg !7080
   %72 = load %struct.aws_allocator*, %struct.aws_allocator** %71, align 4, !dbg !7080, !tbaa !703
   %73 = icmp eq %struct.aws_allocator* %69, %72, !dbg !7080
-  call void @__VERIFIER_assert(i1 zeroext %73) #14, !dbg !7080
+  call void @__VERIFIER_assert(i1 zeroext %73) #17, !dbg !7080
   %74 = load %struct.aws_byte_buf*, %struct.aws_byte_buf** %4, align 4, !dbg !7080, !tbaa !657
   %75 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %74, i32 0, i32 3, !dbg !7080
   %76 = load %struct.aws_allocator*, %struct.aws_allocator** %75, align 4, !dbg !7080, !tbaa !703
@@ -10640,7 +10640,7 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   br i1 %80, label %82, label %81, !dbg !7080
 
 81:                                               ; preds = %64
-  call void @__VERIFIER_error() #14, !dbg !7080
+  call void @__VERIFIER_error() #17, !dbg !7080
   br label %82, !dbg !7080
 
 82:                                               ; preds = %81, %64
@@ -10657,10 +10657,10 @@ define void @assert_byte_buf_equivalence(%struct.aws_byte_buf* %0, %struct.aws_b
   %91 = getelementptr inbounds %struct.aws_byte_buf, %struct.aws_byte_buf* %90, i32 0, i32 1, !dbg !7088
   %92 = load i8*, i8** %91, align 4, !dbg !7088, !tbaa !675
   %93 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !7089, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %92, %struct.store_byte_from_buffer* %93) #14, !dbg !7090
+  call void @assert_byte_from_buffer_matches(i8* %92, %struct.store_byte_from_buffer* %93) #17, !dbg !7090
   br label %94, !dbg !7091
 
-94:                                               ; preds = %10, %89, %82
+94:                                               ; preds = %89, %82, %10
   ret void, !dbg !7092
 }
 
@@ -10684,7 +10684,7 @@ define void @assert_byte_cursor_equivalence(%struct.aws_byte_cursor* %0, %struct
   %13 = xor i1 %12, true, !dbg !7110
   %14 = zext i1 %13 to i32, !dbg !7110
   %15 = icmp eq i32 %10, %14, !dbg !7110
-  call void @__VERIFIER_assert(i1 zeroext %15) #14, !dbg !7110
+  call void @__VERIFIER_assert(i1 zeroext %15) #17, !dbg !7110
   %16 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !7110, !tbaa !657
   %17 = icmp ne %struct.aws_byte_cursor* %16, null, !dbg !7110
   %18 = xor i1 %17, true, !dbg !7110
@@ -10697,7 +10697,7 @@ define void @assert_byte_cursor_equivalence(%struct.aws_byte_cursor* %0, %struct
   br i1 %24, label %26, label %25, !dbg !7110
 
 25:                                               ; preds = %3
-  call void @__VERIFIER_error() #14, !dbg !7110
+  call void @__VERIFIER_error() #17, !dbg !7110
   br label %26, !dbg !7110
 
 26:                                               ; preds = %25, %3
@@ -10720,7 +10720,7 @@ define void @assert_byte_cursor_equivalence(%struct.aws_byte_cursor* %0, %struct
   %39 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %38, i32 0, i32 0, !dbg !7116
   %40 = load i32, i32* %39, align 4, !dbg !7116, !tbaa !822
   %41 = icmp eq i32 %37, %40, !dbg !7116
-  call void @__VERIFIER_assert(i1 zeroext %41) #14, !dbg !7116
+  call void @__VERIFIER_assert(i1 zeroext %41) #17, !dbg !7116
   %42 = load %struct.aws_byte_cursor*, %struct.aws_byte_cursor** %4, align 4, !dbg !7116, !tbaa !657
   %43 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %42, i32 0, i32 0, !dbg !7116
   %44 = load i32, i32* %43, align 4, !dbg !7116, !tbaa !822
@@ -10731,7 +10731,7 @@ define void @assert_byte_cursor_equivalence(%struct.aws_byte_cursor* %0, %struct
   br i1 %48, label %50, label %49, !dbg !7116
 
 49:                                               ; preds = %34
-  call void @__VERIFIER_error() #14, !dbg !7116
+  call void @__VERIFIER_error() #17, !dbg !7116
   br label %50, !dbg !7116
 
 50:                                               ; preds = %49, %34
@@ -10748,7 +10748,7 @@ define void @assert_byte_cursor_equivalence(%struct.aws_byte_cursor* %0, %struct
   %59 = getelementptr inbounds %struct.aws_byte_cursor, %struct.aws_byte_cursor* %58, i32 0, i32 1, !dbg !7125
   %60 = load i8*, i8** %59, align 4, !dbg !7125, !tbaa !832
   %61 = load %struct.store_byte_from_buffer*, %struct.store_byte_from_buffer** %6, align 4, !dbg !7126, !tbaa !657
-  call void @assert_byte_from_buffer_matches(i8* %60, %struct.store_byte_from_buffer* %61) #14, !dbg !7127
+  call void @assert_byte_from_buffer_matches(i8* %60, %struct.store_byte_from_buffer* %61) #17, !dbg !7127
   br label %62, !dbg !7128
 
 62:                                               ; preds = %57, %50
@@ -10768,13 +10768,13 @@ define zeroext i1 @nondet_equals(i8* %0, i8* %1) #0 !dbg !7131 {
   call void @llvm.dbg.declare(metadata i8** %4, metadata !7136, metadata !DIExpression()), !dbg !7138
   %5 = load i8*, i8** %3, align 4, !dbg !7139, !tbaa !657
   %6 = icmp ne i8* %5, null, !dbg !7139
-  call void @__VERIFIER_assert(i1 zeroext %6) #14, !dbg !7139
+  call void @__VERIFIER_assert(i1 zeroext %6) #17, !dbg !7139
   %7 = load i8*, i8** %3, align 4, !dbg !7139, !tbaa !657
   %8 = icmp ne i8* %7, null, !dbg !7139
   br i1 %8, label %10, label %9, !dbg !7139
 
 9:                                                ; preds = %2
-  call void @__VERIFIER_error() #14, !dbg !7139
+  call void @__VERIFIER_error() #17, !dbg !7139
   br label %10, !dbg !7139
 
 10:                                               ; preds = %9, %2
@@ -10782,13 +10782,13 @@ define zeroext i1 @nondet_equals(i8* %0, i8* %1) #0 !dbg !7131 {
   %12 = zext i1 %11 to i32, !dbg !7139
   %13 = load i8*, i8** %4, align 4, !dbg !7140, !tbaa !657
   %14 = icmp ne i8* %13, null, !dbg !7140
-  call void @__VERIFIER_assert(i1 zeroext %14) #14, !dbg !7140
+  call void @__VERIFIER_assert(i1 zeroext %14) #17, !dbg !7140
   %15 = load i8*, i8** %4, align 4, !dbg !7140, !tbaa !657
   %16 = icmp ne i8* %15, null, !dbg !7140
   br i1 %16, label %18, label %17, !dbg !7140
 
 17:                                               ; preds = %10
-  call void @__VERIFIER_error() #14, !dbg !7140
+  call void @__VERIFIER_error() #17, !dbg !7140
   br label %18, !dbg !7140
 
 18:                                               ; preds = %17, %10
@@ -10803,7 +10803,7 @@ define zeroext i1 @nondet_equals(i8* %0, i8* %1) #0 !dbg !7131 {
   br label %28, !dbg !7141
 
 25:                                               ; preds = %18
-  %26 = call zeroext i1 @nd_bool() #17, !dbg !7144
+  %26 = call zeroext i1 @nd_bool() #21, !dbg !7144
   %27 = zext i1 %26 to i32, !dbg !7144
   br label %28, !dbg !7141
 
@@ -10818,15 +10818,15 @@ define i64 @uninterpreted_hasher(i8* %0) #0 !dbg !7146 {
   %2 = alloca i8*, align 4
   store i8* %0, i8** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %2, metadata !7148, metadata !DIExpression()), !dbg !7149
-  %3 = call i64 @nd_uint64_t() #17, !dbg !7150
+  %3 = call i64 @nd_uint64_t() #21, !dbg !7150
   ret i64 %3, !dbg !7151
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !578 i64 @nd_uint64_t() #8
+declare !dbg !578 i64 @nd_uint64_t() #11
 
 ; Function Attrs: nounwind ssp allocsize(1)
-define i8* @realloc(i8* %0, i32 %1) #12 !dbg !7152 {
+define i8* @realloc(i8* %0, i32 %1) #15 !dbg !7152 {
   %3 = alloca i8*, align 4
   %4 = alloca i32, align 4
   store i8* %0, i8** %3, align 4, !tbaa !657
@@ -10835,12 +10835,12 @@ define i8* @realloc(i8* %0, i32 %1) #12 !dbg !7152 {
   call void @llvm.dbg.declare(metadata i32* %4, metadata !7157, metadata !DIExpression()), !dbg !7159
   %5 = load i8*, i8** %3, align 4, !dbg !7160, !tbaa !657
   %6 = load i32, i32* %4, align 4, !dbg !7161, !tbaa !663
-  %7 = call i8* @sea_realloc(i8* %5, i32 %6) #14, !dbg !7162
+  %7 = call i8* @sea_realloc(i8* %5, i32 %6) #17, !dbg !7162
   ret i8* %7, !dbg !7163
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_realloc(i8* %0, i32 %1) #9 !dbg !7164 {
+define i8* @sea_realloc(i8* %0, i32 %1) #12 !dbg !7164 {
   %3 = alloca i8*, align 4
   %4 = alloca i32, align 4
   store i8* %0, i8** %3, align 4, !tbaa !657
@@ -10853,64 +10853,64 @@ define i8* @sea_realloc(i8* %0, i32 %1) #9 !dbg !7164 {
 
 7:                                                ; preds = %2
   %8 = load i8*, i8** %3, align 4, !dbg !7175, !tbaa !657
-  call void @sea_free(i8* %8) #14, !dbg !7176
+  call void @sea_free(i8* %8) #17, !dbg !7176
   br label %9, !dbg !7176
 
 9:                                                ; preds = %7, %2
   %10 = load i32, i32* %4, align 4, !dbg !7177, !tbaa !663
-  %11 = call i8* @sea_malloc(i32 %10) #14, !dbg !7178
+  %11 = call i8* @sea_malloc(i32 %10) #17, !dbg !7178
   ret i8* %11, !dbg !7179
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define void @sea_free(i8* %0) #9 !dbg !7180 {
+define void @sea_free(i8* %0) #12 !dbg !7180 {
   %2 = alloca i8*, align 4
   store i8* %0, i8** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata i8** %2, metadata !7182, metadata !DIExpression()), !dbg !7183
   %3 = load i8*, i8** %2, align 4, !dbg !7184, !tbaa !657
-  call void @free(i8* %3) #14, !dbg !7185
+  call void @free(i8* %3) #17, !dbg !7185
   ret void, !dbg !7186
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_safe(i32 %0) #9 !dbg !7187 {
+define i8* @sea_malloc_safe(i32 %0) #12 !dbg !7187 {
   %2 = alloca i32, align 4
   %3 = alloca i8*, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !7189, metadata !DIExpression()), !dbg !7191
   %4 = bitcast i8** %3 to i8*, !dbg !7192
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !7192
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !7192
   call void @llvm.dbg.declare(metadata i8** %3, metadata !7190, metadata !DIExpression()), !dbg !7193
   %5 = load i32, i32* %2, align 4, !dbg !7194, !tbaa !663
-  %6 = call i8* @malloc(i32 %5) #18, !dbg !7195
+  %6 = call i8* @malloc(i32 %5) #22, !dbg !7195
   store i8* %6, i8** %3, align 4, !dbg !7193, !tbaa !657
   %7 = load i8*, i8** %3, align 4, !dbg !7196, !tbaa !657
   %8 = icmp ne i8* %7, null, !dbg !7196
-  call void @__SEA_assume(i1 zeroext %8) #14, !dbg !7197
+  call void @__SEA_assume(i1 zeroext %8) #17, !dbg !7197
   %9 = load i8*, i8** %3, align 4, !dbg !7198, !tbaa !657
   %10 = bitcast i8** %3 to i8*, !dbg !7199
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !7199
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !7199
   ret i8* %9, !dbg !7200
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @sea_malloc_aligned_safe(i32 %0) #9 !dbg !7201 {
+define i8* @sea_malloc_aligned_safe(i32 %0) #12 !dbg !7201 {
   %2 = alloca i32, align 4
   %3 = alloca i8*, align 4
   store i32 %0, i32* %2, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %2, metadata !7203, metadata !DIExpression()), !dbg !7205
   %4 = bitcast i8** %3 to i8*, !dbg !7206
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #5, !dbg !7206
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %4) #19, !dbg !7206
   call void @llvm.dbg.declare(metadata i8** %3, metadata !7204, metadata !DIExpression()), !dbg !7207
   %5 = load i32, i32* %2, align 4, !dbg !7208, !tbaa !663
-  %6 = call i8* @sea_malloc_aligned(i32 %5) #14, !dbg !7209
+  %6 = call i8* @sea_malloc_aligned(i32 %5) #17, !dbg !7209
   store i8* %6, i8** %3, align 4, !dbg !7207, !tbaa !657
   %7 = load i8*, i8** %3, align 4, !dbg !7210, !tbaa !657
   %8 = icmp ne i8* %7, null, !dbg !7210
-  call void @__SEA_assume(i1 zeroext %8) #14, !dbg !7211
+  call void @__SEA_assume(i1 zeroext %8) #17, !dbg !7211
   %9 = load i8*, i8** %3, align 4, !dbg !7212, !tbaa !657
   %10 = bitcast i8** %3 to i8*, !dbg !7213
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #5, !dbg !7213
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %10) #19, !dbg !7213
   ret i8* %9, !dbg !7214
 }
 
@@ -10926,36 +10926,36 @@ define i8* @aws_mem_acquire(%struct.aws_allocator.13* %0, i32 %1) #0 !dbg !7215 
   %6 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %3, align 4, !dbg !7223, !tbaa !657
   %7 = load i32, i32* %4, align 4, !dbg !7224, !tbaa !663
   %8 = icmp ne i32 %7, 0, !dbg !7224
-  call void @__VERIFIER_assert(i1 zeroext %8) #14, !dbg !7224
+  call void @__VERIFIER_assert(i1 zeroext %8) #17, !dbg !7224
   %9 = load i32, i32* %4, align 4, !dbg !7224, !tbaa !663
   %10 = icmp ne i32 %9, 0, !dbg !7224
   br i1 %10, label %12, label %11, !dbg !7224
 
 11:                                               ; preds = %2
-  call void @__VERIFIER_error() #14, !dbg !7224
+  call void @__VERIFIER_error() #17, !dbg !7224
   br label %12, !dbg !7224
 
 12:                                               ; preds = %11, %2
   %13 = phi i1 [ true, %2 ], [ false, %11 ]
   %14 = zext i1 %13 to i32, !dbg !7224
   %15 = bitcast i8** %5 to i8*, !dbg !7225
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #5, !dbg !7225
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %15) #19, !dbg !7225
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7220, metadata !DIExpression()), !dbg !7226
   %16 = load i32, i32* %4, align 4, !dbg !7227, !tbaa !663
-  %17 = call i8* @can_fail_malloc(i32 %16) #14, !dbg !7228
+  %17 = call i8* @can_fail_malloc(i32 %16) #17, !dbg !7228
   store i8* %17, i8** %5, align 4, !dbg !7226, !tbaa !657
   %18 = load i8*, i8** %5, align 4, !dbg !7229, !tbaa !657
   %19 = icmp ne i8* %18, null, !dbg !7229
   br i1 %19, label %22, label %20, !dbg !7231
 
 20:                                               ; preds = %12
-  %21 = call i32 @aws_raise_error.11(i32 1) #14, !dbg !7232
+  %21 = call i32 @aws_raise_error.11(i32 1) #17, !dbg !7232
   br label %22, !dbg !7234
 
 22:                                               ; preds = %20, %12
   %23 = load i8*, i8** %5, align 4, !dbg !7235, !tbaa !657
   %24 = bitcast i8** %5 to i8*, !dbg !7236
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %24) #5, !dbg !7236
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %24) #19, !dbg !7236
   ret i8* %23, !dbg !7237
 }
 
@@ -10965,7 +10965,7 @@ define internal i32 @aws_raise_error.11(i32 %0) #2 !dbg !7238 {
   store i32 %0, i32* %2, align 4, !tbaa !805
   call void @llvm.dbg.declare(metadata i32* %2, metadata !7240, metadata !DIExpression()), !dbg !7241
   %3 = load i32, i32* %2, align 4, !dbg !7242, !tbaa !805
-  call void @aws_raise_error_private(i32 %3) #14, !dbg !7243
+  call void @aws_raise_error_private(i32 %3) #17, !dbg !7243
   ret i32 -1, !dbg !7244
 }
 
@@ -10996,11 +10996,11 @@ define i8* @aws_mem_calloc(%struct.aws_allocator.13* %0, i32 %1, i32 %2) #0 !dbg
   call void @llvm.dbg.declare(metadata i32* %7, metadata !7256, metadata !DIExpression()), !dbg !7261
   %11 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %5, align 4, !dbg !7262, !tbaa !657
   %12 = bitcast i32* %8 to i8*, !dbg !7263
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #5, !dbg !7263
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %12) #19, !dbg !7263
   call void @llvm.dbg.declare(metadata i32* %8, metadata !7257, metadata !DIExpression()), !dbg !7264
   %13 = load i32, i32* %6, align 4, !dbg !7265, !tbaa !663
   %14 = load i32, i32* %7, align 4, !dbg !7267, !tbaa !663
-  %15 = call i32 @aws_mul_size_checked(i32 %13, i32 %14, i32* %8) #14, !dbg !7268
+  %15 = call i32 @aws_mul_size_checked(i32 %13, i32 %14, i32* %8) #17, !dbg !7268
   %16 = icmp ne i32 %15, 0, !dbg !7268
   br i1 %16, label %17, label %18, !dbg !7269
 
@@ -11011,18 +11011,18 @@ define i8* @aws_mem_calloc(%struct.aws_allocator.13* %0, i32 %1, i32 %2) #0 !dbg
 
 18:                                               ; preds = %3
   %19 = bitcast i8** %10 to i8*, !dbg !7272
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #5, !dbg !7272
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %19) #19, !dbg !7272
   call void @llvm.dbg.declare(metadata i8** %10, metadata !7258, metadata !DIExpression()), !dbg !7273
   %20 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %5, align 4, !dbg !7274, !tbaa !657
   %21 = load i32, i32* %8, align 4, !dbg !7275, !tbaa !663
-  %22 = call i8* @aws_mem_acquire(%struct.aws_allocator.13* %20, i32 %21) #14, !dbg !7276
+  %22 = call i8* @aws_mem_acquire(%struct.aws_allocator.13* %20, i32 %21) #17, !dbg !7276
   store i8* %22, i8** %10, align 4, !dbg !7273, !tbaa !657
   %23 = load i8*, i8** %10, align 4, !dbg !7277, !tbaa !657
   %24 = icmp ne i8* %23, null, !dbg !7277
   br i1 %24, label %27, label %25, !dbg !7279
 
 25:                                               ; preds = %18
-  %26 = call i32 @aws_raise_error.11(i32 1) #14, !dbg !7280
+  %26 = call i32 @aws_raise_error.11(i32 1) #17, !dbg !7280
   store i8* null, i8** %4, align 4, !dbg !7282
   store i32 1, i32* %9, align 4
   br label %34, !dbg !7282
@@ -11032,7 +11032,7 @@ define i8* @aws_mem_calloc(%struct.aws_allocator.13* %0, i32 %1, i32 %2) #0 !dbg
   %29 = load i32, i32* %8, align 4, !dbg !7283, !tbaa !663
   %30 = load i8*, i8** %10, align 4, !dbg !7283, !tbaa !657
   %31 = call i32 @llvm.objectsize.i32.p0i8(i8* %30, i1 false, i1 true, i1 false), !dbg !7283
-  %32 = call i8* @__memset_chk(i8* %28, i32 0, i32 %29, i32 %31) #15, !dbg !7283
+  %32 = call i8* @__memset_chk(i8* %28, i32 0, i32 %29, i32 %31) #18, !dbg !7283
   %33 = load i8*, i8** %10, align 4, !dbg !7284, !tbaa !657
   store i8* %33, i8** %4, align 4, !dbg !7285
   store i32 1, i32* %9, align 4
@@ -11040,12 +11040,12 @@ define i8* @aws_mem_calloc(%struct.aws_allocator.13* %0, i32 %1, i32 %2) #0 !dbg
 
 34:                                               ; preds = %27, %25
   %35 = bitcast i8** %10 to i8*, !dbg !7286
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #5, !dbg !7286
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %35) #19, !dbg !7286
   br label %36
 
 36:                                               ; preds = %34, %17
   %37 = bitcast i32* %8 to i8*, !dbg !7286
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %37) #5, !dbg !7286
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %37) #19, !dbg !7286
   %38 = load i8*, i8** %4, align 4, !dbg !7286
   ret i8* %38, !dbg !7286
 }
@@ -11064,12 +11064,12 @@ define internal i32 @aws_mul_size_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !7287
   %7 = load i32, i32* %4, align 4, !dbg !7295, !tbaa !663
   %8 = load i32, i32* %5, align 4, !dbg !7296, !tbaa !663
   %9 = load i32*, i32** %6, align 4, !dbg !7297, !tbaa !657
-  %10 = call i32 @aws_mul_u32_checked(i32 %7, i32 %8, i32* %9) #14, !dbg !7298
+  %10 = call i32 @aws_mul_u32_checked(i32 %7, i32 %8, i32* %9) #17, !dbg !7298
   ret i32 %10, !dbg !7299
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @__memset_chk(i8* %0, i32 %1, i32 %2, i32 %3) #9 !dbg !7300 {
+define i8* @__memset_chk(i8* %0, i32 %1, i32 %2, i32 %3) #12 !dbg !7300 {
   %5 = alloca i8*, align 4
   %6 = alloca i32, align 4
   %7 = alloca i32, align 4
@@ -11086,7 +11086,7 @@ define i8* @__memset_chk(i8* %0, i32 %1, i32 %2, i32 %3) #9 !dbg !7300 {
   %10 = load i32, i32* %7, align 4, !dbg !7313, !tbaa !663
   %11 = icmp ult i32 %9, %10, !dbg !7313
   %12 = xor i1 %11, true, !dbg !7313
-  call void @__VERIFIER_assert(i1 zeroext %12) #14, !dbg !7313
+  call void @__VERIFIER_assert(i1 zeroext %12) #17, !dbg !7313
   %13 = load i32, i32* %8, align 4, !dbg !7313, !tbaa !663
   %14 = load i32, i32* %7, align 4, !dbg !7313, !tbaa !663
   %15 = icmp ult i32 %13, %14, !dbg !7313
@@ -11094,7 +11094,7 @@ define i8* @__memset_chk(i8* %0, i32 %1, i32 %2, i32 %3) #9 !dbg !7300 {
   br i1 %16, label %18, label %17, !dbg !7313
 
 17:                                               ; preds = %4
-  call void @__VERIFIER_error() #14, !dbg !7313
+  call void @__VERIFIER_error() #17, !dbg !7313
   br label %18, !dbg !7313
 
 18:                                               ; preds = %17, %4
@@ -11130,7 +11130,7 @@ define internal i32 @aws_mul_u32_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !7319 
   br i1 %12, label %14, label %16, !dbg !7332
 
 14:                                               ; preds = %3
-  %15 = call i32 @aws_raise_error.11(i32 5) #14, !dbg !7333
+  %15 = call i32 @aws_raise_error.11(i32 5) #17, !dbg !7333
   store i32 %15, i32* %4, align 4, !dbg !7335
   br label %17, !dbg !7335
 
@@ -11143,7 +11143,7 @@ define internal i32 @aws_mul_u32_checked(i32 %0, i32 %1, i32* %2) #2 !dbg !7319 
   ret i32 %18, !dbg !7337
 }
 
-; Function Attrs: nounwind readnone speculatable willreturn
+; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare { i32, i1 } @llvm.umul.with.overflow.i32(i32, i32) #1
 
 ; Function Attrs: nounwind ssp
@@ -11161,7 +11161,7 @@ define void @aws_mem_release(%struct.aws_allocator.13* %0, i8* %1) #0 !dbg !7338
 
 8:                                                ; preds = %2
   %9 = load i8*, i8** %4, align 4, !dbg !7349, !tbaa !657
-  call void @free(i8* %9) #14, !dbg !7351
+  call void @free(i8* %9) #17, !dbg !7351
   br label %10, !dbg !7352
 
 10:                                               ; preds = %8, %2
@@ -11194,7 +11194,7 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
   %16 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %6, align 4, !dbg !7372, !tbaa !657
   %17 = load i8**, i8*** %7, align 4, !dbg !7374, !tbaa !657
   %18 = load i8*, i8** %17, align 4, !dbg !7375, !tbaa !657
-  call void @aws_mem_release(%struct.aws_allocator.13* %16, i8* %18) #14, !dbg !7376
+  call void @aws_mem_release(%struct.aws_allocator.13* %16, i8* %18) #17, !dbg !7376
   %19 = load i8**, i8*** %7, align 4, !dbg !7377, !tbaa !657
   store i8* null, i8** %19, align 4, !dbg !7378, !tbaa !657
   store i32 0, i32* %5, align 4, !dbg !7379
@@ -11212,18 +11212,18 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
 
 25:                                               ; preds = %20
   %26 = bitcast i8** %10 to i8*, !dbg !7387
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %26) #5, !dbg !7387
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %26) #19, !dbg !7387
   call void @llvm.dbg.declare(metadata i8** %10, metadata !7362, metadata !DIExpression()), !dbg !7388
   %27 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %6, align 4, !dbg !7389, !tbaa !657
   %28 = load i32, i32* %9, align 4, !dbg !7390, !tbaa !663
-  %29 = call i8* @aws_mem_acquire(%struct.aws_allocator.13* %27, i32 %28) #14, !dbg !7391
+  %29 = call i8* @aws_mem_acquire(%struct.aws_allocator.13* %27, i32 %28) #17, !dbg !7391
   store i8* %29, i8** %10, align 4, !dbg !7388, !tbaa !657
   %30 = load i8*, i8** %10, align 4, !dbg !7392, !tbaa !657
   %31 = icmp ne i8* %30, null, !dbg !7392
   br i1 %31, label %34, label %32, !dbg !7394
 
 32:                                               ; preds = %25
-  %33 = call i32 @aws_raise_error.11(i32 1) #14, !dbg !7395
+  %33 = call i32 @aws_raise_error.11(i32 1) #17, !dbg !7395
   store i32 %33, i32* %5, align 4, !dbg !7397
   store i32 1, i32* %11, align 4
   br label %58, !dbg !7397
@@ -11235,7 +11235,7 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
   %38 = load i32, i32* %8, align 4, !dbg !7398, !tbaa !663
   %39 = load i8*, i8** %10, align 4, !dbg !7398, !tbaa !657
   %40 = call i32 @llvm.objectsize.i32.p0i8(i8* %39, i1 false, i1 true, i1 false), !dbg !7398
-  %41 = call i8* @__memcpy_chk(i8* %35, i8* %37, i32 %38, i32 %40) #15, !dbg !7398
+  %41 = call i8* @__memcpy_chk(i8* %35, i8* %37, i32 %38, i32 %40) #18, !dbg !7398
   %42 = load i8*, i8** %10, align 4, !dbg !7399, !tbaa !657
   %43 = load i32, i32* %8, align 4, !dbg !7399, !tbaa !663
   %44 = getelementptr inbounds i8, i8* %42, i32 %43, !dbg !7399
@@ -11246,11 +11246,11 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
   %49 = load i32, i32* %8, align 4, !dbg !7399, !tbaa !663
   %50 = getelementptr inbounds i8, i8* %48, i32 %49, !dbg !7399
   %51 = call i32 @llvm.objectsize.i32.p0i8(i8* %50, i1 false, i1 true, i1 false), !dbg !7399
-  %52 = call i8* @__memset_chk(i8* %44, i32 0, i32 %47, i32 %51) #15, !dbg !7399
+  %52 = call i8* @__memset_chk(i8* %44, i32 0, i32 %47, i32 %51) #18, !dbg !7399
   %53 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %6, align 4, !dbg !7400, !tbaa !657
   %54 = load i8**, i8*** %7, align 4, !dbg !7401, !tbaa !657
   %55 = load i8*, i8** %54, align 4, !dbg !7402, !tbaa !657
-  call void @aws_mem_release(%struct.aws_allocator.13* %53, i8* %55) #14, !dbg !7403
+  call void @aws_mem_release(%struct.aws_allocator.13* %53, i8* %55) #17, !dbg !7403
   %56 = load i8*, i8** %10, align 4, !dbg !7404, !tbaa !657
   %57 = load i8**, i8*** %7, align 4, !dbg !7405, !tbaa !657
   store i8* %56, i8** %57, align 4, !dbg !7406, !tbaa !657
@@ -11260,7 +11260,7 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
 
 58:                                               ; preds = %34, %32
   %59 = bitcast i8** %10 to i8*, !dbg !7408
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %59) #5, !dbg !7408
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %59) #19, !dbg !7408
   br label %60
 
 60:                                               ; preds = %58, %24, %15
@@ -11269,7 +11269,7 @@ define i32 @aws_mem_realloc(%struct.aws_allocator.13* %0, i8** %1, i32 %2, i32 %
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i8* @__memcpy_chk(i8* %0, i8* %1, i32 %2, i32 %3) #9 !dbg !7409 {
+define i8* @__memcpy_chk(i8* %0, i8* %1, i32 %2, i32 %3) #12 !dbg !7409 {
   %5 = alloca i8*, align 4
   %6 = alloca i8*, align 4
   %7 = alloca i32, align 4
@@ -11286,7 +11286,7 @@ define i8* @__memcpy_chk(i8* %0, i8* %1, i32 %2, i32 %3) #9 !dbg !7409 {
   %10 = load i32, i32* %7, align 4, !dbg !7421, !tbaa !663
   %11 = icmp ult i32 %9, %10, !dbg !7421
   %12 = xor i1 %11, true, !dbg !7421
-  call void @__VERIFIER_assert(i1 zeroext %12) #14, !dbg !7421
+  call void @__VERIFIER_assert(i1 zeroext %12) #17, !dbg !7421
   %13 = load i32, i32* %8, align 4, !dbg !7421, !tbaa !663
   %14 = load i32, i32* %7, align 4, !dbg !7421, !tbaa !663
   %15 = icmp ult i32 %13, %14, !dbg !7421
@@ -11294,7 +11294,7 @@ define i8* @__memcpy_chk(i8* %0, i8* %1, i32 %2, i32 %3) #9 !dbg !7409 {
   br i1 %16, label %18, label %17, !dbg !7421
 
 17:                                               ; preds = %4
-  call void @__VERIFIER_error() #14, !dbg !7421
+  call void @__VERIFIER_error() #17, !dbg !7421
   br label %18, !dbg !7421
 
 18:                                               ; preds = %17, %4
@@ -11313,13 +11313,13 @@ define zeroext i1 @aws_allocator_is_valid(%struct.aws_allocator.13* %0) #0 !dbg 
   store %struct.aws_allocator.13* %0, %struct.aws_allocator.13** %2, align 4, !tbaa !657
   call void @llvm.dbg.declare(metadata %struct.aws_allocator.13** %2, metadata !7433, metadata !DIExpression()), !dbg !7434
   %3 = load %struct.aws_allocator.13*, %struct.aws_allocator.13** %2, align 4, !dbg !7435, !tbaa !657
-  %4 = call %struct.aws_allocator.13* bitcast (%struct.aws_allocator* ()* @sea_allocator to %struct.aws_allocator.13* ()*)() #14, !dbg !7436
+  %4 = call %struct.aws_allocator.13* bitcast (%struct.aws_allocator* ()* @sea_allocator to %struct.aws_allocator.13* ()*)() #17, !dbg !7436
   %5 = icmp eq %struct.aws_allocator.13* %3, %4, !dbg !7437
   ret i1 %5, !dbg !7438
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i32 @bcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7439 {
+define i32 @bcmp(i8* %0, i8* %1, i32 %2) #12 !dbg !7439 {
   %4 = alloca i32, align 4
   %5 = alloca i8*, align 4
   %6 = alloca i8*, align 4
@@ -11336,18 +11336,18 @@ define i32 @bcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7439 {
   store i32 %2, i32* %7, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %7, metadata !7445, metadata !DIExpression()), !dbg !7452
   %13 = bitcast i32* %8 to i8*, !dbg !7453
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !7453
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !7453
   call void @llvm.dbg.declare(metadata i32* %8, metadata !7446, metadata !DIExpression()), !dbg !7454
   %14 = bitcast i32* %9 to i8*, !dbg !7455
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !7455
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !7455
   call void @llvm.dbg.declare(metadata i32* %9, metadata !7447, metadata !DIExpression()), !dbg !7456
-  %15 = call i32 @sea_max_buffer_size() #14, !dbg !7457
+  %15 = call i32 @sea_max_buffer_size() #17, !dbg !7457
   store i32 %15, i32* %9, align 4, !dbg !7456, !tbaa !663
   %16 = bitcast i8** %10 to i8*, !dbg !7458
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #5, !dbg !7458
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #19, !dbg !7458
   call void @llvm.dbg.declare(metadata i8** %10, metadata !7448, metadata !DIExpression()), !dbg !7459
   %17 = bitcast i8** %11 to i8*, !dbg !7460
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #5, !dbg !7460
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #19, !dbg !7460
   call void @llvm.dbg.declare(metadata i8** %11, metadata !7449, metadata !DIExpression()), !dbg !7461
   %18 = load i8*, i8** %5, align 4, !dbg !7462, !tbaa !657
   store i8* %18, i8** %10, align 4, !dbg !7463, !tbaa !657
@@ -11471,19 +11471,19 @@ define i32 @bcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7439 {
 
 82:                                               ; preds = %81, %76, %52, %30, %23
   %83 = bitcast i8** %11 to i8*, !dbg !7534
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %83) #5, !dbg !7534
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %83) #19, !dbg !7534
   %84 = bitcast i8** %10 to i8*, !dbg !7534
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %84) #5, !dbg !7534
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %84) #19, !dbg !7534
   %85 = bitcast i32* %9 to i8*, !dbg !7534
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %85) #5, !dbg !7534
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %85) #19, !dbg !7534
   %86 = bitcast i32* %8 to i8*, !dbg !7534
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %86) #5, !dbg !7534
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %86) #19, !dbg !7534
   %87 = load i32, i32* %4, align 4, !dbg !7534
   ret i32 %87, !dbg !7534
 }
 
 ; Function Attrs: alwaysinline nounwind ssp
-define i32 @memcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7535 {
+define i32 @memcmp(i8* %0, i8* %1, i32 %2) #12 !dbg !7535 {
   %4 = alloca i32, align 4
   %5 = alloca i8*, align 4
   %6 = alloca i8*, align 4
@@ -11500,18 +11500,18 @@ define i32 @memcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7535 {
   store i32 %2, i32* %7, align 4, !tbaa !663
   call void @llvm.dbg.declare(metadata i32* %7, metadata !7539, metadata !DIExpression()), !dbg !7546
   %13 = bitcast i32* %8 to i8*, !dbg !7547
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #5, !dbg !7547
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %13) #19, !dbg !7547
   call void @llvm.dbg.declare(metadata i32* %8, metadata !7540, metadata !DIExpression()), !dbg !7548
   %14 = bitcast i32* %9 to i8*, !dbg !7549
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #5, !dbg !7549
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %14) #19, !dbg !7549
   call void @llvm.dbg.declare(metadata i32* %9, metadata !7541, metadata !DIExpression()), !dbg !7550
-  %15 = call i32 @sea_max_buffer_size() #14, !dbg !7551
+  %15 = call i32 @sea_max_buffer_size() #17, !dbg !7551
   store i32 %15, i32* %9, align 4, !dbg !7550, !tbaa !663
   %16 = bitcast i8** %10 to i8*, !dbg !7552
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #5, !dbg !7552
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #19, !dbg !7552
   call void @llvm.dbg.declare(metadata i8** %10, metadata !7542, metadata !DIExpression()), !dbg !7553
   %17 = bitcast i8** %11 to i8*, !dbg !7554
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #5, !dbg !7554
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %17) #19, !dbg !7554
   call void @llvm.dbg.declare(metadata i8** %11, metadata !7543, metadata !DIExpression()), !dbg !7555
   %18 = load i8*, i8** %5, align 4, !dbg !7556, !tbaa !657
   store i8* %18, i8** %10, align 4, !dbg !7557, !tbaa !657
@@ -11646,13 +11646,13 @@ define i32 @memcmp(i8* %0, i8* %1, i32 %2) #9 !dbg !7535 {
 
 101:                                              ; preds = %100, %82, %45, %23
   %102 = bitcast i8** %11 to i8*, !dbg !7630
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %102) #5, !dbg !7630
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %102) #19, !dbg !7630
   %103 = bitcast i8** %10 to i8*, !dbg !7630
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %103) #5, !dbg !7630
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %103) #19, !dbg !7630
   %104 = bitcast i32* %9 to i8*, !dbg !7630
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %104) #5, !dbg !7630
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %104) #19, !dbg !7630
   %105 = bitcast i32* %8 to i8*, !dbg !7630
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %105) #5, !dbg !7630
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %105) #19, !dbg !7630
   %106 = load i32, i32* %4, align 4, !dbg !7630
   ret i32 %106, !dbg !7630
 }
@@ -11704,18 +11704,18 @@ define i32 @sea_max_table_size() #0 !dbg !7651 {
 }
 
 ; Function Attrs: ssp
-define i32 @strlen(i8* %0) #13 !dbg !7653 {
+define i32 @strlen(i8* %0) #16 !dbg !7653 {
   %2 = alloca i8*, align 4
   store i8* %0, i8** %2, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %2, metadata !7658, metadata !DIExpression()), !dbg !7663
   %3 = load i8*, i8** %2, align 4, !dbg !7664, !tbaa !7659
-  %4 = call i32 @sea_max_string_len() #14, !dbg !7665
-  %5 = call i32 @sea_strlen(i8* %3, i32 %4) #14, !dbg !7666
+  %4 = call i32 @sea_max_string_len() #17, !dbg !7665
+  %5 = call i32 @sea_strlen(i8* %3, i32 %4) #17, !dbg !7666
   ret i32 %5, !dbg !7667
 }
 
 ; Function Attrs: ssp
-define i32 @sea_strlen(i8* %0, i32 %1) #13 !dbg !7668 {
+define i32 @sea_strlen(i8* %0, i32 %1) #16 !dbg !7668 {
   %3 = alloca i8*, align 4
   %4 = alloca i32, align 4
   %5 = alloca i32, align 4
@@ -11724,10 +11724,10 @@ define i32 @sea_strlen(i8* %0, i32 %1) #13 !dbg !7668 {
   store i32 %1, i32* %4, align 4, !tbaa !7676
   call void @llvm.dbg.declare(metadata i32* %4, metadata !7673, metadata !DIExpression()), !dbg !7678
   %6 = bitcast i32* %5 to i8*, !dbg !7679
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5, !dbg !7679
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #19, !dbg !7679
   call void @llvm.dbg.declare(metadata i32* %5, metadata !7674, metadata !DIExpression()), !dbg !7680
   %7 = load i8*, i8** %3, align 4, !dbg !7681, !tbaa !7659
-  %8 = call i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* @isEOF, i8* %7) #14, !dbg !7682
+  %8 = call i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* @isEOF, i8* %7) #17, !dbg !7682
   store i32 %8, i32* %5, align 4, !dbg !7680, !tbaa !7676
   %9 = load i32, i32* %5, align 4, !dbg !7683, !tbaa !7676
   %10 = load i32, i32* %4, align 4, !dbg !7684, !tbaa !7676
@@ -11744,7 +11744,7 @@ define i32 @sea_strlen(i8* %0, i32 %1) #13 !dbg !7668 {
 15:                                               ; preds = %14, %12
   %16 = phi i32 [ %13, %12 ], [ 0, %14 ], !dbg !7683
   %17 = bitcast i32* %5 to i8*, !dbg !7687
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #5, !dbg !7687
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #19, !dbg !7687
   ret i32 %16, !dbg !7688
 }
 
@@ -11769,7 +11769,7 @@ define zeroext i1 @isEOF(i32 %0, i32 %1, i8* %2) #0 !dbg !7689 {
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7707 {
+define linkonce_odr i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7707 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11779,7 +11779,7 @@ define linkonce_odr i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7719, metadata !DIExpression()), !dbg !7722
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7720, metadata !DIExpression()), !dbg !7723
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7724
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7724
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7721, metadata !DIExpression()), !dbg !7725
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7726, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7727, !tbaa !7659
@@ -11798,19 +11798,19 @@ define linkonce_odr i32 @_ZN4LoopILm0ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7734, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7735, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7736
+  %18 = call i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7736
   store i32 %18, i32* %3, align 4, !dbg !7737
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7737
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7738
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7738
   %20 = load i32, i32* %3, align 4, !dbg !7738
   ret i32 %20, !dbg !7738
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7739 {
+define linkonce_odr i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7739 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11820,7 +11820,7 @@ define linkonce_odr i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7746, metadata !DIExpression()), !dbg !7749
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7747, metadata !DIExpression()), !dbg !7750
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7751
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7751
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7748, metadata !DIExpression()), !dbg !7752
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7753, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7754, !tbaa !7659
@@ -11839,19 +11839,19 @@ define linkonce_odr i32 @_ZN4LoopILm1ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7759, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7760, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7761
+  %18 = call i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7761
   store i32 %18, i32* %3, align 4, !dbg !7762
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7762
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7763
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7763
   %20 = load i32, i32* %3, align 4, !dbg !7763
   ret i32 %20, !dbg !7763
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7764 {
+define linkonce_odr i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7764 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11861,7 +11861,7 @@ define linkonce_odr i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7771, metadata !DIExpression()), !dbg !7774
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7772, metadata !DIExpression()), !dbg !7775
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7776
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7776
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7773, metadata !DIExpression()), !dbg !7777
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7778, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7779, !tbaa !7659
@@ -11880,19 +11880,19 @@ define linkonce_odr i32 @_ZN4LoopILm2ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7784, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7785, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7786
+  %18 = call i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7786
   store i32 %18, i32* %3, align 4, !dbg !7787
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7787
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7788
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7788
   %20 = load i32, i32* %3, align 4, !dbg !7788
   ret i32 %20, !dbg !7788
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7789 {
+define linkonce_odr i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7789 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11902,7 +11902,7 @@ define linkonce_odr i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7796, metadata !DIExpression()), !dbg !7799
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7797, metadata !DIExpression()), !dbg !7800
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7801
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7801
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7798, metadata !DIExpression()), !dbg !7802
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7803, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7804, !tbaa !7659
@@ -11921,19 +11921,19 @@ define linkonce_odr i32 @_ZN4LoopILm3ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7809, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7810, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7811
+  %18 = call i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7811
   store i32 %18, i32* %3, align 4, !dbg !7812
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7812
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7813
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7813
   %20 = load i32, i32* %3, align 4, !dbg !7813
   ret i32 %20, !dbg !7813
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7814 {
+define linkonce_odr i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7814 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11943,7 +11943,7 @@ define linkonce_odr i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7821, metadata !DIExpression()), !dbg !7824
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7822, metadata !DIExpression()), !dbg !7825
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7826
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7826
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7823, metadata !DIExpression()), !dbg !7827
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7828, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7829, !tbaa !7659
@@ -11962,19 +11962,19 @@ define linkonce_odr i32 @_ZN4LoopILm4ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7834, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7835, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7836
+  %18 = call i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7836
   store i32 %18, i32* %3, align 4, !dbg !7837
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7837
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7838
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7838
   %20 = load i32, i32* %3, align 4, !dbg !7838
   ret i32 %20, !dbg !7838
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7839 {
+define linkonce_odr i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7839 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -11984,7 +11984,7 @@ define linkonce_odr i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7846, metadata !DIExpression()), !dbg !7849
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7847, metadata !DIExpression()), !dbg !7850
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7851
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7851
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7848, metadata !DIExpression()), !dbg !7852
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7853, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7854, !tbaa !7659
@@ -12003,19 +12003,19 @@ define linkonce_odr i32 @_ZN4LoopILm5ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7859, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7860, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7861
+  %18 = call i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7861
   store i32 %18, i32* %3, align 4, !dbg !7862
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7862
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7863
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7863
   %20 = load i32, i32* %3, align 4, !dbg !7863
   ret i32 %20, !dbg !7863
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7864 {
+define linkonce_odr i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7864 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12025,7 +12025,7 @@ define linkonce_odr i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7871, metadata !DIExpression()), !dbg !7874
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7872, metadata !DIExpression()), !dbg !7875
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7876
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7876
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7873, metadata !DIExpression()), !dbg !7877
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7878, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7879, !tbaa !7659
@@ -12044,19 +12044,19 @@ define linkonce_odr i32 @_ZN4LoopILm6ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7884, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7885, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7886
+  %18 = call i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7886
   store i32 %18, i32* %3, align 4, !dbg !7887
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7887
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7888
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7888
   %20 = load i32, i32* %3, align 4, !dbg !7888
   ret i32 %20, !dbg !7888
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7889 {
+define linkonce_odr i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7889 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12066,7 +12066,7 @@ define linkonce_odr i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7896, metadata !DIExpression()), !dbg !7899
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7897, metadata !DIExpression()), !dbg !7900
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7901
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7901
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7898, metadata !DIExpression()), !dbg !7902
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7903, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7904, !tbaa !7659
@@ -12085,19 +12085,19 @@ define linkonce_odr i32 @_ZN4LoopILm7ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7909, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7910, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7911
+  %18 = call i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7911
   store i32 %18, i32* %3, align 4, !dbg !7912
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7912
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7913
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7913
   %20 = load i32, i32* %3, align 4, !dbg !7913
   ret i32 %20, !dbg !7913
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7914 {
+define linkonce_odr i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7914 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12107,7 +12107,7 @@ define linkonce_odr i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7921, metadata !DIExpression()), !dbg !7924
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7922, metadata !DIExpression()), !dbg !7925
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7926
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7926
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7923, metadata !DIExpression()), !dbg !7927
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7928, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7929, !tbaa !7659
@@ -12126,19 +12126,19 @@ define linkonce_odr i32 @_ZN4LoopILm8ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7934, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7935, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7936
+  %18 = call i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7936
   store i32 %18, i32* %3, align 4, !dbg !7937
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7937
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7938
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7938
   %20 = load i32, i32* %3, align 4, !dbg !7938
   ret i32 %20, !dbg !7938
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7939 {
+define linkonce_odr i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7939 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12148,7 +12148,7 @@ define linkonce_odr i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7946, metadata !DIExpression()), !dbg !7949
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7947, metadata !DIExpression()), !dbg !7950
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7951
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7951
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7948, metadata !DIExpression()), !dbg !7952
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7953, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7954, !tbaa !7659
@@ -12167,19 +12167,19 @@ define linkonce_odr i32 @_ZN4LoopILm9ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, 
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7959, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7960, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7961
+  %18 = call i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7961
   store i32 %18, i32* %3, align 4, !dbg !7962
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7962
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7963
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7963
   %20 = load i32, i32* %3, align 4, !dbg !7963
   ret i32 %20, !dbg !7963
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7964 {
+define linkonce_odr i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7964 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12189,7 +12189,7 @@ define linkonce_odr i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7971, metadata !DIExpression()), !dbg !7974
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7972, metadata !DIExpression()), !dbg !7975
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !7976
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !7976
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7973, metadata !DIExpression()), !dbg !7977
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7978, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !7979, !tbaa !7659
@@ -12208,19 +12208,19 @@ define linkonce_odr i32 @_ZN4LoopILm10ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !7984, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !7985, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !7986
+  %18 = call i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !7986
   store i32 %18, i32* %3, align 4, !dbg !7987
   store i32 1, i32* %7, align 4
   br label %19, !dbg !7987
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !7988
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !7988
   %20 = load i32, i32* %3, align 4, !dbg !7988
   ret i32 %20, !dbg !7988
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !7989 {
+define linkonce_odr i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !7989 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12230,7 +12230,7 @@ define linkonce_odr i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !7996, metadata !DIExpression()), !dbg !7999
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !7997, metadata !DIExpression()), !dbg !8000
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !8001
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !8001
   call void @llvm.dbg.declare(metadata i8* %6, metadata !7998, metadata !DIExpression()), !dbg !8002
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8003, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !8004, !tbaa !7659
@@ -12249,19 +12249,19 @@ define linkonce_odr i32 @_ZN4LoopILm11ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8009, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !8010, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !8011
+  %18 = call i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !8011
   store i32 %18, i32* %3, align 4, !dbg !8012
   store i32 1, i32* %7, align 4
   br label %19, !dbg !8012
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !8013
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !8013
   %20 = load i32, i32* %3, align 4, !dbg !8013
   ret i32 %20, !dbg !8013
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !8014 {
+define linkonce_odr i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !8014 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12271,7 +12271,7 @@ define linkonce_odr i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !8021, metadata !DIExpression()), !dbg !8024
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !8022, metadata !DIExpression()), !dbg !8025
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !8026
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !8026
   call void @llvm.dbg.declare(metadata i8* %6, metadata !8023, metadata !DIExpression()), !dbg !8027
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8028, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !8029, !tbaa !7659
@@ -12290,19 +12290,19 @@ define linkonce_odr i32 @_ZN4LoopILm12ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8034, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !8035, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !8036
+  %18 = call i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !8036
   store i32 %18, i32* %3, align 4, !dbg !8037
   store i32 1, i32* %7, align 4
   br label %19, !dbg !8037
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !8038
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !8038
   %20 = load i32, i32* %3, align 4, !dbg !8038
   ret i32 %20, !dbg !8038
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !8039 {
+define linkonce_odr i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !8039 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12312,7 +12312,7 @@ define linkonce_odr i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !8046, metadata !DIExpression()), !dbg !8049
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !8047, metadata !DIExpression()), !dbg !8050
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !8051
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !8051
   call void @llvm.dbg.declare(metadata i8* %6, metadata !8048, metadata !DIExpression()), !dbg !8052
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8053, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !8054, !tbaa !7659
@@ -12331,19 +12331,19 @@ define linkonce_odr i32 @_ZN4LoopILm13ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8059, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !8060, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !8061
+  %18 = call i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !8061
   store i32 %18, i32* %3, align 4, !dbg !8062
   store i32 1, i32* %7, align 4
   br label %19, !dbg !8062
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !8063
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !8063
   %20 = load i32, i32* %3, align 4, !dbg !8063
   ret i32 %20, !dbg !8063
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !8064 {
+define linkonce_odr i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !8064 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12353,7 +12353,7 @@ define linkonce_odr i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !8071, metadata !DIExpression()), !dbg !8074
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !8072, metadata !DIExpression()), !dbg !8075
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !8076
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !8076
   call void @llvm.dbg.declare(metadata i8* %6, metadata !8073, metadata !DIExpression()), !dbg !8077
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8078, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !8079, !tbaa !7659
@@ -12372,19 +12372,19 @@ define linkonce_odr i32 @_ZN4LoopILm14ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8084, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !8085, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !8086
+  %18 = call i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !8086
   store i32 %18, i32* %3, align 4, !dbg !8087
   store i32 1, i32* %7, align 4
   br label %19, !dbg !8087
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !8088
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !8088
   %20 = load i32, i32* %3, align 4, !dbg !8088
   ret i32 %20, !dbg !8088
 }
 
 ; Function Attrs: ssp
-define linkonce_odr i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #13 align 2 !dbg !8089 {
+define linkonce_odr i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %0, i8* %1) #16 align 2 !dbg !8089 {
   %3 = alloca i32, align 4
   %4 = alloca i1 (i32, i32, i8*)*, align 4
   %5 = alloca i8*, align 4
@@ -12394,7 +12394,7 @@ define linkonce_odr i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
   call void @llvm.dbg.declare(metadata i1 (i32, i32, i8*)** %4, metadata !8096, metadata !DIExpression()), !dbg !8099
   store i8* %1, i8** %5, align 4, !tbaa !7659
   call void @llvm.dbg.declare(metadata i8** %5, metadata !8097, metadata !DIExpression()), !dbg !8100
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5, !dbg !8101
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #19, !dbg !8101
   call void @llvm.dbg.declare(metadata i8* %6, metadata !8098, metadata !DIExpression()), !dbg !8102
   %8 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8103, !tbaa !7659
   %9 = load i8*, i8** %5, align 4, !dbg !8104, !tbaa !7659
@@ -12413,13 +12413,13 @@ define linkonce_odr i32 @_ZN4LoopILm15ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 15:                                               ; preds = %2
   %16 = load i1 (i32, i32, i8*)*, i1 (i32, i32, i8*)** %4, align 4, !dbg !8109, !tbaa !7659
   %17 = load i8*, i8** %5, align 4, !dbg !8110, !tbaa !7659
-  %18 = call i32 @_ZN4LoopILm16ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #14, !dbg !8111
+  %18 = call i32 @_ZN4LoopILm16ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32, i8*)* %16, i8* %17) #17, !dbg !8111
   store i32 %18, i32* %3, align 4, !dbg !8112
   store i32 1, i32* %7, align 4
   br label %19, !dbg !8112
 
 19:                                               ; preds = %15, %14
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #5, !dbg !8113
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %6) #19, !dbg !8113
   %20 = load i32, i32* %3, align 4, !dbg !8113
   ret i32 %20, !dbg !8113
 }
@@ -12436,7 +12436,7 @@ define linkonce_odr i32 @_ZN4LoopILm16ELm16EFbiiPKcEE4callEPS2_S1_(i1 (i32, i32,
 }
 
 ; Function Attrs: ssp
-define i32 @sea_strlen_unused(i8* %0, i32 %1) #13 !dbg !8126 {
+define i32 @sea_strlen_unused(i8* %0, i32 %1) #16 !dbg !8126 {
   %3 = alloca i8*, align 4
   %4 = alloca i32, align 4
   %5 = alloca i32, align 4
@@ -12447,14 +12447,14 @@ define i32 @sea_strlen_unused(i8* %0, i32 %1) #13 !dbg !8126 {
   store i32 %1, i32* %4, align 4, !tbaa !7676
   call void @llvm.dbg.declare(metadata i32* %4, metadata !8129, metadata !DIExpression()), !dbg !8134
   %8 = bitcast i32* %5 to i8*, !dbg !8135
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #5, !dbg !8135
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %8) #19, !dbg !8135
   call void @llvm.dbg.declare(metadata i32* %5, metadata !8130, metadata !DIExpression()), !dbg !8136
-  %9 = call i32 @_Z9nd_size_tv() #17, !dbg !8137
+  %9 = call i32 @_Z9nd_size_tv() #21, !dbg !8137
   store i32 %9, i32* %5, align 4, !dbg !8138, !tbaa !7676
   %10 = bitcast i32* %6 to i8*, !dbg !8139
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #5, !dbg !8139
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %10) #19, !dbg !8139
   call void @llvm.dbg.declare(metadata i32* %6, metadata !8131, metadata !DIExpression()), !dbg !8140
-  %11 = call i32 @sea_max_string_len() #14, !dbg !8141
+  %11 = call i32 @sea_max_string_len() #17, !dbg !8141
   store i32 %11, i32* %6, align 4, !dbg !8140, !tbaa !7676
   %12 = load i32, i32* %5, align 4, !dbg !8142, !tbaa !7676
   %13 = load i32, i32* %4, align 4, !dbg !8143, !tbaa !7676
@@ -12469,16 +12469,16 @@ define i32 @sea_strlen_unused(i8* %0, i32 %1) #13 !dbg !8126 {
 
 19:                                               ; preds = %15, %2
   %20 = phi i1 [ false, %2 ], [ %18, %15 ], !dbg !8149
-  call void @__SEA_assume(i1 zeroext %20) #14, !dbg !8150
+  call void @__SEA_assume(i1 zeroext %20) #17, !dbg !8150
   %21 = load i8*, i8** %3, align 4, !dbg !8151, !tbaa !7659
   %22 = load i32, i32* %5, align 4, !dbg !8152, !tbaa !7676
   %23 = getelementptr inbounds i8, i8* %21, i32 %22, !dbg !8151
   %24 = load i8, i8* %23, align 1, !dbg !8151, !tbaa !7704
   %25 = sext i8 %24 to i32, !dbg !8151
   %26 = icmp eq i32 %25, 0, !dbg !8153
-  call void @__SEA_assume(i1 zeroext %26) #14, !dbg !8154
+  call void @__SEA_assume(i1 zeroext %26) #17, !dbg !8154
   %27 = bitcast i32* %7 to i8*, !dbg !8155
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %27) #5, !dbg !8155
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %27) #19, !dbg !8155
   call void @llvm.dbg.declare(metadata i32* %7, metadata !8132, metadata !DIExpression()), !dbg !8156
   store i32 0, i32* %7, align 4, !dbg !8156, !tbaa !7676
   store i32 0, i32* %7, align 4, !dbg !8157, !tbaa !7676
@@ -12503,7 +12503,7 @@ define i32 @sea_strlen_unused(i8* %0, i32 %1) #13 !dbg !8126 {
   %40 = load i8, i8* %39, align 1, !dbg !8171, !tbaa !7704
   %41 = sext i8 %40 to i32, !dbg !8171
   %42 = icmp ne i32 %41, 0, !dbg !8174
-  call void @__SEA_assume(i1 zeroext %42) #14, !dbg !8175
+  call void @__SEA_assume(i1 zeroext %42) #17, !dbg !8175
   br label %43, !dbg !8176
 
 43:                                               ; preds = %36, %32
@@ -12518,37 +12518,41 @@ define i32 @sea_strlen_unused(i8* %0, i32 %1) #13 !dbg !8126 {
 47:                                               ; preds = %28
   %48 = load i32, i32* %5, align 4, !dbg !8182, !tbaa !7676
   %49 = bitcast i32* %7 to i8*, !dbg !8183
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %49) #5, !dbg !8183
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %49) #19, !dbg !8183
   %50 = bitcast i32* %6 to i8*, !dbg !8183
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %50) #5, !dbg !8183
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %50) #19, !dbg !8183
   %51 = bitcast i32* %5 to i8*, !dbg !8183
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %51) #5, !dbg !8183
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %51) #19, !dbg !8183
   ret i32 %48, !dbg !8184
 }
 
 ; Function Attrs: argmemonly nounwind
-declare !dbg !635 i32 @_Z9nd_size_tv() #8
+declare !dbg !635 i32 @_Z9nd_size_tv() #11
 
 attributes #0 = { nounwind ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #1 = { nounwind readnone speculatable willreturn }
+attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }
 attributes #2 = { inlinehint nounwind ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #3 = { argmemonly nounwind willreturn }
+attributes #3 = { argmemonly nofree nounwind willreturn }
 attributes #4 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #5 = { nounwind }
-attributes #6 = { nounwind readnone willreturn }
-attributes #7 = { noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #8 = { argmemonly nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #9 = { alwaysinline nounwind ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #10 = { allocsize(0) "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #11 = { cold noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #12 = { nounwind ssp allocsize(1) "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #13 = { ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
-attributes #14 = { "no-builtin-memcpy" "no-builtin-memmove" }
-attributes #15 = { nounwind "no-builtin-memcpy" "no-builtin-memmove" }
-attributes #16 = { noreturn "no-builtin-memcpy" "no-builtin-memmove" }
-attributes #17 = { argmemonly nounwind "no-builtin-memcpy" "no-builtin-memmove" }
-attributes #18 = { allocsize(0) "no-builtin-memcpy" "no-builtin-memmove" }
-attributes #19 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #5 = { argmemonly nofree nosync nounwind willreturn }
+attributes #6 = { nofree nosync nounwind willreturn }
+attributes #7 = { nofree nosync nounwind readnone willreturn }
+attributes #8 = { argmemonly nofree nounwind willreturn writeonly }
+attributes #9 = { noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #10 = { convergent nofree nosync nounwind readnone willreturn }
+attributes #11 = { argmemonly nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #12 = { alwaysinline nounwind ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #13 = { allocsize(0) "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #14 = { cold noreturn "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #15 = { nounwind ssp allocsize(1) "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #16 = { ssp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-builtin-memcpy" "no-builtin-memmove" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="arm7tdmi" "target-features"="+armv4t,+soft-float,+strict-align,-crypto,-d32,-dotprod,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fp16,-fp16fml,-fp64,-fpregs,-fullfp16,-mve,-mve.fp,-neon,-thumb-mode,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp" "unsafe-fp-math"="false" "use-soft-float"="true" }
+attributes #17 = { "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #18 = { nounwind "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #19 = { nounwind }
+attributes #20 = { noreturn "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #21 = { argmemonly nounwind "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #22 = { allocsize(0) "no-builtin-memcpy" "no-builtin-memmove" }
+attributes #23 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
 
 !llvm.dbg.cu = !{!2, !246, !276, !305, !334, !350, !381, !422, !460, !572, !203, !581, !597, !623, !242, !626, !628}
 !llvm.ident = !{!643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643, !643}
@@ -12752,7 +12756,7 @@ attributes #19 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
 !195 = !DIFile(filename: "aws-c-common/source/byte_buf.c", directory: "/Users/jorge/Repos/verify-c-common")
 !196 = !DICompositeType(tag: DW_TAG_array_type, baseType: !152, size: 2048, elements: !197)
 !197 = !{!198}
-!198 = !DISubrange(count: 256)
+!198 = !DISubrange(count: 256, lowerBound: 0)
 !199 = !DIGlobalVariableExpression(var: !200, expr: !DIExpression())
 !200 = distinct !DIGlobalVariable(name: "s_null_terminator_cursor", scope: !2, file: !195, line: 1596, type: !136, isLocal: true, isDefinition: true)
 !201 = !DIGlobalVariableExpression(var: !202, expr: !DIExpression())
@@ -13105,7 +13109,7 @@ attributes #19 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
 !548 = !DIDerivedType(tag: DW_TAG_member, name: "value", scope: !545, file: !464, line: 65, baseType: !61, size: 32, offset: 32)
 !549 = !DIDerivedType(tag: DW_TAG_member, name: "hash_code", scope: !542, file: !471, line: 15, baseType: !189, size: 64, offset: 64)
 !550 = !{!551}
-!551 = !DISubrange(count: -1)
+!551 = !DISubrange(count: -1, lowerBound: 0)
 !552 = !DIDerivedType(tag: DW_TAG_member, name: "element", scope: !508, file: !464, line: 76, baseType: !545, size: 64, offset: 32)
 !553 = !DIDerivedType(tag: DW_TAG_member, name: "slot", scope: !508, file: !464, line: 77, baseType: !73, size: 32, offset: 96)
 !554 = !DIDerivedType(tag: DW_TAG_member, name: "limit", scope: !508, file: !464, line: 78, baseType: !73, size: 32, offset: 128)
@@ -17389,7 +17393,7 @@ attributes #19 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
 !4832 = !DIDerivedType(tag: DW_TAG_member, name: "nodes", scope: !4825, file: !338, line: 84, baseType: !4833, size: 384, offset: 288)
 !4833 = !DICompositeType(tag: DW_TAG_array_type, baseType: !4739, size: 384, elements: !4834)
 !4834 = !{!4835}
-!4835 = !DISubrange(count: 4)
+!4835 = !DISubrange(count: 4, lowerBound: 0)
 !4836 = !{!4837, !4838}
 !4837 = !DILocalVariable(name: "list", arg: 1, scope: !4821, file: !4429, line: 128, type: !4450)
 !4838 = !DILocalVariable(name: "saved", arg: 2, scope: !4821, file: !4429, line: 129, type: !4824)
@@ -18371,7 +18375,7 @@ attributes #19 = { cold noreturn "no-builtin-memcpy" "no-builtin-memmove" }
 !5814 = !DIDerivedType(tag: DW_TAG_member, name: "bytes", scope: !5807, file: !5808, line: 45, baseType: !5815, size: 8, offset: 64)
 !5815 = !DICompositeType(tag: DW_TAG_array_type, baseType: !152, size: 8, elements: !5816)
 !5816 = !{!5817}
-!5817 = !DISubrange(count: 1)
+!5817 = !DISubrange(count: 1, lowerBound: 0)
 !5818 = !{!5819, !5820}
 !5819 = !DILocalVariable(name: "len", arg: 1, scope: !5802, file: !5803, line: 9, type: !363)
 !5820 = !DILocalVariable(name: "str", scope: !5802, file: !5803, line: 10, type: !5806)

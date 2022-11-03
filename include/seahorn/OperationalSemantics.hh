@@ -94,11 +94,20 @@ public:
   /// Returns a reference to the symbolic store
   SymStore &values() { return m_values; }
   /// Returns the current value of a given register/expression in the store
-  Expr read(Expr v) { return m_values.read(v); }
+  Expr read(Expr v) {
+    assert(v);
+    return m_values.read(v);
+  }
   /// Writes a non-deterministic value at a given register
-  Expr havoc(Expr v) { return m_values.havoc(v); }
+  Expr havoc(Expr v) {
+    assert(v);
+    return m_values.havoc(v);
+  }
   /// Writes a given value at a given register
-  void write(Expr v, Expr u) { m_values.write(v, u); }
+  void write(Expr v, Expr u) {
+    assert(v);
+    m_values.write(v, u);
+  }
 
   /// \brief sets path condition for the current basic block
   OpSemContext &pc(Expr v) {

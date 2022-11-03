@@ -33,9 +33,13 @@ TEST_CASE("expr.simplifier") {
   Expr v2 = mkIntConst("v2", efac);
   Expr p = mkIntConst("p", efac);
   Expr oneE = mkInt(1, efac);
-  Expr toSimp = mk<ITE>(mk<EQ>(oneE,  mk<ITE>(mk<EQ>(k, p), oneE, mkInt(0, efac))), v1, v2);
+  Expr toSimp = mk<ITE>(
+      mk<EQ>(oneE, mk<ITE>(mk<EQ>(k, p), oneE, mkInt(0, efac))), v1, v2);
+  Expr expected = mk<ITE>(mk<EQ>(k, p), v1, v2);
   errs() << "before simp: " << *toSimp << "\n";
-  errs() << "simplified: " << *zsimp.simplify(toSimp) << "\n";
+  Expr result = zsimp.simplify(toSimp);
+  errs() << "simplified: " << *result << "\n";
+  CHECK(expected == result);
 }
 
 TEST_CASE("expr.neg") {

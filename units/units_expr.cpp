@@ -33,9 +33,10 @@ TEST_CASE("expr.APInt") {
   expr::mpz_class numZ = toMpzE(numA);
   errs() << "numA: " << numA << "\n";
   errs() << "numZ: " << numZ.to_string() << "\n";
-
-  CHECK(numA.toString(10, false) == numZ.to_string());
-
+  std::string buf;
+  llvm::raw_string_ostream actual{buf};
+  numA.print(actual, false);
+  CHECK(actual.str() == numZ.to_string());
 }
 
 TEST_CASE("expr.APInt.large") {
@@ -46,6 +47,8 @@ TEST_CASE("expr.APInt.large") {
   expr::mpz_class numZ2 = toMpzE(numA2);
   errs() << "numA2: " << numA2 << "\n";
   errs() << "numZ2: " << numZ2.to_string() << "\n";
-
-  CHECK(numA2.toString(10, false) == numZ2.to_string());
+  std::string buf;
+  llvm::raw_string_ostream actual{buf};
+  numA2.print(actual, false);
+  CHECK(actual.str() == numZ2.to_string());
 }

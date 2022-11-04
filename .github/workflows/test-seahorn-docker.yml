@@ -6,9 +6,9 @@ name: CI
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: dev10
+    branches: dev14
   pull_request:
-    branches: dev10
+    branches: dev14
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -23,9 +23,9 @@ jobs:
       - name: Check Out Repo 
         uses: actions/checkout@v2
       - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm14
       - name: Copy build out to /host
-        run: docker run -v $(pwd):/host seahorn/seahorn-builder:bionic-llvm10 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
+        run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm14 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
       - name: Build seahorn container  
         run: docker build . --file docker/seahorn.Dockerfile --tag seahorn_container
       - name: Run opsem tests

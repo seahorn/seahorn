@@ -20,21 +20,21 @@ jobs:
       - name: Check Out Repo
         uses: actions/checkout@v2
         with:
-          ref: dev10  # only checkout dev10
-      - name: Set dev10 commit SHA
-        run: | # set dev10 last commit SHA
+          ref: dev14  # only checkout dev14
+      - name: Set dev14 commit SHA
+        run: | # set dev14 last commit SHA
           echo "COMMIT_SHA=$(git log -1 --format='%H')" >> $GITHUB_ENV
       - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10 --build-arg BUILD_TYPE=$BUILD_TYPE
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm14 --build-arg BUILD_TYPE=$BUILD_TYPE
       - name: Collect coverage report
-        run:  docker run -v $(pwd):/host seahorn/seahorn-builder:bionic-llvm10 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
+        run:  docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm14 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
       - name: Upload coverage report
         uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./all.info
           name: codecov-seahorn
-          override_branch: dev10
+          override_branch: dev14
           override_commit: ${{ env.COMMIT_SHA }}
           fail_ci_if_error: true
           verbose: true

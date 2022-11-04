@@ -147,7 +147,7 @@ ExternalProject_Add(z3
   LOG_INSTALL 1
   LOG_BUILD 1)
 
-find_package(Z3 4.8.7)
+find_package(Z3 4.8.9)
 if (NOT Z3_FOUND)
   ExternalProject_Get_Property (z3 INSTALL_DIR)
   set(Z3_ROOT ${INSTALL_DIR} CACHE PATH "Forced location of Z3" FORCE)

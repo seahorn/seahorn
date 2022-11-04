@@ -6,13 +6,13 @@ name: CI
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: dev10
+    branches: dev14
   pull_request:
-    branches: dev10
+    branches: dev14
   schedule:
     - cron: 0 0 * * *  # run every day at UTC 00:00
   workflow_dispatch:
-    branches: dev10
+    branches: dev14
     inputs:
       Triggerer:
         description: 'Triggered by:'
@@ -36,11 +36,11 @@ jobs:
       - name: Check Out Repo 
         uses: actions/checkout@v2
         with:
-          ref: dev10  # only checkout dev10
+          ref: dev14  # only checkout dev14
       - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:bionic-llvm10
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm14
       - name: Copy build out to /host
-        run: docker run -v $(pwd):/host seahorn/seahorn-builder:bionic-llvm10 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
+        run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm14 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
       - name: Build seahorn container  
         run: docker build . --file docker/seahorn.Dockerfile --tag seahorn_container
       - name: Run opsem tests
@@ -63,5 +63,5 @@ jobs:
       - name: tag and push seahorn (nightly/manual)
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only push if nightly or manual run
         run: |
-          docker tag seahorn_container seahorn/seahorn-llvm10:nightly
-          docker push seahorn/seahorn-llvm10:nightly 
+          docker tag seahorn_container seahorn/seahorn-llvm14:nightly
+          docker push seahorn/seahorn-llvm14:nightly 

@@ -1,5 +1,7 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
+#include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 #include "seahorn/SymStore.hh"
 
 #include "llvm/IR/InstVisitor.h"
@@ -122,7 +124,16 @@ public:
   /// \brief Asserts that \p v must be true unconditionally
   void addSide(Expr v) { m_side.push_back(v); }
   /// \brief Asserts that \p v = \p u
-  void addDef(Expr v, Expr u) { addSide(strct::mkEq(v, u)); }
+  void addDef(Expr v, Expr u) {
+    // Equality between lambda terms makes a formula
+    // outside the decidable fragment and SMT
+    // solver may return unknown.
+    // See https://github.com/seahorn/seahorn/issues/467
+    if (isOpX<LAMBDA>(v) && isOpX<LAMBDA>(u)) {
+      LOG("opsem", WARN << "Defining equality between lambda abstractions!\n";);
+    }
+    addSide(strct::mkEq(v, u));
+  }
   /// \brief Asserts that \p v = \p u under current path condition
   void addScopedDef(Expr v, Expr u) { addScopedSide(mk<EQ>(v, u)); }
   /// \brief Adds a rely constraint

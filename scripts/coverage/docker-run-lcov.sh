@@ -18,7 +18,7 @@ lit /seahorn/test/simple
 # collect coverage
 lcov -c -d /seahorn/build/lib/ \
      -b /seahorn/build/ -o coverage.info \
-     --gcov-tool=/seahorn/scripts/coverage/llvm-gcov-10.sh
+     --gcov-tool=/seahorn/scripts/coverage/llvm-gcov-14.sh
 
 # filter seahorn relevant info 
 lcov -e coverage.info '/seahorn/*' -o all.info

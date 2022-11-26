@@ -31,13 +31,15 @@ RUN apt-get update && \
   mkdir seahorn
 
 # Install z3 v4.8.9 since bionic comes with much older version
-# Install yices 2.6.1 (still not sure why)
 WORKDIR /tmp
 RUN wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.9/z3-4.8.9-x64-ubuntu-16.04.zip && \
   unzip z3-4.8.9-x64-ubuntu-16.04.zip && \
-  mv z3-4.8.9-x64-ubuntu-16.04 /opt/z3-4.8.9 && \
-  curl -sSOL https://yices.csl.sri.com/releases/2.6.1/yices-2.6.1-x86_64-pc-linux-gnu-static-gmp.tar.gz && \
+  mv z3-4.8.9-x64-ubuntu-16.04 /opt/z3-4.8.9
+
+# Install yices 2.6.1
+RUN curl -sSOL https://yices.csl.sri.com/releases/2.6.1/yices-2.6.1-x86_64-pc-linux-gnu-static-gmp.tar.gz && \
   tar xf yices-2.6.1-x86_64-pc-linux-gnu-static-gmp.tar.gz && \
-  mv /tmp/yices-2.6.1/ /opt
+  cd /tmp/yices-2.6.1/ && \
+  ./install-yices /opt/yices-2.6.1
 
 WORKDIR /seahorn

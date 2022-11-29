@@ -74,17 +74,17 @@ TEST_CASE("expr.addrRangeMap.range.join") {
   /* join with top */
   SUBCASE("joining o with top should always yield top") {
     AddrRange r1 = top | r;
-    CHECK(r1.isTop);
+    CHECK((bool)r1.isTop);
     CHECK(!r1.isBot);
     CHECK(r1.isValid());
 
     AddrRange r2 = top | bot;
-    CHECK(r2.isTop);
+    CHECK((bool)r2.isTop);
     CHECK(!r2.isBot);
     CHECK(r2.isValid());
 
     AddrRange r3 = top | top2;
-    CHECK(r3.isTop);
+    CHECK((bool)r3.isTop);
     CHECK(!r3.isBot);
     CHECK(r3.isValid());
   }
@@ -95,7 +95,7 @@ TEST_CASE("expr.addrRangeMap.range.join") {
     CHECK(r4.isValid());
 
     AddrRange r5 = bot | bot2;
-    CHECK(r5.isBot);
+    CHECK((bool)r5.isBot);
     CHECK(!r5.isTop);
     CHECK(r5.isValid());
   }
@@ -121,7 +121,7 @@ TEST_CASE("expr.addrRangeMap.range.overlap") {
       AddrRange c(8, 9);
       AddrRange ac = a & c;
       CHECK(ac.isValid());
-      CHECK(ac.isBot);
+      CHECK((bool)ac.isBot);
       CHECK(!ac.isTop);
     }
   }
@@ -134,25 +134,25 @@ TEST_CASE("expr.addrRangeMap.range.overlap") {
 
     AddrRange top_top = top & top2;
     CHECK(top_top.isValid());
-    CHECK(top_top.isTop);
+    CHECK((bool)top_top.isTop);
     CHECK(!top_top.isBot);
 
     AddrRange bot_top = top & bot;
     CHECK(bot_top.isValid());
-    CHECK(bot_top.isBot);
+    CHECK((bool)bot_top.isBot);
     CHECK(!bot_top.isTop);
   }
 
   SUBCASE("overlap o with bot should yield bot") {
     AddrRange a_bot = a & bot;
     CHECK(a_bot.isValid());
-    CHECK(a_bot.isBot);
+    CHECK((bool)a_bot.isBot);
     CHECK(!a_bot.isTop);
 
     AddrRange bot_bot = bot & bot2;
     CHECK(bot_bot.isValid());
     CHECK(!bot_bot.isTop);
-    CHECK(bot_bot.isBot);
+    CHECK((bool)bot_bot.isBot);
   }
 }
 
@@ -177,18 +177,18 @@ TEST_CASE("expr.addrRangeMap.range.add") {
   SUBCASE("add o with top should yield top") {
     AddrRange a_top = a + top;
     CHECK(a_top.isValid());
-    CHECK(a_top.isTop);
+    CHECK((bool)a_top.isTop);
     CHECK(!a_top.isBot);
 
     AddrRange top_top = top + top2;
     CHECK(top_top.isValid());
-    CHECK(top_top.isTop);
+    CHECK((bool)top_top.isTop);
     CHECK(!top_top.isBot);
 
     AddrRange bot_top = top + bot;
     CHECK(bot_top.isValid());
     CHECK(!bot_top.isBot);
-    CHECK(bot_top.isTop);
+    CHECK((bool)bot_top.isTop);
   }
 
   SUBCASE("add o with bot should yield o") {
@@ -199,7 +199,7 @@ TEST_CASE("expr.addrRangeMap.range.add") {
     AddrRange bot_bot = bot + bot2;
     CHECK(bot_bot.isValid());
     CHECK(!bot_bot.isTop);
-    CHECK(bot_bot.isBot);
+    CHECK((bool)bot_bot.isBot);
   }
 }
 
@@ -218,7 +218,7 @@ TEST_CASE("expr.addrRangeMap.range.build") {
     Expr x = mkBvConst("x", 32, efac);
     AddrRange r = addrRangeOf(x);
     CHECK(r.isValid());
-    CHECK(r.isTop);
+    CHECK((bool)r.isTop);
     CHECK(!r.isBot);
   }
   SUBCASE("bvadd(a, b): addrRangeOf(a) + addrRangeOf(b)") {
@@ -286,7 +286,7 @@ TEST_CASE("expr.addrRangeMap.union") {
   CHECK(!ab.isAllTop());
   CHECK(rangeEq(ab[base8], AddrRange(0, 16)));
   CHECK(rangeEq(ab[base16], AddrRange(0, 4)));
-  CHECK(ab[base32].isTop);
+  CHECK((bool)ab[base32].isTop);
 
   AddrRangeMap top = mkARMTop();
   AddrRangeMap top2 = mkARMTop();

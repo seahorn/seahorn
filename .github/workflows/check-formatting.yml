@@ -10,6 +10,7 @@ jobs:
     steps:
       - name: Setup environment
         run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
           sudo apt-get install -yqq clang-format-14
       - name: Checkout
         run: |

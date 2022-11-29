@@ -155,9 +155,8 @@ private:
 
   rewrite_result rewriteReadOverStoreMap(Expr arr, Expr idx);
 
-  /* Given select(storemap(arr, base, smap), idx), revert into ite form
-  return true if select(arr) is already rewritten and stored in cache */
-  bool revertSMapToIte(Expr storeMap, Expr idx, Expr &res);
+  /* Given select(storemap(arr, base, smap), idx), revert into ite form */
+  Expr revertSMapToIte(Expr storeMap, Expr idx);
 };
 
 // for eager pre-processing stores during storeWord

@@ -958,6 +958,8 @@ class FatBoundsCheck(sea.LimitedCmd):
                         type=str, metavar='STR,STR,...', help='List of functions to NOT instrument')
         add_bool_argument(ap, 'enable-fat-vacuity-check', dest='enable_fat_vacuity_check', default=False,
                          help='Enable vacuity check for fat bound checks')
+        add_bool_argument(ap, 'add-isalloc-check', dest='enable_isalloc_check', default=False,
+                         help='Auto add isalloc check on de-reference')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -977,6 +979,8 @@ class FatBoundsCheck(sea.LimitedCmd):
 
         # slots=false ==> use is_dereferenceable(...) instrumentation
         argv.append('--horn-bnd-chk-slots=false')
+        if args.enable_isalloc_check:
+            argv.append('--horn-add-is-alloc-check=true')
         if args.enable_fat_vacuity_check:
             argv.append('--horn-bnd-chk-vac=true')
         else:

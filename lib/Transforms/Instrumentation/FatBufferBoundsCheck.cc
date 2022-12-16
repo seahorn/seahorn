@@ -75,6 +75,10 @@ static cl::opt<bool> UseFatVac("horn-bnd-chk-vac",
                                cl::desc("Use vacuity check for bounds checks"),
                                cl::init(true));
 
+static cl::opt<bool> addIsAllocCheck("horn-add-is-alloc-check",
+                                     cl::desc("Add alloc check on dereference"),
+                                     cl::init(false));
+
 STATISTIC(ChecksAdded, "Bounds checks added");
 STATISTIC(ChecksSkipped, "Bounds checks skipped");
 STATISTIC(ChecksUnable, "Bounds checks unable to add");
@@ -113,6 +117,7 @@ private:
 
   Function *m_seaIsDereferenceable; // sea.is_dereferenceable
   Function *m_verifierAssert;       // verifier.assert
+  Function *m_seaIsAllocated;       // sea.is_alloc
 
   BasicBlock *getErrorBB();
   void emitBranchToTrap(Value *Cmp = nullptr);
@@ -138,7 +143,8 @@ BasicBlock *FatBufferBoundsCheck::getErrorBB() {
 
   AttrBuilder AB(Fn->getContext());
   AB.addAttribute(Attribute::NoReturn);
-  // AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex, AB);
+  // AttributeList as = AttributeList::get(ctx, AttributeList::FunctionIndex,
+  // AB);
   auto errorFn = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ERROR, M);
   CallInst *TrapCall = Builder->CreateCall(errorFn);
   TrapCall->setDoesNotReturn();
@@ -289,6 +295,13 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
       Or = Builder->CreateOr(Cmp1, Or);
     }
   }
+  if (addIsAllocCheck) {
+    LOG("fat-bnd-check", errs() << "isAlloc instrument " << *Ptr << "\n";);
+    auto isAllocCall = Builder->CreateCall(
+        m_seaIsAllocated,
+        {Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy())});
+    Or = Builder->CreateOr(Or, Builder->CreateNot(isAllocCall));
+  }
   emitBranchToTrap(Or);
 
   return true;
@@ -426,6 +439,8 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
       SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::IS_DEREFERENCEABLE, *M);
 
   m_verifierAssert = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSERT, *M);
+
+  m_seaIsAllocated = SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::IS_ALLOC, *M);
 
   if (UseFatSlots) {
     m_getFatSlot0 =

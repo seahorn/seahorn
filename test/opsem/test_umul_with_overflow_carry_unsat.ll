@@ -9,7 +9,7 @@ declare void @verifier.assume(i1)
 declare void @verifier.assume.not(i1)
 declare void @seahorn.fail()
 
-declare {i32, i1} @llvm.smul.with.overflow.i32(i32 %a, i32 %b)
+declare {i32, i1} @llvm.umul.with.overflow.i32(i32 %a, i32 %b)
 
 ; Function Attrs: noreturn
 declare void @verifier.error() #1
@@ -23,7 +23,7 @@ entry:
   store i32 2, i32* %y, align 4
   %z1 = load i32, i32* %x, align 4
   %z2 = load i32, i32* %y, align 4
-  %res = call {i32, i1} @llvm.smul.with.overflow.i32(i32 %z2, i32 %z1)
+  %res = call {i32, i1} @llvm.umul.with.overflow.i32(i32 %z2, i32 %z1)
   %add1 = extractvalue {i32, i1} %res, 0
   %compare = icmp eq i32 %add1, 4294967294
   call void @verifier.assume(i1 %compare)

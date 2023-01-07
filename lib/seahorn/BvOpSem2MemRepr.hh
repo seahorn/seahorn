@@ -114,9 +114,8 @@ public:
   OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
                      unsigned memCpyUnrollCnt)
       : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
-        m_cache(DagVisitCache()), m_armCache(ARMCache()),
-        m_smapCache(op::array::StoreMapCache()),
-        m_ptCache(PtrTypeCheckCache()) {}
+        m_cache(DagVisitCache()), m_smapCache(op::array::StoreMapCache()),
+        m_armCache(ARMCache()), m_ptCache(PtrTypeCheckCache()) {}
 
   ~OpSemMemHybridRepr() override;
 

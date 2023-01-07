@@ -6,16 +6,16 @@ namespace expr {
 namespace addrRangeMap {
 
 bool AddrRange::isValid() {
-  if (isTop && isBot)
+  if (m_isTop && m_isBot)
     return false;
-  if (isTop)
-    return low == std::numeric_limits<unsigned>::min() &&
-           high == std::numeric_limits<unsigned>::max();
-  if (isBot)
-    return high == std::numeric_limits<unsigned>::min() &&
-           low == std::numeric_limits<unsigned>::max();
+  if (m_isTop)
+    return m_low == std::numeric_limits<unsigned>::min() &&
+           m_high == std::numeric_limits<unsigned>::max();
+  if (m_isBot)
+    return m_high == std::numeric_limits<unsigned>::min() &&
+           m_low == std::numeric_limits<unsigned>::max();
 
-  return low <= high;
+  return m_low <= m_high;
 }
 
 void AddrRangeMap::addRange(const AddrRange &range) {
@@ -68,7 +68,7 @@ AddrRangeMap addrRangeMapIntersect(AddrRangeMap &a, AddrRangeMap &b) {
       AddrRange bRange = bEntry->second;
       AddrRange aRange = aEntry->second;
       AddrRange nRange = aRange & bRange;
-      if (!nRange.isBot) {
+      if (!nRange.m_isBot) {
         res[bEntry->first] = nRange;
         isBot = false;
       }
@@ -105,12 +105,12 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
     for (auto m = m_rangeMap.begin(); m != m_rangeMap.end(); m++) {
       auto range = m->second;
       OS << "  " << *m->first << " => ";
-      if (range.isTop)
+      if (range.m_isTop)
         OS << "any\n";
-      else if (range.isBot)
+      else if (range.m_isBot)
         OS << "none\n";
       else
-        OS << "(" << range.low << ", " << range.high << ")\n";
+        OS << "(" << range.m_low << ", " << range.m_high << ")\n";
     }
     OS << "}\n";
   }
@@ -151,13 +151,13 @@ AddrRange mkAddrRangeTop() {
 }
 
 AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
-  if (r.isBot || r.isTop)
+  if (r.m_isBot || r.m_isTop)
     return r;
-  unsigned new_low = r.low >> bits;
+  unsigned new_low = r.m_low >> bits;
   new_low = new_low << bits;
-  unsigned new_high = r.high >> bits;
+  unsigned new_high = r.m_high >> bits;
   new_high = new_high << bits;
-  return AddrRange(new_low, new_high, r.isTop, r.isBot);
+  return AddrRange(new_low, new_high, r.m_isTop, r.m_isBot);
 }
 
 AddrRange addrRangeOf(Expr e) {

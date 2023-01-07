@@ -86,7 +86,7 @@ struct Default  : public TypeCheckBase{
 };
 
 struct StoreMap : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     /* store-map(array, base, list of structs) */
     return typeCheck::mapType::store_map<ARRAY_TY>(exp, tc, getArrayTypes);
   }

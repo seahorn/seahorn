@@ -91,10 +91,10 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
                                      bool useLambdas, bool ignoreAlignment)
     : MemManagerCore(sem, ctx, ptrSz, wordSz, ignoreAlignment),
       m_freshPtrName(mkTerm<std::string>("sea.ptr", m_efac)), m_id(0),
+      m_spObjName(mkTerm<std::string>("sea.obj", m_efac)),
       m_nullPtr(PtrTy(m_ctx.alu().ui(0UL, ptrSizeInBits()))),
       m_sp0(PtrTy(bind::mkConst(mkTerm<std::string>("sea.sp0", m_efac),
-                                ptrSort().toExpr()))),
-      m_spObjName(mkTerm<std::string>("sea.obj", m_efac)) {
+                                ptrSort().toExpr()))) {
   if (MemAllocatorOpt == MemAllocatorKind::NORMAL_ALLOCATOR)
     m_allocator = mkNormalOpSemAllocator(*this, MaxSymbAllocSz);
   else if (MemAllocatorOpt == MemAllocatorKind::STATIC_ALLOCATOR)
@@ -601,7 +601,7 @@ Expr RawMemManagerCore::loadValueFromMem(const PtrTy &ptr, const MemValTy &mem,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: load of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;
@@ -644,7 +644,7 @@ RawMemManagerCore::storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: store of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;

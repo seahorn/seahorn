@@ -2,6 +2,7 @@
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
+#include "seahorn/Expr/TypeCheckerBase.hh"
 
 namespace expr {
 
@@ -10,7 +11,7 @@ enum class MiscOpKind { NONDET, ASM, TUPLE, CONS };
 
 namespace typeCheck {
 struct Cons : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (exp->arity() > 2) // can be 1 for end node; 2 for normal node
       return sort::errorTy(exp->efac());
     return sort::anyTy(exp->efac());

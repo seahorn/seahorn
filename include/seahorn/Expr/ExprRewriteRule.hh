@@ -19,7 +19,6 @@ using namespace mem;
 using namespace addrRangeMap; /* addrRangeMap */
 namespace utils {
 
-bool isMemWriteOp(Expr);
 
 inline Expr ptrAdd(Expr a, Expr b) { return mk<BADD>(a, b); }
 
@@ -33,7 +32,7 @@ inline Expr ptrInRangeCheck(Expr begin, Expr i, Expr end) {
 
 } // end of namespace utils
 
-enum rewrite_status {
+enum RWStatus {
   RW_DONE = 0,
   RW_1 = 1,
   RW_2 = 2,
@@ -41,12 +40,12 @@ enum rewrite_status {
   RW_SKIP = 5
 };
 
-struct rewrite_result {
-  Expr rewritten;
-  rewrite_status status;
+struct RewriteResult {
+  Expr exp;
+  RWStatus status;
 };
 
-struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
+struct ExprRewriteRule : public std::unary_function<Expr, RewriteResult> {
   ExprFactory &m_efac;    // for making expr
   DagVisitCache &m_cache; // for deep rewrite using rewriter
 
@@ -54,13 +53,11 @@ struct ExprRewriteRule : public std::unary_function<Expr, rewrite_result> {
   Expr falseE;
 
   ExprRewriteRule(ExprFactory &efac, DagVisitCache &cache)
-      : m_efac(efac), trueE(mk<TRUE>(efac)), falseE(mk<FALSE>(efac)),
-        m_cache(cache) {}
-  ExprRewriteRule(const ExprRewriteRule &o)
-      : m_efac(o.m_efac), trueE(o.trueE), falseE(o.falseE), m_cache(o.m_cache) {
-  }
+      : m_efac(efac), m_cache(cache), trueE(mk<TRUE>(efac)),
+        falseE(mk<FALSE>(efac)) {}
+  ExprRewriteRule(const ExprRewriteRule &o) = default;
 
-  rewrite_result operator()(Expr exp) { return {exp, rewrite_status::RW_DONE}; }
+  RewriteResult operator()(Expr exp) { return {exp, RWStatus::RW_DONE}; }
 };
 
 struct ITERewriteRule : public ExprRewriteRule {
@@ -68,7 +65,7 @@ struct ITERewriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache) {}
   ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
 
-  rewrite_result operator()(Expr exp);
+  RewriteResult operator()(Expr exp);
 };
 
 struct CompareRewriteRule : public ExprRewriteRule {
@@ -78,13 +75,11 @@ struct CompareRewriteRule : public ExprRewriteRule {
   CompareRewriteRule(ExprFactory &efac, DagVisitCache &cache,
                      PtrTypeCheckCache &ptcCache, ARMCache &armCache,
                      unsigned ptrWidth)
-      : m_ptrWidth(ptrWidth), m_ptcCache(ptcCache), m_armCache(armCache),
-        ExprRewriteRule(efac, cache) {}
-  CompareRewriteRule(const CompareRewriteRule &o)
-      : m_ptrWidth(o.m_ptrWidth), m_ptcCache(o.m_ptcCache),
-        m_armCache(o.m_armCache), ExprRewriteRule(o) {}
+      : ExprRewriteRule(efac, cache), m_ptrWidth(ptrWidth),
+        m_ptcCache(ptcCache), m_armCache(armCache) {}
+  CompareRewriteRule(const CompareRewriteRule &o) = default;
 
-  rewrite_result operator()(Expr exp);
+  RewriteResult operator()(Expr exp);
 };
 
 struct BoolOpRewriteRule : public ExprRewriteRule {
@@ -92,10 +87,10 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache) {}
   BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
-  rewrite_result operator()(Expr exp) {
+  RewriteResult operator()(Expr exp) {
     // seahorn::ScopedStats _st("rw_bool");
     if (!isOpX<BoolOp>(exp)) {
-      return {exp, rewrite_status::RW_SKIP};
+      return {exp, RWStatus::RW_SKIP};
     }
 
     if (isOpX<NEG>(exp)) {
@@ -103,23 +98,23 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
       // double neg => truthy
       // e.g. !(!a) ==> a
       if (isOpX<NEG>(neg)) {
-        return {neg->arg(0), rewrite_status::RW_DONE};
+        return {neg->arg(0), RWStatus::RW_DONE};
       }
       // !ite(c, a, b) => ite(c, !a, !b)
       if (isOpX<ITE>(neg)) {
         return {
             mk<ITE>(neg->arg(0), mk<NEG>(neg->arg(1)), mk<NEG>(neg->arg(2))),
-            rewrite_status::RW_1};
+            RWStatus::RW_1};
       }
       // negate trivial constants: !true => false; !false => true
       if (isOpX<TRUE>(neg)) {
-        return {falseE, rewrite_status::RW_DONE};
+        return {falseE, RWStatus::RW_DONE};
       }
       if (isOpX<FALSE>(neg)) {
-        return {trueE, rewrite_status::RW_DONE};
+        return {trueE, RWStatus::RW_DONE};
       }
     }
-    return {exp, rewrite_status::RW_SKIP};
+    return {exp, RWStatus::RW_SKIP};
   }
 };
 
@@ -134,26 +129,23 @@ struct ReadOverWriteRule : public ExprRewriteRule {
                     expr::PtrTypeCheckCache &ptCache,
                     op::array::StoreMapCache &smapCache, unsigned wordSz,
                     unsigned ptrWidth)
-      : m_armCache(armCache), m_ptCache(ptCache), m_smapCache(smapCache),
-        ExprRewriteRule(efac, cache), m_wordSize(wordSz), m_ptrWidth(ptrWidth) {
-  }
-  ReadOverWriteRule(const ReadOverWriteRule &o)
-      : m_armCache(o.m_armCache), m_ptCache(o.m_ptCache),
-        m_smapCache(o.m_smapCache), ExprRewriteRule(o),
-        m_wordSize(o.m_wordSize), m_ptrWidth(o.m_ptrWidth) {}
+      : ExprRewriteRule(efac, cache), m_armCache(armCache), m_ptCache(ptCache),
+        m_smapCache(smapCache), m_wordSize(wordSz), m_ptrWidth(ptrWidth) {}
 
-  rewrite_result operator()(Expr exp);
+  ReadOverWriteRule(const ReadOverWriteRule &o) = default;
+
+  RewriteResult operator()(Expr exp);
 
 private:
-  rewrite_result rewriteReadOverStore(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverStore(Expr arr, Expr idx);
 
-  rewrite_result rewriteReadOverIte(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverIte(Expr arr, Expr idx);
 
-  rewrite_result rewriteReadOverMemset(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverMemset(Expr arr, Expr idx);
 
-  rewrite_result rewriteReadOverMemcpy(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverMemcpy(Expr arr, Expr idx);
 
-  rewrite_result rewriteReadOverStoreMap(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverStoreMap(Expr arr, Expr idx);
 
   /* Given select(storemap(arr, base, smap), idx), revert into ite form */
   Expr revertSMapToIte(Expr storeMap, Expr idx);
@@ -165,13 +157,11 @@ struct WriteOverWriteRule : public ExprRewriteRule {
   op::array::StoreMapCache &m_smapC;
   WriteOverWriteRule(ExprFactory &efac, DagVisitCache &cache,
                      op::array::StoreMapCache &sC, unsigned ptrWidth)
-      : m_ptrWidth(ptrWidth), m_smapC(sC), ExprRewriteRule(efac, cache) {}
-  WriteOverWriteRule(const WriteOverWriteRule &o)
-      : m_ptrWidth(o.m_ptrWidth), m_smapC(o.m_smapC), ExprRewriteRule(o) {}
+      : ExprRewriteRule(efac, cache), m_ptrWidth(ptrWidth), m_smapC(sC) {}
+  WriteOverWriteRule(const WriteOverWriteRule &o) = default;
 
-  rewrite_result operator()(Expr exp);
-
-  rewrite_result rewriteStore(Expr exp);
+  RewriteResult operator()(Expr exp);
+  RewriteResult rewriteStore(Expr exp);
 };
 
 struct ArithmeticRule : public ExprRewriteRule {
@@ -181,10 +171,10 @@ struct ArithmeticRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache), m_deepIte(deepIte) {}
   ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
 
-  rewrite_result operator()(Expr exp) {
+  RewriteResult operator()(Expr exp) {
     // seahorn::ScopedStats _st("rw_arith");
     if (!isOpX<BADD>(exp)) {
-      return {exp, rewrite_status::RW_SKIP};
+      return {exp, RWStatus::RW_SKIP};
     }
     if (m_deepIte) {
       /**
@@ -199,12 +189,12 @@ struct ArithmeticRule : public ExprRewriteRule {
         Expr i = lhs->first();
         Expr addL = mk<BADD>(lhs->arg(1), rhs);
         Expr addR = mk<BADD>(lhs->arg(2), rhs);
-        return {mk<ITE>(i, addL, addR), rewrite_status::RW_2};
+        return {mk<ITE>(i, addL, addR), RWStatus::RW_2};
       } else if (isOpX<ITE>(rhs)) {
         Expr i = rhs->first();
         Expr addL = mk<BADD>(rhs->arg(1), lhs);
         Expr addR = mk<BADD>(rhs->arg(2), lhs);
-        return {mk<ITE>(i, addL, addR), rewrite_status::RW_2};
+        return {mk<ITE>(i, addL, addR), RWStatus::RW_2};
       }
     }
     /** In general these two rules:
@@ -247,7 +237,7 @@ struct ArithmeticRule : public ExprRewriteRule {
       res = mknary<BADD>(args.begin(), args.end());
     } else
       res = *args.begin();
-    return {res, rewrite_status::RW_DONE};
+    return {res, RWStatus::RW_DONE};
   }
 };
 

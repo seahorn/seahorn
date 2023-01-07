@@ -13,7 +13,7 @@ enum class MemOpKind { MEMSET_WORDS, MEMCPY_WORDS };
 namespace typeCheck {
 namespace memType {
 struct MemSetWords : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (exp->arity() != 4)
       return sort::errorTy(exp->efac());
     ExprVector args(exp->args_begin(), exp->args_end());
@@ -22,7 +22,7 @@ struct MemSetWords : public TypeCheckBase {
 };
 
 struct MemCpyWords : public TypeCheckBase {
-  inline Expr inferType(Expr exp, TypeChecker &tc) {
+  inline Expr inferType(Expr exp, TypeChecker &tc) override {
     if (exp->arity() != 5)
       return sort::errorTy(exp->efac());
     ExprVector args(exp->args_begin(), exp->args_end());

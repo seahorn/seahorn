@@ -1,5 +1,6 @@
 #pragma once
 #include "seahorn/Bmc.hh"
+#include "seahorn/boost_flat_set.hh"
 
 namespace seahorn {
 namespace bmc_impl {

@@ -5,6 +5,8 @@
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
+
+#include "seahorn/boost_flat_set.hh"
 /// yet to be refactored
 namespace expr {
 

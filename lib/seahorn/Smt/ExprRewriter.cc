@@ -18,19 +18,15 @@ bool shouldCache(const Expr &e) {
   return e->use_count() > 1;
 }
 
-bool isMemWriteOp(Expr e) {
-  return isOpX<STORE>(e) || isOpX<ITE>(e) || isOpX<MEMSET_WORDS>(e) ||
-         isOpX<MEMCPY_WORDS>(e) || isOpX<STORE_MAP>(e);
-}
 } // namespace utils
 
-bool ITECompRewriteConfig::shouldRewrite(Expr exp) {
+bool ITECompRewriteConfig::shouldRewrite(const Expr &exp) {
   return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||
          isOpX<SELECT>(exp) || isOpX<BADD>(exp);
 }
 
-rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
-  rewrite_result res = {exp, rewrite_status::RW_DONE};
+RewriteResult ITECompRewriteConfig::doRewrite(const Expr &exp) {
+  RewriteResult res = {exp, RWStatus::RW_DONE};
   if (isOpX<ITE>(exp)) {
     res = m_iteRule(exp);
   } else if (isOpX<CompareOp>(exp)) {
@@ -45,25 +41,25 @@ rewrite_result ITECompRewriteConfig::applyRewriteRules(Expr exp) {
   return res;
 }
 
-bool PointerArithmeticConfig::shouldRewrite(Expr exp) {
+bool PointerArithmeticConfig::shouldRewrite(const Expr &exp) {
   return isOpX<BADD>(exp) || isOpX<ITE>(exp);
 }
 
-rewrite_result PointerArithmeticConfig::applyRewriteRules(Expr exp) {
-  rewrite_result res = {exp, rewrite_status::RW_DONE};
+RewriteResult PointerArithmeticConfig::doRewrite(const Expr &exp) {
+  RewriteResult res = {exp, RWStatus::RW_DONE};
   if (isOpX<BADD>(exp)) {
     res = m_arithRule(exp);
   }
   return res;
 }
 
-bool WriteOverWriteConfig::shouldRewrite(Expr e) {
+bool WriteOverWriteConfig::shouldRewrite(const Expr &e) {
   return isOpX<STORE>(e) || isOpX<STORE_MAP>(e) || isOpX<ITE>(e) ||
          isOpX<BADD>(e);
 }
 
-rewrite_result WriteOverWriteConfig::applyRewriteRules(Expr exp) {
-  rewrite_result res = {exp, rewrite_status::RW_DONE};
+RewriteResult WriteOverWriteConfig::doRewrite(const Expr &exp) {
+  RewriteResult res = {exp, RWStatus::RW_DONE};
   if (isOpX<BADD>(exp)) {
     res = m_arithRule(exp);
   } else if (isOpX<STORE>(exp) || isOpX<STORE_MAP>(exp)) {
@@ -72,21 +68,23 @@ rewrite_result WriteOverWriteConfig::applyRewriteRules(Expr exp) {
   return res;
 }
 
-void WriteOverWriteConfig::applyAfterRewriteActions(Expr oldE, Expr newE) {
+void WriteOverWriteConfig::onAfterRewrite(const Expr &oldE, const Expr &newE) {
   if (isOpX<STORE_MAP>(oldE) && isOpX<STORE_MAP>(newE) && oldE != newE) {
     op::array::transferStoreMapCache(&*oldE, &*newE, m_wowRule.m_smapC);
   }
 }
 
-rewrite_result ReadOverWriteRule::operator()(Expr exp) {
+RewriteResult ReadOverWriteRule::operator()(Expr exp) {
   if (!isOpX<SELECT>(exp)) {
-    return {exp, rewrite_status::RW_SKIP};
+    return {exp, RWStatus::RW_SKIP};
   }
-  Expr arr = exp->arg(0);
-  Expr idx = exp->arg(1);
+  const Expr &arr = exp->arg(0);
+  const Expr &idx = exp->arg(1);
+
+  // XXX make this optional, it is potentially costly but only used for stats
   if (!isOpX<ITE>(arr) && m_cache.find(&*exp) == m_cache.end()) {
     if (isOpX<STORE_MAP>(arr)) {
-      size_t nRows = op::array::storeMapGetMap(arr)->arity();
+      auto nRows = op::array::storeMapGetMap(arr)->arity();
       seahorn::Stats::uset("hybrid.read_over_writes",
                            seahorn::Stats::get("hybrid.read_over_writes") +
                                nRows);
@@ -94,8 +92,8 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
       seahorn::Stats::count("hybrid.read_over_writes");
     }
   }
-  /** Read-over-write/ite: push select down to leaves
-   **/
+
+  // Read-over-write/ite: push select down to leaves
   if (isOpX<STORE>(arr)) {
     return rewriteReadOverStore(arr, idx);
   } else if (isOpX<ITE>(arr)) {
@@ -107,35 +105,38 @@ rewrite_result ReadOverWriteRule::operator()(Expr exp) {
   } else if (isOpX<STORE_MAP>(arr)) {
     return rewriteReadOverStoreMap(arr, idx);
   } else {
-    return {exp, rewrite_status::RW_DONE};
+    return {exp, RWStatus::RW_DONE};
   }
 }
 
-rewrite_result ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
-  Expr arrN = op::array::storeArray(arr);
-  Expr idxN = op::array::storeIdx(arr);
+RewriteResult ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
+  const Expr &arrN = op::array::storeArray(arr);
+  const Expr &idxN = op::array::storeIdx(arr);
   Expr res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
                      op::array::select(arrN, idx));
-  return {res, rewrite_status::RW_2};
+  return {std::move(res), RWStatus::RW_2};
 }
 
-rewrite_result ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
-  Expr i = arr->arg(0);
-  Expr t = arr->arg(1);
-  Expr e = arr->arg(2);
+RewriteResult ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
+  const Expr &i = arr->arg(0);
+  const Expr &t = arr->arg(1);
+  const Expr &e = arr->arg(2);
   Expr res = mk<ITE>(i, op::array::select(t, idx), op::array::select(e, idx));
-  return {res, rewrite_status::RW_2};
+  return {std::move(res), RWStatus::RW_2};
 }
 
-rewrite_result ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
-  Expr inMem = arr->arg(0);
-  Expr idxN = arr->arg(1);
-  Expr len = arr->arg(2);
-  Expr val = arr->arg(3);
+RewriteResult ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
+  const Expr &inMem = arr->arg(0);
+  const Expr &idxN = arr->arg(1);
+  const Expr &len = arr->arg(2);
+  const Expr &val = arr->arg(3);
+
+  ExprFactory &efac = arr->efac();
   Expr res;
+
   if (op::bv::is_bvnum(len)) {
     unsigned cLen = bv::toMpz(len).get_ui() - m_wordSize;
-    Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), len->efac());
+    Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), efac);
     Expr last = utils::ptrAdd(idxN, offset);
     // idxN <= idx <= idxN + sz
     Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
@@ -144,7 +145,7 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
         !approxPtrInRangeCheck(idxN, cLen, idx, m_armCache, m_ptCache)) {
       /* idx is for sure not in range of [idxN, idxN + sz] */
       seahorn::Stats::count("hybrid.arm_skip_memset");
-      return {otherVal, rewrite_status::RW_1};
+      return {std::move(otherVal), RWStatus::RW_1};
     }
     res = mk<ITE>(cmp, val, otherVal);
   } else {
@@ -155,17 +156,20 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
     Expr otherVal = op::array::select(inMem, idx);
     if (UseArm && !approxPtrEq(idx, idxN, m_armCache, m_ptCache)) {
       seahorn::Stats::count("hybrid.arm_skip_memset");
-      return {otherVal, rewrite_status::RW_1};
+      return {std::move(otherVal), RWStatus::RW_1};
     }
     res = mk<ITE>(cmp, val, otherVal);
   }
-  return {res, rewrite_status::RW_2};
+  return {std::move(res), RWStatus::RW_2};
 }
 
 Expr ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx) {
-  Expr arr = storeMap->arg(0), base = storeMap->arg(1),
-       consList = storeMap->arg(2);
+  const Expr &arr = storeMap->arg(0);
+  const Expr &base = storeMap->arg(1);
+  const Expr &consList = storeMap->arg(2);
+
   Stats::count("hybrid.smap_revert_ite");
+
   Expr res = arr;
   auto it = m_smapCache.find(&*storeMap);
   if (it != m_smapCache.end()) {
@@ -178,13 +182,14 @@ Expr ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx) {
     res = op::array::select(res, idx);
     return res;
   }
+
   // Fallback to stored cons list, re-build cache
   Stats::count("hybrid.smap_revert_ite_fallback");
   op::array::OffsetValueMap *ovM = new op::array::OffsetValueMap();
   Expr head = consList;
-  while (head != NULL) {
+  while (head) {
     Expr ov = head->arg(0);
-    head = head->arity() == 2 ? head->arg(1) : NULL;
+    head = head->arity() == 2 ? head->arg(1) : nullptr;
     unsigned long oXNum = op::bv::toMpz(ov->arg(0)).get_ui();
     if (ovM->find(oXNum) == ovM->cend()) { // keep latest value only
       ovM->insert({oXNum, ov->arg(1)});
@@ -193,12 +198,14 @@ Expr ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx) {
     }
   }
   res = op::array::select(res, idx);
-  m_smapCache[&*storeMap] = ovM;
+  // XXX check for potential issue with reference counting, what if
+  // XXX storeMap was already in the cache. Then Ref() will double count.
   storeMap->Ref();
+  m_smapCache.insert({&*storeMap, ovM});
   return res;
 }
 
-rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
   Expr nxtArr = arr->arg(0), base = arr->arg(1);
   Expr smap = op::array::storeMapGetMap(arr);
 
@@ -211,32 +218,32 @@ rewrite_result ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
         if (val) {
           // R-HIT
           Stats::count("hybrid.smap_hit");
-          return {val, rewrite_status::RW_DONE};
+          return {val, RWStatus::RW_DONE};
         } else {
           // R-MISS
           Stats::count("hybrid.smap_miss");
-          return {op::array::select(nxtArr, idx), rewrite_status::RW_1};
+          return {op::array::select(nxtArr, idx), RWStatus::RW_1};
         }
       } else {
         // same base but symolic offset, can only abort
         Stats::count("hybrid.smap_abort");
         Expr res = revertSMapToIte(arr, idx);
-        return {res, rewrite_status::RW_FULL};
+        return {std::move(res), RWStatus::RW_FULL};
       }
     } else {
       // R-SKIP
       Stats::count("hybrid.smap_skip");
-      return {op::array::select(nxtArr, idx), rewrite_status::RW_1};
+      return {op::array::select(nxtArr, idx), RWStatus::RW_1};
     }
   } else {
     // R-Abort
     Stats::count("hybrid.smap_abort");
     Expr res = revertSMapToIte(arr, idx);
-    return {res, rewrite_status::RW_FULL};
+    return {std::move(res), RWStatus::RW_FULL};
   }
 }
 
-rewrite_result ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
   /** select(copy(a, p, b, q, s), i) =>
    * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
   Expr res;
@@ -260,7 +267,7 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
         !approxPtrInRangeCheck(dstIdx, cLen, idx, m_armCache, m_ptCache)) {
       /* idx is for sure not in range of [dstIdx, dstIdx + sz] */
       seahorn::Stats::count("hybrid.arm_skip_memcpy");
-      return {dstOtherVal, rewrite_status::RW_1};
+      return {dstOtherVal, RWStatus::RW_1};
     }
     res = mk<ITE>(cmp, cpyVal, dstOtherVal);
   } else {
@@ -272,15 +279,15 @@ rewrite_result ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
     Expr dstOtherVal = op::array::select(dstMem, idx);
     if (UseArm && !approxPtrEq(dstIdx, idx, m_armCache, m_ptCache)) {
       seahorn::Stats::count("hybrid.arm_skip_memcpy");
-      return {dstOtherVal, rewrite_status::RW_1};
+      return {dstOtherVal, RWStatus::RW_1};
     }
     res = mk<ITE>(cmp, cpyVal, dstOtherVal);
   }
-  return {res, rewrite_status::RW_2};
+  return {res, RWStatus::RW_2};
 }
 using namespace op::array;
 using namespace op::bv;
-rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
+RewriteResult WriteOverWriteRule::rewriteStore(Expr e) {
   Expr arr = storeArray(e), idx = storeIdx(e), val = storeVal(e);
   /* idx should be normalised */
   Expr idxBase;
@@ -301,14 +308,13 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
           if (op::bv::toMpz(idxOffset) == op::bv::toMpz(idxNxtOffset)) {
             /* edge case: offset == offsetNxt */
             seahorn::Stats::count("hybrid.store_erase");
-            return {op::array::store(arrNxt, idx, val),
-                    rewrite_status::RW_DONE};
+            return {op::array::store(arrNxt, idx, val), RWStatus::RW_DONE};
           }
           /* SMAP-NEW */
           Expr res = storeMapNew(arrNxt, idxBase, op::strct::mk(idxOffset, val),
                                  op::strct::mk(idxNxtOffset, valNxt), m_smapC);
           Stats::count("hybrid.smap_new");
-          return {res, rewrite_status::RW_DONE}; // maybe commute
+          return {res, RWStatus::RW_DONE}; // maybe commute
         }
       } else {
         /* STORE-COMMUTE */
@@ -317,7 +323,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
           Expr newNxtStore = op::array::store(arrNxt, idx, val);
           Expr newStore = op::array::store(newNxtStore, idxNxt, valNxt);
           seahorn::Stats::count("hybrid.store_store_commute");
-          return {newStore, rewrite_status::RW_2};
+          return {newStore, RWStatus::RW_2};
         }
       }
     }
@@ -331,7 +337,7 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
         /* SMAP-HIT */
         Expr res = storeMapInsert(arr, op::strct::mk(idxOffset, val), m_smapC);
         Stats::count("hybrid.smap_insert");
-        return {res, rewrite_status::RW_DONE};
+        return {res, RWStatus::RW_DONE};
       } else if (expr::mem::getBasedAddrSerial(idxBase) <
                  expr::mem::getBasedAddrSerial(sMapBase)) {
         /* SMAP-COMMUTE */
@@ -343,27 +349,27 @@ rewrite_result WriteOverWriteRule::rewriteStore(Expr e) {
         Expr innerStore = e->efac().mkTern(e->op(), sMapArr, idx, val);
         Expr res = arr->efac().mkTern(arr->op(), innerStore, sMapBase, sMap);
         op::array::transferStoreMapCache(&*arr, &*res, m_smapC);
-        return {res, rewrite_status::RW_2};
+        return {res, RWStatus::RW_2};
       }
     }
   }
-  return {e, rewrite_status::RW_DONE};
+  return {e, RWStatus::RW_DONE};
 }
 
-rewrite_result WriteOverWriteRule::operator()(Expr e) {
+RewriteResult WriteOverWriteRule::operator()(Expr e) {
   if (!isOpX<STORE>(e) && !isOpX<STORE_MAP>(e)) {
-    return {e, rewrite_status::RW_SKIP};
+    return {e, RWStatus::RW_SKIP};
   }
   if (isOpX<STORE>(e)) {
     return rewriteStore(e);
   } else { // all handled during store
-    return {e, rewrite_status::RW_DONE};
+    return {e, RWStatus::RW_DONE};
   }
 }
 
-rewrite_result CompareRewriteRule::operator()(Expr exp) {
+RewriteResult CompareRewriteRule::operator()(Expr exp) {
   if (!isOpX<CompareOp>(exp)) {
-    return {exp, rewrite_status::RW_SKIP};
+    return {exp, RWStatus::RW_SKIP};
   }
   Expr lhs = exp->left();
   Expr rhs = exp->right();
@@ -375,11 +381,11 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
       lhs->arity() == rhs->arity() && lhs->arity() == 2) {
     if (lhs->arg(0) == rhs->arg(0)) {
       Expr res = m_efac.mkBin(exp->op(), lhs->arg(1), rhs->arg(1));
-      return {res, rewrite_status::RW_1};
+      return {res, RWStatus::RW_1};
     }
     if (lhs->arg(1) == rhs->arg(1)) {
       Expr res = m_efac.mkBin(exp->op(), lhs->arg(0), rhs->arg(0));
-      return {res, rewrite_status::RW_1};
+      return {res, RWStatus::RW_1};
     }
   }
   // a == a => true, only works if a is constant bvnum
@@ -387,7 +393,7 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
     bool bothNum = op::bv::is_bvnum(lhs) && op::bv::is_bvnum(rhs);
     if (bothNum) {
       return {op::bv::toMpz(lhs) == op::bv::toMpz(rhs) ? trueE : falseE,
-              rewrite_status::RW_DONE};
+              RWStatus::RW_DONE};
     }
     Expr rBase, rOffset, lBase, lOffset;
     bool rHasBase = isSingleBasePtr(rhs, m_ptrWidth, rBase, rOffset);
@@ -395,17 +401,17 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
     if (rHasBase && lHasBase) {
       if (rBase == lBase) {
         // compare offset
-        return {mk<EQ>(lOffset, rOffset), rewrite_status::RW_1};
+        return {mk<EQ>(lOffset, rOffset), RWStatus::RW_1};
       } else {
         // diff base => diff pointer
         seahorn::Stats::count("hybrid.thm_skip_store");
-        return {falseE, rewrite_status::RW_DONE};
+        return {falseE, RWStatus::RW_DONE};
       }
     }
     if (UseArm && isPtrExpr(lhs, m_ptcCache) && isPtrExpr(rhs, m_ptcCache)) {
       if (!approxPtrEq(lhs, rhs, m_armCache, m_ptcCache)) {
         seahorn::Stats::count("hybrid.arm_skip_store");
-        return {falseE, rewrite_status::RW_DONE};
+        return {falseE, RWStatus::RW_DONE};
       }
     }
   }
@@ -413,14 +419,14 @@ rewrite_result CompareRewriteRule::operator()(Expr exp) {
   // normalize neq: a != b ==> !(a=b)
   if (isOpX<NEQ>(exp)) {
     Expr negation = mk<EQ>(lhs, rhs);
-    return {mk<NEG>(negation), rewrite_status::RW_2};
+    return {mk<NEG>(negation), RWStatus::RW_2};
   }
-  return {exp, rewrite_status::RW_DONE};
+  return {exp, RWStatus::RW_DONE};
 }
 
-rewrite_result ITERewriteRule::operator()(Expr exp) {
+RewriteResult ITERewriteRule::operator()(Expr exp) {
   if (!isOpX<ITE>(exp)) {
-    return {exp, rewrite_status::RW_SKIP};
+    return {exp, RWStatus::RW_SKIP};
   }
 
   Expr i = exp->arg(0);
@@ -428,33 +434,33 @@ rewrite_result ITERewriteRule::operator()(Expr exp) {
   Expr e = exp->arg(2);
   // ite(a, true, false) => a
   if (isOpX<TRUE>(t) && isOpX<FALSE>(e)) {
-    return {i, rewrite_status::RW_DONE};
+    return {i, RWStatus::RW_DONE};
   }
   // ite(a, false, true) => !a
   if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
-    return {mk<NEG>(i), rewrite_status::RW_1}; // simp dbl negation
+    return {mk<NEG>(i), RWStatus::RW_1}; // simp dbl negation
   }
   // ite(i, a, a) => a
   if (t == e) {
-    return {t, rewrite_status::RW_DONE};
+    return {t, RWStatus::RW_DONE};
   }
   // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
   if (isOpX<ITE>(e)) {
     Expr e_i = e->arg(0);
     Expr e_t = e->arg(1);
     if (op::boolop::areNegations(i, e_i)) {
-      return {mk<ITE>(i, t, e_t), rewrite_status::RW_1};
+      return {mk<ITE>(i, t, e_t), RWStatus::RW_1};
     }
   }
   // ite(true, a, b) => a
   if (isOpX<TRUE>(i)) {
-    return {t, rewrite_status::RW_DONE};
+    return {t, RWStatus::RW_DONE};
   }
   // ite(false, a, b) => b
   if (isOpX<FALSE>(i)) {
-    return {e, rewrite_status::RW_DONE};
+    return {e, RWStatus::RW_DONE};
   }
-  return {exp, rewrite_status::RW_DONE};
+  return {exp, RWStatus::RW_DONE};
 }
 
 } // namespace expr

@@ -111,7 +111,7 @@ public:
       if (isOpX<TRUE>(op1))
         // icmp sgt op0, i1 true  == !op0
         return boolop::lneg(op0);
-      return bv1ToBool(mk<BSGT>(boolToBv1(op0), boolToBv1(op1)));
+      return mk<BSGT>(boolToBv1(op0), boolToBv1(op1));
     default:
       return mk<BSGT>(op0, op1);
     }
@@ -123,7 +123,12 @@ public:
     return mk<BSLE>(op0, op1);
   }
   Expr doUge(Expr op0, Expr op1, unsigned bitWidth) override {
-    return mk<BUGE>(op0, op1);
+    switch(bitWidth) {
+    case 1:
+      return boolop::limp(op1, op0);
+    default:
+      return mk<BUGE>(op0, op1);
+    }
   }
   Expr doSge(Expr op0, Expr op1, unsigned bitWidth) override {
     return mk<BSGE>(op0, op1);

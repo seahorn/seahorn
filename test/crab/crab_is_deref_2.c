@@ -1,7 +1,7 @@
 // RUN: %sea -O3 fpf --bound=5 --inline --horn-bv2-crab-lower-is-deref --horn-bmc-crab-dom=zones --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
 // RUN: %sea -O3 fpf --bound=5 --inline --horn-bv2-crab-check-is-deref --horn-bmc-crab-dom=zones --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
 // CHECK: ^unsat$
-// CHECK: crab.isderef.solve 6
+// CHECK: crab.isderef.solve 7
 
 /** Crab proves all the sea_is_dereferenceable checks **/
 

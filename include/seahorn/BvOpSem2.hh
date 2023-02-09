@@ -65,7 +65,7 @@ public:
     assert(m_td);
     return *m_td;
   }
-  const DataLayout& getDataLayout() {return getTD();}
+  const DataLayout &getDataLayout() { return getTD(); }
 
   /// \brief Creates a new context
   OpSemContextPtr mkContext(SymStore &values, ExprVector &side) override;
@@ -138,10 +138,15 @@ public:
   /// \brief Returns the current symbolic value of \p v in the context \p ctx
   Expr getOperandValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
   /// \brief Deprecated
-  Expr lookup(SymStore &s, const Value &v) override { llvm_unreachable(nullptr); }
+  Expr lookup(SymStore &s, const Value &v) override {
+    llvm_unreachable(nullptr);
+  }
   /// Convert aggregate GenericValue to APInt
   Optional<APInt> agg(Type *ty, const std::vector<GenericValue> &elements,
-      seahorn::details::Bv2OpSemContext &ctx);
+                      seahorn::details::Bv2OpSemContext &ctx);
+  /// Convert vector GenericValue to APInt
+  Optional<APInt> vec(Type *ty, const std::vector<GenericValue> &elements,
+                      seahorn::details::Bv2OpSemContext &ctx);
   using gep_type_iterator = generic_gep_type_iterator<>;
   /// \brief Returns symbolic representation of the gep offset
   Expr symbolicIndexedOffset(gep_type_iterator it, gep_type_iterator end,
@@ -152,9 +157,10 @@ public:
   /// \breif Returns offset of a filed in a structure
   unsigned fieldOff(const StructType *t, unsigned field) const;
 
-  /// \brief Size of the register (in bits) required to store \p v 
+  /// \brief Size of the register (in bits) required to store \p v
   uint64_t sizeInBits(const llvm::Value &v) const;
-  /// \brief Size of the register (in bits) required to store values of type \p t
+  /// \brief Size of the register (in bits) required to store values of type \p
+  /// t
   uint64_t sizeInBits(const llvm::Type &t) const;
   /// \brief Number of bits required to store a pointer
   unsigned pointerSizeInBits() const;

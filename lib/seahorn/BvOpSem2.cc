@@ -15,7 +15,6 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Regex.h"
 
-
 #include "seahorn/CallUtils.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -28,11 +27,11 @@
 
 #include "BvOpSem2Context.hh"
 
-#include "seahorn/clam_CfgBuilder.hh"
-#include "seahorn/clam_Clam.hh"
 #include "clam/ClamQueryAPI.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
 #include "crab/domains/abstract_domain_params.hpp"
+#include "seahorn/clam_CfgBuilder.hh"
+#include "seahorn/clam_Clam.hh"
 
 #include "seadsa/ShadowMem.hh"
 
@@ -720,8 +719,7 @@ public:
 
     IntegerType *Ty = dyn_cast<IntegerType>(CB.getType());
     if ((Ty && Ty->getBitWidth() % 16 != 0) || CB.arg_size() > 1) {
-      LOG("opsem",
-          ERR << "Cannot handle inline assembly: " << CB);
+      LOG("opsem", ERR << "Cannot handle inline assembly: " << CB);
       return;
     }
     InlineAsm *IA = cast<InlineAsm>(CB.getCalledOperand());
@@ -730,8 +728,7 @@ public:
     llvm::SplitString(AsmStr, AsmPieces, ";\n");
     switch (AsmPieces.size()) {
     default:
-      LOG("opsem",
-          ERR << "Cannot handle inline assembly: " << CB);
+      LOG("opsem", ERR << "Cannot handle inline assembly: " << CB);
       break;
     case 0:
       // This part handles the following type of inline assembly
@@ -761,8 +758,8 @@ public:
           AsmStr.compare(0, 13, "bswapq ${0:q}") == 0) {
         // No need to check constraints
         isAsmHandled = expandCallInst(cast<CallInst>(CB), [](CallInst &CI) {
-              return IntrinsicLowering::LowerToByteSwap(&CI);
-            });
+          return IntrinsicLowering::LowerToByteSwap(&CI);
+        });
       }
       // llvm.bswap.i16
       if (CB.getType()->isIntegerTy(16) &&
@@ -774,16 +771,14 @@ public:
         llvm::SplitString(StringRef(IA->getConstraintString()).substr(5),
                           AsmPieces, ",");
         // Try to replace a call instruction with a call to a bswap intrinsic
-        isAsmHandled =
-            clobbersFlagRegisters(AsmPieces) &&
-            expandCallInst(cast<CallInst>(CB),
-                           [](CallInst &CI) {
-                             return IntrinsicLowering::LowerToByteSwap(&CI);
-                           });
+        isAsmHandled = clobbersFlagRegisters(AsmPieces) &&
+                       expandCallInst(cast<CallInst>(CB), [](CallInst &CI) {
+                         return IntrinsicLowering::LowerToByteSwap(&CI);
+                       });
       }
       if (!isAsmHandled)
-        LOG("opsem", ERR << "Cannot handle inline assembly of integer swap: "
-                         << CB);
+        LOG("opsem",
+            ERR << "Cannot handle inline assembly of integer swap: " << CB);
       break;
     }
   }
@@ -1123,8 +1118,8 @@ public:
 
   void visitIndirectCall(CallBase &CB) {
     if (CB.getType()->isVoidTy()) {
-      LOG("opsem", WARN << "Interpreting indirect call as noop: "
-                        << CB << "\n";);
+      LOG("opsem",
+          WARN << "Interpreting indirect call as noop: " << CB << "\n";);
       return;
     }
     // treat as non-det and issue a warning
@@ -1133,7 +1128,8 @@ public:
 
   void visitVerifierAssumeCall(CallBase &CB) {
     // ignore assumes annotaed with "unified.assume"
-    if (isUnifiedAssume(CB)) return;
+    if (isUnifiedAssume(CB))
+      return;
     auto &f = *getCalledFunction(CB);
 
     Expr op = lookup(*CB.getOperand(0));
@@ -1143,9 +1139,8 @@ public:
       op = boolop::lneg(op);
 
     if (!isOpX<TRUE>(op)) {
-      m_ctx.addScopedSide(boolop::lor(
-          m_ctx.read(m_sem.errorFlag(*(CB.getParent()))),
-          op));
+      m_ctx.addScopedSide(
+          boolop::lor(m_ctx.read(m_sem.errorFlag(*(CB.getParent()))), op));
     }
   }
 
@@ -1272,8 +1267,7 @@ public:
       m_ctx.setMemReadRegister(memIn);
       m_ctx.setMemWriteRegister(memOut);
 
-      LOG("opsem.mem.global.init", errs()
-                                       << "mem.global.init: " << CB << "\n";
+      LOG("opsem.mem.global.init", errs() << "mem.global.init: " << CB << "\n";
           errs() << "arg1: " << *CB.getOperand(1) << "\n";
           errs() << "memIn: " << *memIn << ", memOut: " << *memOut << "\n";);
 
@@ -1350,8 +1344,8 @@ public:
     }
 
     if (is_typed) {
-      LOG("opsem", errs() << "Modelling " << CB
-                          << " with an uninterpreted function\n";);
+      LOG("opsem",
+          errs() << "Modelling " << CB << " with an uninterpreted function\n";);
       Expr name = mkTerm<const Function *>(getCalledFunction(CB), m_efac);
       Expr d = bind::fdecl(name, sorts);
       res = bind::fapp(d, fargs);
@@ -1791,10 +1785,112 @@ public:
   void visitVAArgInst(VAArgInst &I) { llvm_unreachable(nullptr); }
 
   void visitExtractElementInst(ExtractElementInst &I) {
-    llvm_unreachable(nullptr);
+    Expr val = executeExtractElementInst(I.getType(), *I.getOperand(0),
+                                         *I.getOperand(1), m_ctx);
+    setValue(I, val);
+  }
+
+  Expr executeExtractElementInst(Type *retTy, Value &vec, Value &idx,
+                                 Bv2OpSemContext &ctx) {
+    Expr res;
+
+    Expr valE = lookup(vec);
+    if (!valE)
+      return res;
+
+    const DataLayout &DL = m_sem.getDataLayout();
+
+    auto vecSz = DL.getTypeSizeInBits(vec.getType());
+
+    // -- this is also the size of vector element
+    auto retSz = DL.getTypeSizeInBits(retTy);
+    if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&idx)) {
+
+      auto begin = retSz * ci->getZExtValue();
+      auto end = begin + retSz - 1;
+      res = m_ctx.alu().Extract({valE, vecSz}, begin, end);
+    } else {
+      LOG("opsem", WARN << "unsupported extractelement with non-constant index "
+                           "operand\n";);
+      llvm_unreachable("unsupported");
+    }
+
+    return res;
   }
   void visitInsertElementInst(InsertElementInst &I) {
-    llvm_unreachable(nullptr);
+    Expr val =
+        executeInsertElementInst(I.getType(), *I.getOperand(0),
+                                 *I.getOperand(1), *I.getOperand(2), m_ctx);
+    setValue(I, val);
+  }
+
+  Expr executeInsertElementInst(Type *retTy, Value &vecValue, Value &elmt,
+                                Value &idx, Bv2OpSemContext &ctx) {
+
+    Expr res;
+    Expr valE = lookup(vecValue);
+    Expr elmtE = lookup(elmt);
+    if (!valE || !elmtE)
+      return res;
+
+    const DataLayout &DL = m_sem.getDataLayout();
+    auto vecSz = DL.getTypeSizeInBits(vecValue.getType());
+    auto elmtSz = DL.getTypeSizeInBits(elmt.getType());
+
+    if (vecSz == elmtSz)
+      return elmtE;
+    assert(vecSz > elmtSz);
+    assert(vecSz % elmtSz == 0);
+
+    if (const ConstantInt *ci = dyn_cast<const ConstantInt>(&idx)) {
+      unsigned idxV = ci->getZExtValue();
+
+      // -- first bit
+      unsigned begin = idxV * elmtSz;
+      // -- last bit
+      unsigned end = begin + elmtSz - 1;
+
+      Expr suffix;
+      unsigned suffixSz = 0;
+      Expr prefix;
+      unsigned prefixSz = 0;
+
+      if (begin > 0) {
+        suffixSz = begin;
+        suffix = m_ctx.alu().Extract({valE, vecSz}, 0, begin - 1);
+      }
+      if (end < vecSz - 1) {
+        prefixSz = vecSz - 1 - end;
+        prefix = m_ctx.alu().Extract({valE, vecSz}, end + 1, vecSz - 1);
+      }
+
+      unsigned res_sz = 0;
+
+      if (suffixSz > 0) {
+        res = suffix;
+        res_sz += suffixSz;
+      }
+
+      if (res_sz) {
+        res = m_ctx.alu().Concat({elmtE, elmtSz}, {res, res_sz});
+        res_sz += elmtSz;
+      } else {
+        res = elmtE;
+        res_sz = elmtSz;
+      }
+
+      if (prefixSz > 0) {
+        res = m_ctx.alu().Concat({prefix, prefixSz}, {res, res_sz});
+        res_sz += prefixSz;
+        (void)res_sz;
+      }
+    } else {
+      LOG("opsem",
+          WARN
+              << "unsupported insertlement with non-constant index operand\n";);
+      llvm_unreachable("unsupported");
+    }
+    return res;
   }
   void visitShuffleVectorInst(ShuffleVectorInst &I) {
     llvm_unreachable(nullptr);
@@ -1869,7 +1965,7 @@ public:
       return Expr();
     }
     // compute the offsets: begin and end of bits to extract from aggOp
-    const DataLayout DL = m_sem.getDataLayout();
+    const DataLayout &DL = m_sem.getDataLayout();
     Type *curTy = aggVal.getType();
     uint64_t begin = 0, end = 0;
     for (unsigned idx : indices) {
@@ -1920,6 +2016,12 @@ public:
   void visitInstruction(Instruction &I) {
     ERR << I;
     llvm_unreachable("No semantics to this instruction yet!");
+  }
+
+  void visitFreezeInst(FreezeInst &I) {
+    // operationally, freeze is a noop
+    Expr res = lookup(*I.getOperand(0));
+    setValue(I, res);
   }
 
   Expr executeSelectInst(Expr cond, Expr op0, Expr op1, Type *ty,
@@ -2269,10 +2371,12 @@ public:
   }
 
   Expr executeBitCastInst(const Value &op, Type *ty, Bv2OpSemContext &ctx) {
+    // -- opTy is destination type of the cast
     Type *opTy = op.getType();
 
-    if (opTy->isVectorTy() || ty->isVectorTy())
-      llvm_unreachable("Vector types are unsupported");
+    if (opTy->getTypeID() == llvm::Type::TypeID::ScalableVectorTyID ||
+        ty->getTypeID() == llvm::Type::TypeID::ScalableVectorTyID)
+      llvm_unreachable("Scalable Vector types are unsupported");
 
     Expr res = lookup(op);
     if (!res)
@@ -2286,7 +2390,7 @@ public:
         llvm_unreachable("bitcast from float to int is not supported");
       else if (opTy->isDoubleTy())
         llvm_unreachable("bitcast from double to int is not supported");
-      else if (opTy->isIntegerTy()) {
+      else if (opTy->isIntegerTy() || opTy->isVectorTy()) {
         return res;
       } else {
         llvm_unreachable("Invalid bitcast");
@@ -2301,6 +2405,11 @@ public:
         llvm_unreachable("bitcast to double not supported");
       else
         return res;
+    } else if (ty->isVectorTy()) {
+      if (opTy->isIntegerTy() || opTy->isVectorTy())
+        return res;
+      else
+        llvm_unreachable("bitcast from vector type is unsupported");
     }
 
     llvm_unreachable("Invalid bitcast");
@@ -2756,7 +2865,8 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
     const Type &ty = *inst.getType();
     switch (ty.getTypeID()) {
     case Type::IntegerTyID:
-    case Type::StructTyID: // treat aggregate types in register as int
+    case Type::StructTyID:      // treat aggregate types in register as int
+    case Type::FixedVectorTyID: // treat fixed vectors in registers as int
       reg = bind::mkConst(v, alu().intTy(m_sem.sizeInBits(ty)));
       break;
     case Type::PointerTyID:
@@ -2844,12 +2954,28 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
       expr::mpz_class k = toMpz(gv.IntVal);
       return alu().num(k, m_sem.sizeInBits(c));
     }
+  } else if (c.getType()->isVectorTy()) {
+    ConstantExprEvaluator ce(m_sem.getDataLayout());
+    ce.setContext(*this);
+    auto GVO = ce.evaluate(&c);
+    if (GVO.hasValue()) {
+      auto &gv = GVO.getValue();
+      if (!gv.AggregateVal.empty()) {
+        auto vecBv0 = m_sem.vec(c.getType(), gv.AggregateVal, *this);
+        if (vecBv0.hasValue()) {
+          const APInt &vecBv = vecBv0.getValue();
+          expr::mpz_class k = toMpz(vecBv);
+          return alu().num(k, vecBv.getBitWidth());
+        }
+      }
+    }
+    LOG("opsem", WARN << "unhandled constant vector" << c;);
   } else if (c.getType()->isStructTy()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
     ce.setContext(*this);
     auto GVO = ce.evaluate(&c);
     if (GVO.hasValue()) {
-      GenericValue gv = GVO.getValue();
+      GenericValue &gv = GVO.getValue();
       if (!gv.AggregateVal.empty()) {
         auto aggBvO = m_sem.agg(c.getType(), gv.AggregateVal, *this);
         if (aggBvO.hasValue()) {
@@ -3161,7 +3287,8 @@ bool Bv2OpSem::isSkipped(const Value &v) const {
     // -- pointers are handled earlier in the procedure
     llvm_unreachable(nullptr);
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:  
+    return false;
+  case Type::ScalableVectorTyID:
     LOG("opsem", WARN << "Unsupported vector type\n";);
     return true;
   default:
@@ -3371,6 +3498,28 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
   return res;
 }
 
+Optional<APInt> Bv2OpSem::vec(Type *vecTy,
+                              const std::vector<GenericValue> &elements,
+                              details::Bv2OpSemContext &ctx) {
+
+  assert(vecTy->isVectorTy());
+  unsigned resBits = getDataLayout().getTypeSizeInBits(vecTy);
+  unsigned elemBits = getDataLayout().getTypeSizeInBits(vecTy->getScalarType());
+
+  APInt res(resBits, 0);
+
+  unsigned shiftBits = 0;
+  for (auto &gv : elements) {
+    APInt intVal = gv.IntVal.zext(resBits);
+    intVal <<= shiftBits;
+    res |= intVal;
+    shiftBits += elemBits;
+  }
+
+  errs() << "res is " << res << "\n";
+  return res;
+}
+
 void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
   // Get seadsa -- pointer analysis
   auto &dsa_pass = m_pass.getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
@@ -3410,8 +3559,8 @@ void Bv2OpSem::runCrabAnalysis() {
   aparams.widening_delay = 2; // set to delay widening
 
   if (UseCrabCheckIsDeref) {
-    crab::domains::crab_domain_params_man::get().
-      set_param("region.is_dereferenceable", "true");
+    crab::domains::crab_domain_params_man::get().set_param(
+        "region.is_dereferenceable", "true");
   }
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;

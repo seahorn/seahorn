@@ -32,7 +32,9 @@ public:
   Expr boolTy() override { return sort::boolTy(efac()); }
 
   bool isNum(Expr v) override { return bv::isBvNum(v); }
-  bool isNum(Expr v, unsigned &bitWidth) override { return bv::isBvNum(v, bitWidth); }
+  bool isNum(Expr v, unsigned &bitWidth) override {
+    return bv::isBvNum(v, bitWidth);
+  }
   expr::mpz_class toNum(Expr v) override { return bv::toMpz(v); }
 
   Expr ui(unsigned v, unsigned bitWidth) override {
@@ -123,7 +125,7 @@ public:
     return mk<BSLE>(op0, op1);
   }
   Expr doUge(Expr op0, Expr op1, unsigned bitWidth) override {
-    switch(bitWidth) {
+    switch (bitWidth) {
     case 1:
       return boolop::limp(op1, op0);
     default:
@@ -162,7 +164,8 @@ public:
     return bv::sext(op, bitWidth);
   }
 
-  Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin, unsigned end) override {
+  Expr Extract(std::pair<Expr, unsigned int> op, unsigned begin,
+               unsigned end) override {
     Expr res = bv::extract(end, begin, op.first);
     return (end == begin) ? bv1ToBool(res) : res;
   }
@@ -219,6 +222,8 @@ public:
       return m_trueBv1;
     if (isOpX<FALSE>(b))
       return m_falseBv1;
+    if (isOpX<EQ>(b) && b->arg(1) == m_trueBv1)
+      return b->arg(0);
     return mk<ITE>(b, m_trueBv1, m_falseBv1);
   }
 
@@ -227,6 +232,8 @@ public:
       return m_trueE;
     if (bv == m_falseBv1)
       return m_falseE;
+    if (isOpX<ITE>(bv) && bv->arg(1) == m_trueBv1 && bv->arg(2) == m_falseBv1)
+      return bv->arg(0);
     return mk<EQ>(bv, m_trueBv1);
   }
 

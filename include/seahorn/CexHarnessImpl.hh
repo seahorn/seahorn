@@ -263,10 +263,17 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
 
     Type *RT = CF->getReturnType();
     Type *pRT = nullptr;
-    if (RT->isIntegerTy())
+    Type *eRT = RT;
+    if (RT->isIntegerTy() && dl.typeSizeEqualsStoreSize(RT)) {
       pRT = RT->getPointerTo();
-    else
+    } else if (RT->isIntegerTy()) {
+      TypeSize tsz = dl.getTypeStoreSizeInBits(RT);
+      auto bitsz = tsz.getFixedSize();
+      eRT = Type::getIntNTy(TheContext, bitsz);
+      pRT = eRT->getPointerTo();
+    } else {
       pRT = Type::getInt8PtrTy(TheContext);
+    }
 
     ArrayType *AT = nullptr;
 
@@ -294,7 +301,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
                      [&RT, &dl, &TheContext](Expr e) {
                        return exprToLlvm(RT, e, TheContext, dl);
                      });
-      AT = ArrayType::get(RT, values.size());
+      AT = ArrayType::get(eRT, values.size());
       max_values = std::max(max_values, values.size());
     }
 

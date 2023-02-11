@@ -264,7 +264,8 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
     Type *RT = CF->getReturnType();
     Type *pRT = nullptr;
     Type *eRT = RT;
-    if (RT->isIntegerTy() && dl.typeSizeEqualsStoreSize(RT)) {
+    if ((RT->isIntegerTy() && dl.typeSizeEqualsStoreSize(RT)) ||
+        RT->isIntegerTy(1)) {
       pRT = RT->getPointerTo();
     } else if (RT->isIntegerTy()) {
       TypeSize tsz = dl.getTypeStoreSizeInBits(RT);

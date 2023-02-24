@@ -1,13 +1,15 @@
-#include "seahorn/Expr/ExprRewriter.hh"
+#include "seahorn/Expr/ExprRewriterDefs.hh"
 #include "seahorn/Expr/ExprNumericUtils.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
 #include "llvm/Support/CommandLine.h"
+#include <utility>
 
 static llvm::cl::opt<bool>
     UseArm("horn-hybrid-use-arm",
            llvm::cl::desc("Use ARM abstraction to simplify mem expr"),
            llvm::cl::init(false));
+
 namespace expr {
 using namespace addrRangeMap;
 namespace utils {
@@ -20,7 +22,7 @@ bool shouldCache(const Expr &e) {
 
 } // namespace utils
 
-bool ITECompRewriteConfig::shouldRewrite(const Expr &exp) {
+bool ITECompRewriteConfig::shouldRewrite(const Expr &exp) const {
   return isOpX<ITE>(exp) || isOpX<CompareOp>(exp) || isOpX<BoolOp>(exp) ||
          isOpX<SELECT>(exp) || isOpX<BADD>(exp);
 }
@@ -41,16 +43,15 @@ RewriteResult ITECompRewriteConfig::doRewrite(const Expr &exp) {
   return res;
 }
 
-bool PointerArithmeticConfig::shouldRewrite(const Expr &exp) {
+bool PointerArithmeticConfig::shouldRewrite(const Expr &exp) const {
   return isOpX<BADD>(exp) || isOpX<ITE>(exp);
 }
 
 RewriteResult PointerArithmeticConfig::doRewrite(const Expr &exp) {
-  RewriteResult res = {exp, RWStatus::RW_DONE};
   if (isOpX<BADD>(exp)) {
-    res = m_arithRule(exp);
+    return m_arithRule(exp);
   }
-  return res;
+  return {exp, RWStatus::RW_DONE};
 }
 
 bool WriteOverWriteConfig::shouldRewrite(const Expr &e) {
@@ -59,22 +60,21 @@ bool WriteOverWriteConfig::shouldRewrite(const Expr &e) {
 }
 
 RewriteResult WriteOverWriteConfig::doRewrite(const Expr &exp) {
-  RewriteResult res = {exp, RWStatus::RW_DONE};
   if (isOpX<BADD>(exp)) {
-    res = m_arithRule(exp);
+    return m_arithRule(exp);
   } else if (isOpX<STORE>(exp) || isOpX<STORE_MAP>(exp)) {
-    res = m_wowRule(exp);
+    return m_wowRule(exp);
   }
-  return res;
+  return {exp, RWStatus::RW_DONE};
 }
 
-void WriteOverWriteConfig::onAfterRewrite(const Expr &oldE, const Expr &newE) {
+void WriteOverWriteConfig::onAfterRewrite(const Expr &oldE, const Expr &newE) const {
   if (isOpX<STORE_MAP>(oldE) && isOpX<STORE_MAP>(newE) && oldE != newE) {
     op::array::transferStoreMapCache(&*oldE, &*newE, m_wowRule.m_smapC);
   }
 }
 
-RewriteResult ReadOverWriteRule::operator()(Expr exp) {
+RewriteResult ReadOverWriteRule::operator()(const Expr &exp) const {
   if (!isOpX<SELECT>(exp)) {
     return {exp, RWStatus::RW_SKIP};
   }
@@ -109,7 +109,7 @@ RewriteResult ReadOverWriteRule::operator()(Expr exp) {
   }
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverStore(const Expr &arr, const Expr &idx) const {
   const Expr &arrN = op::array::storeArray(arr);
   const Expr &idxN = op::array::storeIdx(arr);
   Expr res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
@@ -117,7 +117,7 @@ RewriteResult ReadOverWriteRule::rewriteReadOverStore(Expr arr, Expr idx) {
   return {std::move(res), RWStatus::RW_2};
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverIte(const Expr &arr, const Expr &idx) const {
   const Expr &i = arr->arg(0);
   const Expr &t = arr->arg(1);
   const Expr &e = arr->arg(2);
@@ -125,7 +125,7 @@ RewriteResult ReadOverWriteRule::rewriteReadOverIte(Expr arr, Expr idx) {
   return {std::move(res), RWStatus::RW_2};
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr, const Expr &idx) const {
   const Expr &inMem = arr->arg(0);
   const Expr &idxN = arr->arg(1);
   const Expr &len = arr->arg(2);
@@ -163,7 +163,7 @@ RewriteResult ReadOverWriteRule::rewriteReadOverMemset(Expr arr, Expr idx) {
   return {std::move(res), RWStatus::RW_2};
 }
 
-Expr ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx) {
+Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap, const Expr &idx) const {
   const Expr &arr = storeMap->arg(0);
   const Expr &base = storeMap->arg(1);
   const Expr &consList = storeMap->arg(2);
@@ -205,7 +205,7 @@ Expr ReadOverWriteRule::revertSMapToIte(Expr storeMap, Expr idx) {
   return res;
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(const Expr &arr, const Expr &idx) const {
   Expr nxtArr = arr->arg(0), base = arr->arg(1);
   Expr smap = op::array::storeMapGetMap(arr);
 
@@ -243,7 +243,7 @@ RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(Expr arr, Expr idx) {
   }
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
+RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(const Expr &arr, const Expr &idx) const {
   /** select(copy(a, p, b, q, s), i) =>
    * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
   Expr res;
@@ -287,7 +287,7 @@ RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(Expr arr, Expr idx) {
 }
 using namespace op::array;
 using namespace op::bv;
-RewriteResult WriteOverWriteRule::rewriteStore(Expr e) {
+RewriteResult WriteOverWriteRule::rewriteStore(const Expr &e) const {
   Expr arr = storeArray(e), idx = storeIdx(e), val = storeVal(e);
   /* idx should be normalised */
   Expr idxBase;
@@ -356,7 +356,7 @@ RewriteResult WriteOverWriteRule::rewriteStore(Expr e) {
   return {e, RWStatus::RW_DONE};
 }
 
-RewriteResult WriteOverWriteRule::operator()(Expr e) {
+RewriteResult WriteOverWriteRule::operator()(const Expr &e) const {
   if (!isOpX<STORE>(e) && !isOpX<STORE_MAP>(e)) {
     return {e, RWStatus::RW_SKIP};
   }
@@ -367,7 +367,7 @@ RewriteResult WriteOverWriteRule::operator()(Expr e) {
   }
 }
 
-RewriteResult CompareRewriteRule::operator()(Expr exp) {
+RewriteResult CompareRewriteRule::operator()(const Expr &exp) const {
   if (!isOpX<CompareOp>(exp)) {
     return {exp, RWStatus::RW_SKIP};
   }
@@ -424,7 +424,7 @@ RewriteResult CompareRewriteRule::operator()(Expr exp) {
   return {exp, RWStatus::RW_DONE};
 }
 
-RewriteResult ITERewriteRule::operator()(Expr exp) {
+RewriteResult ITERewriteRule::operator()(const Expr &exp) const {
   if (!isOpX<ITE>(exp)) {
     return {exp, RWStatus::RW_SKIP};
   }

@@ -1,17 +1,21 @@
 #pragma once
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprCore.hh"
-#include "seahorn/Expr/ExprRewriteRule.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
 namespace expr {
-using namespace seahorn;
-using namespace mem;
 
 namespace utils {
 bool shouldCache(const Expr &e);
 } // end of namespace utils
+
+enum RWStatus { RW_DONE = 0, RW_1 = 1, RW_2 = 2, RW_FULL = 4, RW_SKIP = 5 };
+
+struct RewriteResult {
+  Expr exp;
+  RWStatus status;
+};
 
 struct RewriteFrame {
   // the Expr node (subtree) under rewrite
@@ -42,15 +46,14 @@ public:
   ExprRewriterConfigBase(ExprFactory &efac, DagVisitCache &cache)
       : m_efac(efac), m_cache(cache) {}
 
-  bool shouldCache(const Expr &e) { return e->use_count() > 1; }
+  bool shouldCache(const Expr &e) const { return e->use_count() > 1; }
 
   // RewriteResult doRewrite(Expr exp);
 
   // bool shouldRewrite(Expr exp);
 
-  // /* Given original Expr oldE and rewritten newE, do actions like
-  //   update cache, logging, etc */
-  // void onAfterRewrite(Expr oldE, Expr newE);
+  /// Event handler for after successful rewrite
+  void onAfterRewrite(const Expr &oldE, const Expr &newE) const {}
 };
 
 /// \brief A generic bottom up expression rewriter
@@ -201,84 +204,6 @@ public:
     }
     return m_resultStack.back();
   }
-};
-
-/************************************************************************/
-/* Specific rewriters */
-/************************************************************************/
-
-/* example config for ITE */
-class ITECompRewriteConfig : public ExprRewriterConfigBase {
-private:
-  ITERewriteRule m_iteRule;      // Fig 1
-  CompareRewriteRule m_compRule; // Fig 3
-  BoolOpRewriteRule m_boolRule;  // Fig 4
-  ReadOverWriteRule m_arrayRule; // Fig 2
-  ArithmeticRule m_arithRule;    // Fig 5
-
-public:
-  ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache, ARMCache &armC,
-                       PtrTypeCheckCache &ptC, op::array::StoreMapCache &smC,
-                       unsigned wordSize, unsigned ptrWidth)
-      : ExprRewriterConfigBase(efac, cache), m_iteRule(efac, cache),
-        m_compRule(efac, cache, ptC, armC, ptrWidth), m_boolRule(efac, cache),
-        m_arrayRule(efac, cache, armC, ptC, smC, wordSize, ptrWidth),
-        m_arithRule(efac, cache) {}
-
-  RewriteResult doRewrite(const Expr &exp);
-  bool shouldRewrite(const Expr &exp);
-  bool shouldCache(const Expr &e) {
-    if (ExprRewriterConfigBase::shouldCache(e))
-      return true;
-    return utils::shouldCache(e);
-  }
-  void onAfterRewrite(Expr oldE, Expr newE) {}
-};
-
-/* config for normalising pointer bvadd */
-class PointerArithmeticConfig : public ExprRewriterConfigBase {
-private:
-  ArithmeticRule m_arithRule;
-
-public:
-  PointerArithmeticConfig(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriterConfigBase(efac, cache), m_arithRule(efac, cache, true) {}
-
-  RewriteResult doRewrite(const Expr &exp);
-  bool shouldRewrite(const Expr &exp);
-
-  bool shouldCache(const Expr &e) {
-    if (ExprRewriterConfigBase::shouldCache(e))
-      return true;
-    return utils::shouldCache(e);
-  }
-
-  void onAfterRewrite(const Expr &oldE, const Expr &newE) {}
-};
-
-/* config for eager-rewriting store */
-class WriteOverWriteConfig : public ExprRewriterConfigBase {
-private:
-  ArithmeticRule m_arithRule;
-  WriteOverWriteRule m_wowRule;
-
-public:
-  WriteOverWriteConfig(ExprFactory &efac, DagVisitCache &cache,
-                       op::array::StoreMapCache &sC, unsigned ptrWidth)
-      : ExprRewriterConfigBase(efac, cache), m_arithRule(efac, cache, true),
-        m_wowRule(efac, cache, sC, ptrWidth) {}
-
-  RewriteResult doRewrite(const Expr &exp);
-
-  bool shouldRewrite(const Expr &exp);
-
-  bool shouldCache(const Expr &e) {
-    if (ExprRewriterConfigBase::shouldCache(e))
-      return true;
-    return utils::shouldCache(e);
-  }
-
-  void onAfterRewrite(Expr const &oldE, const Expr &newE);
 };
 
 } // end of namespace expr

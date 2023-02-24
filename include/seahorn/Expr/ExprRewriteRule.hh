@@ -7,6 +7,7 @@
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprOpMem.hh"
+#include "seahorn/Expr/ExprRewriter.hh"
 #include "seahorn/Expr/ExprSimplifier.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/Z3.hh"
@@ -17,33 +18,18 @@
 namespace expr {
 using namespace mem;
 using namespace addrRangeMap; /* addrRangeMap */
+
 namespace utils {
 
-
-inline Expr ptrAdd(Expr a, Expr b) { return mk<BADD>(a, b); }
-
-inline Expr ptrSub(Expr a, Expr b) { return mk<BSUB>(a, b); }
-
-inline Expr ptrUle(Expr a, Expr b) { return mk<BULE>(a, b); }
+inline Expr ptrAdd(const Expr &a, const Expr &b) { return mk<BADD>(a, b); }
+inline Expr ptrSub(const Expr &a, const Expr &b) { return mk<BSUB>(a, b); }
+inline Expr ptrUle(const Expr &a, const Expr &b) { return mk<BULE>(a, b); }
 /** begin <= i <= end **/
-inline Expr ptrInRangeCheck(Expr begin, Expr i, Expr end) {
+inline Expr ptrInRangeCheck(const Expr &begin, const Expr &i, const Expr &end) {
   return mk<AND>(ptrUle(begin, i), ptrUle(i, end));
 }
 
 } // end of namespace utils
-
-enum RWStatus {
-  RW_DONE = 0,
-  RW_1 = 1,
-  RW_2 = 2,
-  RW_FULL = 4,
-  RW_SKIP = 5
-};
-
-struct RewriteResult {
-  Expr exp;
-  RWStatus status;
-};
 
 struct ExprRewriteRule : public std::unary_function<Expr, RewriteResult> {
   ExprFactory &m_efac;    // for making expr
@@ -57,7 +43,7 @@ struct ExprRewriteRule : public std::unary_function<Expr, RewriteResult> {
         falseE(mk<FALSE>(efac)) {}
   ExprRewriteRule(const ExprRewriteRule &o) = default;
 
-  RewriteResult operator()(Expr exp) { return {exp, RWStatus::RW_DONE}; }
+  RewriteResult operator()(const Expr &exp) const { return {exp, RWStatus::RW_DONE}; }
 };
 
 struct ITERewriteRule : public ExprRewriteRule {
@@ -65,7 +51,7 @@ struct ITERewriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache) {}
   ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
 
-  RewriteResult operator()(Expr exp);
+  RewriteResult operator()(const Expr &exp) const;
 };
 
 struct CompareRewriteRule : public ExprRewriteRule {
@@ -79,7 +65,7 @@ struct CompareRewriteRule : public ExprRewriteRule {
         m_ptcCache(ptcCache), m_armCache(armCache) {}
   CompareRewriteRule(const CompareRewriteRule &o) = default;
 
-  RewriteResult operator()(Expr exp);
+  RewriteResult operator()(const Expr &exp) const;
 };
 
 struct BoolOpRewriteRule : public ExprRewriteRule {
@@ -87,30 +73,30 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache) {}
   BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
 
-  RewriteResult operator()(Expr exp) {
+  RewriteResult operator()(const Expr &exp) const {
     // seahorn::ScopedStats _st("rw_bool");
     if (!isOpX<BoolOp>(exp)) {
       return {exp, RWStatus::RW_SKIP};
     }
 
     if (isOpX<NEG>(exp)) {
-      Expr neg = exp->arg(0);
+      Expr arg0 = exp->arg(0);
       // double neg => truthy
       // e.g. !(!a) ==> a
-      if (isOpX<NEG>(neg)) {
-        return {neg->arg(0), RWStatus::RW_DONE};
+      if (isOpX<NEG>(arg0)) {
+        return {arg0->arg(0), RWStatus::RW_DONE};
       }
       // !ite(c, a, b) => ite(c, !a, !b)
-      if (isOpX<ITE>(neg)) {
+      if (isOpX<ITE>(arg0)) {
         return {
-            mk<ITE>(neg->arg(0), mk<NEG>(neg->arg(1)), mk<NEG>(neg->arg(2))),
+            mk<ITE>(arg0->arg(0), mk<NEG>(arg0->arg(1)), mk<NEG>(arg0->arg(2))),
             RWStatus::RW_1};
       }
       // negate trivial constants: !true => false; !false => true
-      if (isOpX<TRUE>(neg)) {
+      if (isOpX<TRUE>(arg0)) {
         return {falseE, RWStatus::RW_DONE};
       }
-      if (isOpX<FALSE>(neg)) {
+      if (isOpX<FALSE>(arg0)) {
         return {trueE, RWStatus::RW_DONE};
       }
     }
@@ -134,21 +120,21 @@ struct ReadOverWriteRule : public ExprRewriteRule {
 
   ReadOverWriteRule(const ReadOverWriteRule &o) = default;
 
-  RewriteResult operator()(Expr exp);
+  RewriteResult operator()(const Expr &exp) const;
 
 private:
-  RewriteResult rewriteReadOverStore(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverStore(const Expr &arr, const Expr &idx) const;
 
-  RewriteResult rewriteReadOverIte(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverIte(const Expr &arr, const Expr &idx) const;
 
-  RewriteResult rewriteReadOverMemset(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverMemset(const Expr &arr, const Expr &idx) const;
 
-  RewriteResult rewriteReadOverMemcpy(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverMemcpy(const Expr &arr, const Expr &idx) const;
 
-  RewriteResult rewriteReadOverStoreMap(Expr arr, Expr idx);
+  RewriteResult rewriteReadOverStoreMap(const Expr &arr, const Expr &idx) const;
 
   /* Given select(storemap(arr, base, smap), idx), revert into ite form */
-  Expr revertSMapToIte(Expr storeMap, Expr idx);
+  Expr revertSMapToIte(const Expr &storeMap, const Expr &idx) const;
 };
 
 // for eager pre-processing stores during storeWord
@@ -160,8 +146,8 @@ struct WriteOverWriteRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache), m_ptrWidth(ptrWidth), m_smapC(sC) {}
   WriteOverWriteRule(const WriteOverWriteRule &o) = default;
 
-  RewriteResult operator()(Expr exp);
-  RewriteResult rewriteStore(Expr exp);
+  RewriteResult operator()(const Expr &exp) const;
+  RewriteResult rewriteStore(const Expr &exp) const;
 };
 
 struct ArithmeticRule : public ExprRewriteRule {
@@ -171,7 +157,7 @@ struct ArithmeticRule : public ExprRewriteRule {
       : ExprRewriteRule(efac, cache), m_deepIte(deepIte) {}
   ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
 
-  RewriteResult operator()(Expr exp) {
+  RewriteResult operator()(const Expr &exp) const {
     // seahorn::ScopedStats _st("rw_arith");
     if (!isOpX<BADD>(exp)) {
       return {exp, RWStatus::RW_SKIP};
@@ -183,10 +169,10 @@ struct ArithmeticRule : public ExprRewriteRule {
       bvadd(ite(i, a, b), c) ==> ite(i, bvadd(a, c), bvadd(b, c))
       bvadd(c, ite(i, a, b)) ==> ite(i, bvadd(a, c), bvadd(b, c))
       **/
-      Expr lhs = exp->left();
-      Expr rhs = exp->right();
+      auto lhs = exp->left();
+      auto rhs = exp->right();
       if (isOpX<ITE>(lhs)) {
-        Expr i = lhs->first();
+        auto i = lhs->first();
         Expr addL = mk<BADD>(lhs->arg(1), rhs);
         Expr addR = mk<BADD>(lhs->arg(2), rhs);
         return {mk<ITE>(i, addL, addR), RWStatus::RW_2};

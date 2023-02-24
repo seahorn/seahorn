@@ -5,6 +5,7 @@
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpMem.hh"
 #include "seahorn/Expr/ExprRewriter.hh"
+#include "seahorn/Expr/ExprRewriterDefs.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
 #include "llvm/Support/CommandLine.h"

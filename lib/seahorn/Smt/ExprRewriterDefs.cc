@@ -3,7 +3,6 @@
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Support/Stats.hh"
 #include "llvm/Support/CommandLine.h"
-#include <utility>
 
 static llvm::cl::opt<bool>
     UseArm("horn-hybrid-use-arm",

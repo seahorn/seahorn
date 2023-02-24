@@ -9,7 +9,7 @@ add_llvm_library (SeaSmt DISABLE_LLVM_LINK_LLVM_DYLIB
   TypeChecker.cc
   HexDump.cc
   ExprMemMap.cc
-  ExprRewriter.cc
+  ExprRewriterDefs.cc
   ExprAddrRangeMap.cc
   )
 

@@ -3,6 +3,8 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Transforms/Instrumentation/GeneratePartialFnPass.hh"
 
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/InstIterator.h"
 
 #include "llvm/IR/IRBuilder.h"
@@ -15,6 +17,11 @@
 
 #include "llvm/Analysis/CallGraph.h"
 using namespace llvm;
+
+static llvm::cl::opt<bool> IgnoreDefinedVerifierFunctions(
+    "ignore-def-verifier-fn",
+    llvm::cl::desc("Treat only undef functions as verifier calls"),
+    cl::init(true));
 
 namespace {
 
@@ -159,7 +166,8 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
       {"sea_tracking_off", {m_tracking_off, 0}},
       {"sea_free", {m_free, 1}},
       {"sea_set_shadowmem", {m_set_shadowmem, 3}},
-      {"sea_get_shadowmem", {m_get_shadowmem, 2}}};
+      {"sea_get_shadowmem", {m_get_shadowmem, 2}},
+  };
 
   auto replaceFn = [](Instruction &I, std::pair<Function *, unsigned> f,
                       Function &F, SmallVector<Instruction *, 16> &toKill,
@@ -198,12 +206,38 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     // -- check if this is a call through a pointer cast
     if (!fn && CI.getCalledOperand())
       fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
-
     // -- expect functions we promote to not be defined in the module,
     // -- if they are defined, then do not promote and treat as regular
     // -- functions
-    if (fn && !fn->empty())
+    if (fn && !fn->empty() && IgnoreDefinedVerifierFunctions)
       continue;
+
+    if (fn && (fn->getName().startswith("sea_nd"))) {
+      IRBuilder<> Builder(F.getContext());
+      Builder.SetInsertPoint(&I);
+      CallInst *ci;
+      // Create new ND function name
+      auto newFunctionName = llvm::SmallString<6>();
+      auto nameFromSuffix = fn->getName().substr(6, fn->getName().size());
+      newFunctionName.append("nondet.sea");
+      newFunctionName.append(nameFromSuffix);
+      auto retTy = fn->getReturnType();
+      // create new ND function
+      auto M = F.getParent();
+      auto FC = M->getOrInsertFunction(newFunctionName.str(), retTy);
+      auto *FN = dyn_cast<Function>(FC.getCallee());
+      if (FN) {
+        FN->setDoesNotThrow();
+        FN->setDoesNotRecurse();
+        FN->setDoesNotFreeMemory();
+      }
+      ci = Builder.CreateCall(FN);
+      // replace old ND function with new function name
+      if (cg)
+        (*cg)[&F]->addCalledFunction(ci, (*cg)[ci->getCalledFunction()]);
+      I.replaceAllUsesWith(ci);
+      toKill.push_back(&I);
+    }
 
     if (fn && (fn->getName().equals("__VERIFIER_assume") ||
                fn->getName().equals("__VERIFIER_assert") ||

@@ -377,6 +377,9 @@ class Seapp(sea.LimitedCmd):
 
         add_bool_argument(ap, 'with-arith-overflow', dest='with_arith_overflow',
                           help='Allow arithmetic overflow intrinsics')
+        add_bool_argument(ap, 'ignore-define-verifier-fns', dest='ignore_defined_verifier_fns',
+                          help='Treat only undef functions as verifier calls')
+
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -474,7 +477,8 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--kill-vaarg=true')
             else:
                 argv.append('--kill-vaarg=false')
-
+            if not args.ignore_defined_verifier_fns:
+                argv.append('--ignore-def-verifier-fn=false')
             if args.with_arith_overflow:
                 argv.append('--horn-keep-arith-overflow=true')
             else:

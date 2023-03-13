@@ -3564,7 +3564,7 @@ void Bv2OpSem::runCrabAnalysis() {
   }
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
-  LOG("opsem-crab", aparams.print_invars = true;);
+  LOG("opsem-crab", aparams.print_invars = clam::InvariantPrinterOptions::BLOCKS;);
   Stats::resume("opsem.crab");
   m_crab_rng_solver->analyze(aparams, assumptions);
   Stats::stop("opsem.crab");

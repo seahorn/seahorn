@@ -81,7 +81,7 @@ void CrabAnalysis::runCrabAnalysis() {
   }
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
-  LOG("seapp-crab", aparams.print_invars = true;);
+  LOG("seapp-crab", aparams.print_invars = clam::InvariantPrinterOptions::BLOCKS;);
   Stats::resume("seapp.crab");
   m_crab->analyze(aparams, assumptions);
   Stats::stop("seapp.crab");

@@ -87,6 +87,10 @@ bool MixedSemantics::runOnModule(Module &M) {
   if (!main)
     return false;
 
+  // -- main is a declaration only, no body
+  if (main->empty())
+    return false;
+
   removeUnreachableBlocks(*main);
 
   auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();

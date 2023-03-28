@@ -78,7 +78,7 @@ size_t dagSize(const ExprVector &vec) {
 /** Size of an expression as a tree */
 size_t treeSize(Expr e) {
   SIZE sz;
-  visit(sz, e);
+  treeVisit(sz, e);
   return sz.count;
 }
 

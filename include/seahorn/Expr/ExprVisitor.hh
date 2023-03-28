@@ -2,6 +2,7 @@
 #pragma once
 
 #include "seahorn/Expr/ExprCore.hh"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <unordered_map>
 
@@ -53,7 +54,7 @@ public:
   // skipKids or doKids
   VisitAction(bool kids = false)
       : m_skipKids(kids), m_fn(new ExprFunctionoid<IdentityRewriter>(
-                             std::make_shared<IdentityRewriter>())) {}
+                              std::make_shared<IdentityRewriter>())) {}
 
   // changeTo or doKidsRewrite
   template <typename R>
@@ -64,7 +65,9 @@ public:
   bool isSkipKids() { return m_skipKids && m_expr.get() == nullptr; }
   bool isChangeTo() { return m_skipKids && m_expr.get() != nullptr; }
   bool isDoKids() { return !m_skipKids && m_expr.get() == nullptr; }
-  bool isChangeDoKidsRewrite() { return !m_skipKids && m_expr.get() != nullptr; }
+  bool isChangeDoKidsRewrite() {
+    return !m_skipKids && m_expr.get() != nullptr;
+  }
 
   Expr rewrite(Expr v) { return m_fn->apply(v); }
 
@@ -84,7 +87,6 @@ public:
   static inline VisitAction changeDoKidsRewrite(Expr e, std::shared_ptr<R> r) {
     return VisitAction(e, false, r);
   }
-
 };
 
 using DagVisitCache = std::unordered_map<ENode *, Expr>;
@@ -111,7 +113,7 @@ Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
     res = va.isChangeDoKidsRewrite() ? va.getExpr() : expr;
     if (res->arity() > 0) {
       bool changed = false;
-      std::vector<Expr> kids;
+      llvm::SmallVector<Expr, 16> kids;
 
       for (auto b = res->args_begin(), e = res->args_end(); b != e; ++b) {
         Expr k = visit(v, *b, cache);
@@ -132,7 +134,7 @@ Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
 
   if (expr->use_count() > 1) {
     expr->Ref();
-    cache[&*expr] = res;
+    cache.insert({&*expr, res});
   }
 
   return res;
@@ -169,7 +171,10 @@ void dagVisit(ExprVisitor &v, const ExprVector &vec) {
   }
 }
 
-template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
+/// -- visit expression as though it is a tree
+/// --
+/// -- this does not use a visited table and might visit the same expression multiple times
+template <typename ExprVisitor> Expr treeVisit(ExprVisitor &v, Expr expr) {
   VisitAction va = v(expr);
 
   if (va.isSkipKids())
@@ -187,7 +192,7 @@ template <typename ExprVisitor> Expr visit(ExprVisitor &v, Expr expr) {
   std::vector<Expr> kids;
 
   for (auto b = res->args_begin(), e = res->args_end(); b != e; ++b) {
-    Expr k = visit(v, *b);
+    Expr k = treeVisit(v, *b);
     kids.push_back(k);
     changed = (changed || k.get() != *b);
   }

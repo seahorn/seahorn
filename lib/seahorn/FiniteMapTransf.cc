@@ -277,7 +277,7 @@ public:
 
 static Expr dsaIteSimplify(Expr e) {
   IteTopDownVisitor itdv;
-  return visit(itdv, e);
+  return dagVisit(itdv, e);
 }
 
 // ----------------------------------------------------------------------

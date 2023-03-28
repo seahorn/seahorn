@@ -414,7 +414,7 @@ template <typename T> class Evaluate {
   template <typename A> A evaluateHelper(Expr exp) {
     evalImpl::EV<A> visitor(m_evalModel);
 
-    visit(visitor, exp);
+    dagVisit(visitor, exp);
     return visitor.getValue(exp);
   }
 

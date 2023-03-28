@@ -24,7 +24,8 @@ inline Z3_ast mk_mpq_core(z3::context &ctx, const expr::mpq_class &num) {
 }
 
 inline Z3_ast mk_boolop_core(z3::context &ctx, const expr::Operator &op,
-                             unsigned arity, const std::vector<Z3_ast> &zargs) {
+                             unsigned arity,
+                             const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<BoolOp>(op).m_kind) {
   default:
@@ -53,7 +54,7 @@ inline Z3_ast mk_boolop_core(z3::context &ctx, const expr::Operator &op,
 
 inline Z3_ast mk_compare_core(z3::context &ctx, const expr::Operator &op,
                               unsigned arity,
-                              const std::vector<Z3_ast> &zargs) {
+                              const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<CompareOp>(op).m_kind) {
   default:
@@ -74,7 +75,8 @@ inline Z3_ast mk_compare_core(z3::context &ctx, const expr::Operator &op,
   return nullptr;
 }
 inline Z3_ast mk_type_core(z3::context &ctx, const expr::Operator &op,
-                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+                           unsigned arity,
+                           const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<SimpleTypeOp>(op).m_kind) {
   default:
@@ -95,7 +97,7 @@ inline Z3_ast mk_type_core(z3::context &ctx, const expr::Operator &op,
 }
 inline Z3_ast mk_numeric_core(z3::context &ctx, const expr::Operator &op,
                               unsigned arity,
-                              const std::vector<Z3_ast> &zargs) {
+                              const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<NumericOp>(op).m_kind) {
   default:
@@ -120,7 +122,8 @@ inline Z3_ast mk_numeric_core(z3::context &ctx, const expr::Operator &op,
 }
 
 inline Z3_ast mk_array_core(z3::context &ctx, const expr::Operator &op,
-                            unsigned arity, const std::vector<Z3_ast> &zargs) {
+                            unsigned arity,
+                            const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<ArrayOp>(op).m_kind) {
   default:
@@ -144,7 +147,8 @@ inline Z3_ast mk_array_core(z3::context &ctx, const expr::Operator &op,
 }
 
 inline Z3_ast mk_bind_core(z3::context &ctx, const expr::Operator &op,
-                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+                           unsigned arity,
+                           const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<BindOp>(op).m_kind) {
   default:
@@ -162,7 +166,8 @@ inline Z3_ast mk_bind_core(z3::context &ctx, const expr::Operator &op,
 }
 
 inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
-                           unsigned arity, const std::vector<Z3_ast> &zargs) {
+                           unsigned arity,
+                           const llvm::SmallVectorImpl<Z3_ast> &zargs) {
   using namespace expr;
   switch (llvm::cast<BvOp>(op).m_kind) {
   default:
@@ -193,7 +198,7 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
     if (arity == 2)
       return Z3_mk_bvand(ctx, zargs[0], zargs[1]);
     Z3_ast res = zargs.back();
-    for (unsigned i = 1, sz = zargs.size(); i < sz; i++){
+    for (unsigned i = 1, sz = zargs.size(); i < sz; i++) {
       res = Z3_mk_bvand(ctx, zargs[sz - 1 - i], res);
       assert(res && "Creating bvand failed");
     }
@@ -287,9 +292,9 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
       return Z3_mk_bvadd(ctx, zargs[0], zargs[1]);
     Z3_ast res = zargs.back();
     for (unsigned i = 1, sz = zargs.size(); i < sz; i++) {
-        res = Z3_mk_bvadd(ctx, zargs[sz - i - 1], res);
-        assert(res && "Creating bvadd failed");
-      }
+      res = Z3_mk_bvadd(ctx, zargs[sz - i - 1], res);
+      assert(res && "Creating bvadd failed");
+    }
     return res;
   }
   }
@@ -301,7 +306,7 @@ inline Z3_ast mk_bvop_core(z3::context &ctx, const expr::Operator &op,
 namespace seahorn {
 template <typename C>
 z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
-                         expr_ast_map &seen) {
+                         expr_ast_map &visited) {
   using namespace expr;
 
   // -- try global cache first
@@ -312,15 +317,15 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
   }
   // -- try local cache second
   {
-    auto it = seen.find(_e);
-    if (it != seen.end())
+    auto it = visited.find(_e);
+    if (it != visited.end())
       return it->second;
   }
 
   z3::ast_vector pinned(ctx);
 
-  std::vector<Z3_ast> zargs;
-  ExprVector todo;
+  llvm::SmallVector<Z3_ast, 16> zargs;
+  llvm::SmallVector<Expr, 16> todo;
   todo.push_back(_e);
 
   Z3_ast res = nullptr;
@@ -354,13 +359,14 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
         std::vector<Z3_sort> domain(arity);
 
         for (unsigned i = 0, sz = bind::domainSz(e); i < sz; ++i) {
-          pinned.push_back(marshal(bind::domainTy(e, i), ctx, cache, seen));
+          pinned.push_back(marshal(bind::domainTy(e, i), ctx, cache, visited));
           domain[i] =
               reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(pinned.back()));
         }
 
-        z3::sort range(ctx, reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(
-                                marshal(bind::rangeTy(e), ctx, cache, seen))));
+        z3::sort range(ctx,
+                       reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(
+                           marshal(bind::rangeTy(e), ctx, cache, visited))));
 
         Expr fname = bind::fname(e);
         std::string sname;
@@ -379,18 +385,18 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
         if (bind::isFdecl(bind::fname(e))) {
           z3::func_decl zfdecl(
               ctx, reinterpret_cast<Z3_func_decl>(static_cast<Z3_ast>(
-                       marshal(bind::fname(e), ctx, cache, seen))));
+                       marshal(bind::fname(e), ctx, cache, visited))));
 
           // -- marshall all arguments except for the first one
           // -- (which is the fdecl)
-          std::vector<Z3_ast> args(e->arity());
+          llvm::SmallVector<Z3_ast, 8> args(e->arity());
           z3::ast_vector pinned_args(ctx);
           pinned_args.resize(e->arity());
 
           unsigned pos = 0;
           for (auto it = ++(e->args_begin()), end = e->args_end(); it != end;
                ++it) {
-            z3::ast a(marshal(*it, ctx, cache, seen));
+            z3::ast a(marshal(*it, ctx, cache, visited));
             pinned_args.push_back(a);
             args[pos++] = a;
           }
@@ -419,7 +425,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       // global cache is one-to-one, but mapping from Expr to z3::ast is not!
       // we keep extra mappings in local cache
       if (!v.second)
-        seen.insert({e, ast});
+        visited.insert({e, ast});
       continue;
     }
 
@@ -431,9 +437,9 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       if (cache_it != cache.end())
         bodyZ = cache_it->second;
       else {
-        auto seen_it = seen.find(bodyE);
-        if (seen_it != seen.end())
-          bodyZ = seen_it->second;
+        auto visit_it = visited.find(bodyE);
+        if (visit_it != visited.end())
+          bodyZ = visit_it->second;
         else {
           // -- not found, push into todo list
           todo.push_back(bodyE);
@@ -446,13 +452,13 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       unsigned num_bound = bind::numBound(e);
       z3::ast_vector pinned(ctx);
       pinned.resize(num_bound);
-      std::vector<Z3_sort> bound_sorts;
+      llvm::SmallVector<Z3_sort, 32> bound_sorts;
       bound_sorts.reserve(num_bound);
-      std::vector<Z3_symbol> bound_names;
+      llvm::SmallVector<Z3_symbol, 32> bound_names;
       bound_names.reserve(num_bound);
 
       for (unsigned i = 0; i < num_bound; ++i) {
-        z3::ast z(marshal(bind::decl(e, i), ctx, cache, seen));
+        z3::ast z(marshal(bind::decl(e, i), ctx, cache, visited));
         pinned.push_back(z);
 
         Z3_func_decl decl = Z3_to_func_decl(ctx, z);
@@ -470,10 +476,10 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
       }
     } else if (isOp<BEXTRACT>(e)) {
       assert(bv::high(e) >= bv::low(e));
-      z3::ast a(ctx, marshal(bv::earg(e), ctx, cache, seen));
+      z3::ast a(ctx, marshal(bv::earg(e), ctx, cache, visited));
       res = Z3_mk_extract(ctx, bv::high(e), bv::low(e), a);
     } else if (bind::isBVar(e)) {
-      z3::ast sort(marshal(bind::type(e), ctx, cache, seen));
+      z3::ast sort(marshal(bind::type(e), ctx, cache, visited));
       res = Z3_mk_bound(ctx, bind::bvarId(e),
                         reinterpret_cast<Z3_sort>(static_cast<Z3_ast>(sort)));
     }
@@ -481,7 +487,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     if (res) {
       z3::ast ast(ctx, res);
       todo.pop_back();
-      seen.insert({e, ast});
+      visited.insert({e, ast});
       continue;
     }
 
@@ -495,18 +501,20 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
         zargs.push_back(cache_it->second);
         continue;
       }
-      auto seen_it = seen.find(arg);
-      if (seen_it != seen.end()) {
-        zargs.push_back(seen_it->second);
+      auto visit_it = visited.find(arg);
+      if (visit_it != visited.end()) {
+        zargs.push_back(visit_it->second);
         continue;
       }
       todo.push_back(arg);
     }
     if (todo.size() > sz) {
-      LOG(
-          "expr2z", errs() << "TODO arguments are: \n";
-          for (unsigned i = sz; i < todo.size();
-               ++i) { errs() << i << ": " << *todo[i] << "\n"; });
+      LOG("expr2z", {
+        errs() << "TODO arguments are: \n";
+        for (unsigned i = sz; i < todo.size(); ++i) {
+          errs() << i << ": " << *todo[i] << "\n";
+        }
+      });
       continue;
     }
 
@@ -566,7 +574,7 @@ z3::ast ExprToZ::marshal(const expr::Expr &_e, z3::context &ctx, C &cache,
     }
     assert(res);
     todo.pop_back();
-    seen.insert({e, z3::ast(ctx, res)});
+    visited.insert({e, z3::ast(ctx, res)});
   }
 
   assert(res);

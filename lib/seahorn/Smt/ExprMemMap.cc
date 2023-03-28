@@ -176,7 +176,7 @@ VisitAction ArrayVisitor::operator()(Expr exp) {
 bool ExprMemMap::populateCells(Expr exp) {
   if (isOp<ITE>(exp)) {
     m_visitor = std::make_unique<ITEVisitor>(&m_cells);
-    visit(*m_visitor, exp); // note: HD_ITE has its own cache
+    dagVisit(*m_visitor, exp); // note: HD_ITE has its own cache
 
     m_visitor->doneVisiting();
 

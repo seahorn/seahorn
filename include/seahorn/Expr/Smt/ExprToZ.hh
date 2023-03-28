@@ -20,4 +20,12 @@ public:
   static expr::Expr unmarshal(const z3::ast &z, expr::ExprFactory &efac,
                               C &cache, ast_expr_map &seen);
 };
+
+class ZToExprNoRec {
+public:
+  template <typename C>
+  static expr::Expr unmarshal(const z3::ast &z, expr::ExprFactory &efac,
+                              C &cache, ast_expr_map &seen);
+};
+
 } // namespace seahorn

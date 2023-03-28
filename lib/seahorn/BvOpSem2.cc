@@ -762,10 +762,10 @@ public:
         });
       }
       // llvm.bswap.i16
-      if (CB.getType()->isIntegerTy(16) &&
-          IA->getConstraintString().compare(0, 5, "=r,0,") == 0 &&
-          (AsmStr.compare(0, 16, "rorw $$8, ${0:w}") == 0 ||
-           AsmStr.compare(0, 16, "rolw $$8, ${0:w}") == 0)) {
+      else if (CB.getType()->isIntegerTy(16) &&
+               IA->getConstraintString().compare(0, 5, "=r,0,") == 0 &&
+               (AsmStr.compare(0, 16, "rorw $$8, ${0:w}") == 0 ||
+                AsmStr.compare(0, 16, "rolw $$8, ${0:w}") == 0)) {
         // Check Flag resgisters
         AsmPieces.clear();
         llvm::SplitString(StringRef(IA->getConstraintString()).substr(5),
@@ -3564,7 +3564,8 @@ void Bv2OpSem::runCrabAnalysis() {
   }
   /// Run the Crab analysis
   clam::ClamGlobalAnalysis::abs_dom_map_t assumptions;
-  LOG("opsem-crab", aparams.print_invars = clam::InvariantPrinterOptions::BLOCKS;);
+  LOG("opsem-crab",
+      aparams.print_invars = clam::InvariantPrinterOptions::BLOCKS;);
   Stats::resume("opsem.crab");
   m_crab_rng_solver->analyze(aparams, assumptions);
   Stats::stop("opsem.crab");

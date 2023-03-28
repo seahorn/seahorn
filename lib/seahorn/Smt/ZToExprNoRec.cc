@@ -184,9 +184,11 @@ private:
       case Z3_BOOL_SORT:
       case Z3_INT_SORT:
       case Z3_REAL_SORT:
-      case Z3_CHAR_SORT:
         return false;
       case Z3_UNKNOWN_SORT:
+        llvm_unreachable("impossible");
+      default:
+        // case Z3_CHAR_SORT:
         llvm_unreachable("impossible");
       }
     }

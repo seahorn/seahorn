@@ -4,6 +4,7 @@ add_llvm_library (SeaSmt DISABLE_LLVM_LINK_LLVM_DYLIB
   Yices2ModelImpl.cc
   ExprToZ.cc
   ZToExpr.cc
+  ZToExprNoRec.cc
   ExprUtil.cc
   TypeChecker.cc
   HexDump.cc

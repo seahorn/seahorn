@@ -173,7 +173,8 @@ void dagVisit(ExprVisitor &v, const ExprVector &vec) {
 
 /// -- visit expression as though it is a tree
 /// --
-/// -- this does not use a visited table and might visit the same expression multiple times
+/// -- this does not use a visited table and might visit the same expression
+/// multiple times
 template <typename ExprVisitor> Expr treeVisit(ExprVisitor &v, Expr expr) {
   VisitAction va = v(expr);
 

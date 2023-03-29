@@ -12,12 +12,21 @@
 #include "seahorn/Expr/ExprGmp.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpFiniteMap.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 
-#include "seahorn/Support/SeaDebug.h"
 #include "sea_doctest.hh" // doctest is last to avoid name clash
+#include "seahorn/Support/SeaDebug.h"
+
+// Resolve name clash on OSX
+#ifdef TRUE
+#undef TRUE
+#endif
+#ifdef FALSE
+#undef FALSE
+#endif
 
 using namespace expr;
 using namespace llvm;
@@ -46,7 +55,7 @@ void checkNotWellFormed(std::vector<Expr> e, std::vector<Expr> error) {
   Expr errorSort = sort::errorTy(e[0]->efac());
   TypeChecker tc;
 
-  for (int i = 0; i < e.size(); i++) {
+  for (unsigned i = 0; i < e.size(); i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
@@ -62,7 +71,7 @@ void checkNotWellFormed(std::vector<Expr> e, std::vector<Expr> error) {
 void checkWellFormed(std::vector<Expr> e, Expr type) {
   TypeChecker tc;
 
-  for (int i = 0; i < e.size(); i++) {
+  for (unsigned i = 0; i < e.size(); i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
 
@@ -619,12 +628,17 @@ TEST_CASE("bvNotWellFormed.test") {
   temp = error.back();
   e.push_back(temp);
 
-  tempError = bv::extract(5, 9, a10); // high is lower than low
+  // high is lower than low
+  tempError =
+      mk<BEXTRACT>(mkTerm<unsigned>(5, efac), mkTerm<unsigned>(9, efac), a10);
+
   error.push_back(tempError);
   temp = mk<BUREM>(mk<BNEG>(a5), b5, error.back());
   e.push_back(temp);
 
-  tempError = bv::extract(6, 4, c5); // high is higher than width
+  // high is higher than width
+  tempError =
+      mk<BEXTRACT>(mkTerm<unsigned>(6, efac), mkTerm<unsigned>(4, efac), c5);
   error.push_back(tempError);
   temp = error.back();
   e.push_back(temp);

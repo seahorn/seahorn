@@ -157,7 +157,7 @@ void removeFiniteMapsBodyHornClausesTransf(HornClauseDB &db, HornClauseDB &tdb,
     if (isOpX<TRUE>(rule.body()))
       tdb.addRule(rule);
     else {
-      Expr body = visit(fmbv, rule.body(), dvc);
+      Expr body = visitRec(fmbv, rule.body(), dvc);
 
       ExprSet newVars;
       copy_if(allVars, newVars, [](Expr expr) { // not finite map

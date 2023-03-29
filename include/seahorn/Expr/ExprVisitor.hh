@@ -92,7 +92,7 @@ public:
 using DagVisitCache = std::unordered_map<ENode *, Expr>;
 
 template <typename ExprVisitor>
-Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
+Expr visitRec(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
   if (!expr)
     return expr;
 
@@ -116,7 +116,7 @@ Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
       llvm::SmallVector<Expr, 16> kids;
 
       for (auto b = res->args_begin(), e = res->args_end(); b != e; ++b) {
-        Expr k = visit(v, *b, cache);
+        Expr k = visitRec(v, *b, cache);
         kids.push_back(k);
         changed = (changed || k.get() != *b);
       }
@@ -140,6 +140,82 @@ Expr visit(ExprVisitor &v, Expr expr, DagVisitCache &cache) {
   return res;
 }
 
+template <typename ExprVisitor>
+Expr visitNoRec(ExprVisitor &v, Expr _expr, DagVisitCache &cache) {
+  if (!_expr)
+    return _expr;
+
+  llvm::SmallVector<std::pair<Expr, unsigned>, 16> todo;
+  todo.emplace_back(_expr, 0);
+
+  llvm::SmallVector<Expr, 16> resStack;
+
+  while (!todo.empty()) {
+    auto &frame = todo.back();
+    auto &expr = frame.first;
+    auto &idx = frame.second;
+
+    if (expr->use_count() > 1) {
+      auto cit = cache.find(&*expr);
+      if (cit != cache.end()) {
+        todo.pop_back();
+        resStack.emplace_back(cit->second);
+        continue;
+      }
+    }
+
+    VisitAction va = v(expr);
+    Expr res;
+    unsigned arity = 0;
+
+    if (va.isSkipKids())
+      res = expr;
+    else if (va.isChangeTo())
+      res = va.getExpr();
+    else {
+      res = va.isChangeDoKidsRewrite() ? va.getExpr() : expr;
+      if (res->arity() > 0) {
+        arity = res->arity();
+        if (idx < arity) {
+          todo.emplace_back(res->arg(idx++), 0);
+          continue;
+        }
+
+        unsigned kids_begin_idx = resStack.size() - arity;
+        auto kids_it = resStack.begin() + kids_begin_idx;
+        auto kids_it_end = resStack.end();
+        bool changed = false;
+        for (unsigned i = 0; !changed && i < arity; ++i) {
+          changed |= (res->arg(i) != *(kids_it++));
+        }
+        // -- rewind iterator
+        kids_it = resStack.begin() + kids_begin_idx;
+
+        if (changed) {
+          if (!res->isMutable())
+            res = res->getFactory().mkNary(res->op(), kids_it, kids_it_end);
+          else
+            res->renew_args(kids_it, kids_it_end);
+        }
+      }
+
+      res = va.rewrite(res);
+    }
+
+    if (expr->use_count() > 1) {
+      expr->Ref();
+      cache.insert({&*expr, res});
+    }
+
+    if (arity > 0)
+      resStack.resize(resStack.size() - arity);
+    resStack.emplace_back(res);
+    todo.pop_back();
+  }
+
+  return resStack.back();
+}
+
 inline void clearDagVisitCache(DagVisitCache &cache) {
   for (DagVisitCache::value_type &kv : cache)
     kv.first->efac().Deref(kv.first);
@@ -155,7 +231,7 @@ struct DagVisit : public std::unary_function<Expr, Expr> {
   DagVisit(const DagVisit &o) : m_v(o.m_v) {}
   ~DagVisit() { clearDagVisitCache(m_cache); }
 
-  Expr operator()(Expr e) { return visit(m_v, e, m_cache); }
+  Expr operator()(Expr e) { return visitNoRec(m_v, e, m_cache); }
 };
 
 template <typename ExprVisitor> Expr dagVisit(ExprVisitor &v, Expr expr) {

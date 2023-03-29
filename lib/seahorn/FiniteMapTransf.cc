@@ -730,7 +730,7 @@ Expr rewriteFiniteMapArgs(Expr e, const ExprMap &predDeclMap) {
 Expr rewriteFiniteMapArgs(Expr e, ExprSet &evars, const ExprMap &predDeclMap) {
   DagVisitCache dvc;
   FiniteMapArgsVisitor fmav(evars, predDeclMap, e->efac());
-  return visit(fmav, e, dvc);
+  return visitRec(fmav, e, dvc);
 }
 
 namespace fmap_transf {
@@ -796,7 +796,7 @@ Expr mkSameKeysCore(Expr e) {
 Expr inlineVals(Expr e, ExprMap &valmap) {
   FMVisitor dv(valmap);
   DagVisitCache cache;
-  Expr newE = visit(dv, e, cache);
+  Expr newE = visitRec(dv, e, cache);
   return newE;
 }
 

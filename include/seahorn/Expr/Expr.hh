@@ -18,12 +18,12 @@
 
 #include <seahorn/Expr/ExprGmp.hh>
 
-#include <seahorn/boost_flat_set.hh>
 #include <boost/functional/hash_fwd.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/pool/pool.hpp>
 #include <boost/pool/poolfwd.hpp>
+#include <seahorn/boost_flat_set.hh>
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
@@ -51,7 +51,7 @@
 
 #include "seahorn/Expr/ExprOpMisc.hh"
 
-    namespace expr {
+namespace expr {
 namespace op {}
 /** Size of an expression as a DAG */
 size_t dagSize(Expr e);

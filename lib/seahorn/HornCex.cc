@@ -30,16 +30,16 @@
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Utils/Local.hh"
 
-#include "seahorn/Support/Stats.hh"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/Stats.hh"
 
 #include "boost/algorithm/string/predicate.hpp"
-#include "seahorn/boost_flat_set.hh"
 #include "boost/container/map.hpp"
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"
 #include "boost/range/algorithm/reverse.hpp"
 #include "boost/range/algorithm/sort.hpp"
+#include "seahorn/boost_flat_set.hh"
 
 namespace seahorn {
 std::string HornCexFile;
@@ -49,8 +49,7 @@ static llvm::cl::opt<std::string, true> XHornCexFile(
     "horn-cex",
     llvm::cl::desc(
         "Counterexample in SV-COMP (.xml) or LLVM bitcode (.bc or .ll) format"),
-    llvm::cl::location(seahorn::HornCexFile),    
-    llvm::cl::init(""),
+    llvm::cl::location(seahorn::HornCexFile), llvm::cl::init(""),
     llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<bool>
@@ -177,13 +176,14 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
     }
   }
 
-  LOG("cex", errs() << "TRACE BEGIN\n"; for (auto bb
+  LOG(
+      "cex", errs() << "TRACE BEGIN\n"; for (auto bb
                                              : bbTrace) {
-    errs() << bb->getName();
-    if (cpg.isCutPoint(*bb))
-      errs() << " C";
-    errs() << "\n";
-  } errs() << "TRACE END\n";);
+        errs() << bb->getName();
+        if (cpg.isCutPoint(*bb))
+          errs() << " C";
+        errs() << "\n";
+      } errs() << "TRACE END\n";);
 
   // -- release trace resources
   bbTrace.clear();
@@ -255,7 +255,8 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   BvOpSem semBv(efac, *this, M.getDataLayout(), MEM);
 
   LegacyOperationalSemantics *sem =
-      UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv) : static_cast<LegacyOperationalSemantics *>(&semUfo);
+      UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv)
+            : static_cast<LegacyOperationalSemantics *>(&semUfo);
 
   const TargetLibraryInfo &tli =
       getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
@@ -455,7 +456,6 @@ static void debugLocToSvComp(const Instruction &inst, SvCompCex<O> &svcomp) {
   const DebugLoc &dloc = inst.getDebugLoc();
   if (!(dloc.get()))
     return;
- 
 
   // DIScope Scope (dloc.getScope ());
   // if (Scope) file = Scope.getFilename ();

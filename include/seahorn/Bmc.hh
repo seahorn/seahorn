@@ -1,5 +1,4 @@
-#ifndef __BMC__HH_
-#define __BMC__HH_
+#pragma once
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DebugInfo.h"
@@ -8,8 +7,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "seahorn/boost_flat_set.hh"
 #include "boost/logic/tribool.hpp"
+#include "seahorn/boost_flat_set.hh"
 
 #include "seahorn/CallUtils.hh"
 #include "seahorn/Expr/Expr.hh"
@@ -31,8 +30,8 @@ template <typename model_ref>
 void get_model_implicant(const ExprVector &f, model_ref model, ExprVector &out,
                          ExprMap &active_bool_map);
 // out is a minimal unsat core f based on assumptions
-void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f,
-                bool simplify, ExprVector &out);
+void unsat_core(ZSolver<EZ3> &solver, const ExprVector &f, bool simplify,
+                ExprVector &out);
 
 template <typename Out>
 void dump_evaluated_inst(const Instruction &inst, Expr v, Out &out,
@@ -208,4 +207,3 @@ public:
 } // namespace seahorn
 // implementation
 #include "seahorn/BmcImpl.hh"
-#endif

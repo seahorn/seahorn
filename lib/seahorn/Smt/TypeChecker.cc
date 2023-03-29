@@ -146,8 +146,7 @@ public:
   Impl(TypeChecker *tc) : m_visitor(tc) {}
 
   Expr typeOf(Expr e) {
-    Expr v = dagVisit(m_visitor, e);
-
+    Expr v = treeVisit(m_visitor, e);
     return m_visitor.knownTypeOf(v);
   }
 

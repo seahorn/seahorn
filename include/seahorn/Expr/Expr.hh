@@ -18,7 +18,7 @@
 
 #include <seahorn/Expr/ExprGmp.hh>
 
-#include <boost/container/flat_set.hpp>
+#include <seahorn/boost_flat_set.hh>
 #include <boost/functional/hash_fwd.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/lexical_cast.hpp>

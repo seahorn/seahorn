@@ -4,7 +4,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include <boost/container/flat_set.hpp>
+#include <seahorn/boost_flat_set.hh>
 #include <boost/functional/hash.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/range.hpp>

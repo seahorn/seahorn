@@ -34,7 +34,7 @@
 #include "seahorn/Support/SeaDebug.h"
 
 #include "boost/algorithm/string/predicate.hpp"
-#include "boost/container/flat_set.hpp"
+#include "seahorn/boost_flat_set.hh"
 #include "boost/container/map.hpp"
 #include "boost/range.hpp"
 #include "boost/range/adaptor/reversed.hpp"

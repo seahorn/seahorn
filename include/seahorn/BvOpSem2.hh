@@ -8,7 +8,7 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Pass.h"
 
-#include <boost/container/flat_set.hpp>
+#include <seahorn/boost_flat_set.hh>
 
 // forward declarations
 namespace llvm {

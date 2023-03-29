@@ -8,7 +8,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "boost/container/flat_set.hpp"
+#include "seahorn/boost_flat_set.hh"
 #include "boost/logic/tribool.hpp"
 
 #include "seahorn/CallUtils.hh"

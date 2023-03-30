@@ -55,6 +55,8 @@ public:
   VisitAction(bool kids = false)
       : m_skipKids(kids), m_fn(new ExprFunctionoid<IdentityRewriter>(
                               std::make_shared<IdentityRewriter>())) {}
+  VisitAction(const VisitAction &) = default;
+  VisitAction &operator= (const VisitAction &) = default;
 
   // changeTo or doKidsRewrite
   template <typename R>
@@ -149,6 +151,7 @@ Expr visitNoRec(ExprVisitor &v, Expr _expr, DagVisitCache &cache) {
   todo.emplace_back(_expr, 0);
 
   llvm::SmallVector<Expr, 16> resStack;
+  llvm::SmallVector<VisitAction, 16> actionStack;
 
   while (!todo.empty()) {
     auto &frame = todo.back();
@@ -164,9 +167,14 @@ Expr visitNoRec(ExprVisitor &v, Expr _expr, DagVisitCache &cache) {
       }
     }
 
-    VisitAction va = v(expr);
+    VisitAction _va;
+    if (idx == 0) _va = v(expr);
+    // -- execute visitor when expression is visited the first time
+    VisitAction &va = idx == 0 ? _va : actionStack.back();
+
     Expr res;
     unsigned arity = 0;
+    bool popActionStack = false;
 
     if (va.isSkipKids())
       res = expr;
@@ -175,11 +183,16 @@ Expr visitNoRec(ExprVisitor &v, Expr _expr, DagVisitCache &cache) {
     else {
       res = va.isChangeDoKidsRewrite() ? va.getExpr() : expr;
       if (res->arity() > 0) {
+        if (idx == 0) actionStack.emplace_back(_va);
         arity = res->arity();
         if (idx < arity) {
           todo.emplace_back(res->arg(idx++), 0);
           continue;
         }
+
+        // -- at this point, action at the top of the stack is done, but we need
+        // -- to keep it until it is used for rewrite() call
+        popActionStack = true;
 
         unsigned kids_begin_idx = resStack.size() - arity;
         auto kids_it = resStack.begin() + kids_begin_idx;
@@ -200,6 +213,7 @@ Expr visitNoRec(ExprVisitor &v, Expr _expr, DagVisitCache &cache) {
       }
 
       res = va.rewrite(res);
+      if (popActionStack) actionStack.pop_back();
     }
 
     if (expr->use_count() > 1) {

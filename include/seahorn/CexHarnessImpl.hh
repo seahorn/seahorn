@@ -84,7 +84,7 @@ void dumpLLVMCex(BmcTraceWrapper<Trace> &trace, StringRef CexFile,
   std::error_code error_code;
   llvm::ToolOutputFile out(CexFile, error_code, sys::fs::OF_None);
   if (error_code) {
-    ERR << error_code.message() << "\n";
+    ERR << CexFile << ": " << error_code.message() << "\n";
     std::exit(1);
   }
   assert(!error_code);

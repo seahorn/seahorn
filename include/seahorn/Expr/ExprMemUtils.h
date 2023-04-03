@@ -15,7 +15,7 @@ namespace mem {
  * terminal string starting with sea.sp0;
  * With `BasedPtrObj` on: match "sea.obj_n" objects
  **/
-bool isBaseAddr(Expr e, bool basedPtr = true);
+bool isBaseAddr(Expr e);
 
 void updatePtrTCCache(const Expr &e, bool isPtr, PtrTypeCheckCache &cache);
 

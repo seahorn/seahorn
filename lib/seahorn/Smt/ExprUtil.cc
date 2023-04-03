@@ -83,7 +83,7 @@ void transferStoreMapCache(ENode *oldE, ENode *newE, StoreMapCache &c) {
   c[newE] = c[oldE];
   newE->Ref();
   // remove
-  c[oldE] = NULL;
+  c[oldE] = nullptr;
   c.erase(oldE);
   oldE->efac().Deref(oldE);
 }
@@ -93,7 +93,7 @@ Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c) {
   Expr smap = storeMapGetMap(stm);
   smap = mk<CONS>(ov, smap);
   Expr res =
-      stm->getFactory().mkTern(stm->op(), stm->arg(0), stm->arg(1), smap);
+      stm->efac().mkTern(stm->op(), stm->arg(0), stm->arg(1), smap);
   // update in cached map
   auto mapIt = c.find(&*stm);
   if (mapIt != c.end()) {
@@ -106,6 +106,7 @@ Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c) {
 }
 
 Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c) {
+  // XXX AG: This has potential to leak memory. Needs closer review/rewrite
   // seahorn::ScopedStats _st("smap_find_time");
   Expr res;
   unsigned long oNum = op::bv::toMpz(o).get_ui();
@@ -124,7 +125,7 @@ Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c) {
   OffsetValueMap *ovM = new OffsetValueMap();
   while (head) {
     ov = head->arg(0);
-    head = head->arity() == 2 ? head->arg(1) : NULL;
+    head = head->arity() == 2 ? head->arg(1) : nullptr;
     Expr oX = ov->arg(0);
     unsigned long oXNum = op::bv::toMpz(oX).get_ui();
     if (!res && oXNum == oNum) { /* Find first */
@@ -136,6 +137,8 @@ Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c) {
       ovM->insert({oXNum, ov->arg(1)});
     }
   }
+  assert(c.count(&*stm) == 0);
+  // XXX AG: This is only ok if this key is inserted into this map for the first time
   c[&*stm] = ovM;
   stm->Ref();
   return res;
@@ -425,7 +428,7 @@ struct NormalizeOps : public std::unary_function<Expr, Expr> {
     return boolop::lor(top, lor(restF, restG));
   }
 };
-}
+} // namespace
 /**
  * Very simple normalizer for AND/OR expressions
  */
@@ -491,7 +494,7 @@ struct GatherOps : public std::unary_function<Expr, Expr> {
     return exp->efac().mkNary(op, newArgs.begin(), newArgs.end());
   }
 };
-}
+} // namespace
 
 /** Gather binary Boolean operators into n-ary ones. Helps
     readability. Best done after NNF */
@@ -552,7 +555,7 @@ struct NNF : public std::unary_function<Expr, VisitAction> {
   }
 };
 
-}
+} // namespace
 /**
  * Converts to NNF. Assumes the only Boolean operators of exp
  * are AND/OR/NEG.
@@ -635,34 +638,7 @@ int getBasedAddrSerial(Expr e) {
   return -1;
 }
 
-bool isBaseAddr(Expr e, bool basedPtr) {
-  if (basedPtr) { /* in case someone wants to use ad hoc? */
-    return isBasedObjAddr(e);
-  }
-  // adhoc matcher
-  if (op::bv::is_bvnum(e)) {
-    mpz_class val = op::bv::toMpz(e);
-    if (val >= 0xbf000000UL && val <= 0xc0000000UL)
-      return true;
-  }
-  if (op::bv::isBvConst(e)) {
-    // strip fdecl
-    Expr name = op::bind::fname(e);
-    if (op::bind::isFdecl(name)) {
-      name = op::bind::fname(name);
-    }
-    // strip variant
-    if (isOpX<VARIANT>(name)) {
-      name = op::variant::mainVariant(name);
-    }
-    if (isOpX<STRING>(name)) {
-      std::string term = getTerm<std::string>(name);
-      if (term.rfind("sea.sp0", 0) == 0)
-        return true;
-    }
-  }
-  return false;
-}
+bool isBaseAddr(Expr e) { return isBasedObjAddr(e); }
 
 bool isSingleBasePtr(Expr e, size_t ptrWidth, Expr &base, Expr &offset) {
   if (isBaseAddr(e)) {
@@ -711,14 +687,17 @@ bool isPtrExpr(Expr e, PtrTypeCheckCache &cache) {
   }
   if (op::bv::isBvConst(e) || op::bv::is_bvnum(e)) {
     return false;
-  } /* num */
-  /* do not go into any of the recursive parts if visited */
+  }
+
   if (e->use_count() > 1) {
     auto cit = cache.find(&*e);
     if (cit != cache.end()) {
       return cit->second;
     }
   }
+
+  // AG XXX: Except for ITE this looks wrong
+  // AG XXX: ptr-expressions should not be glued out of other parts
   bool res = false;
   if (isOpX<ITE>(e)) {
     Expr a = e->arg(1);
@@ -729,6 +708,7 @@ bool isPtrExpr(Expr e, PtrTypeCheckCache &cache) {
   } else if (isOpX<BEXTRACT>(e)) {
     res = isPtrExpr(op::bv::earg(e), cache);
   } else {
+    // AG XXX: this probably handles pointer arithmetic, i.e., BADD
     for (auto it = e->args_begin(); it != e->args_end(); it++) {
       if (isPtrExpr(*it, cache)) {
         res = true;

@@ -152,17 +152,18 @@ struct WriteOverWriteRule : public ExprRewriteRule {
 
 struct ArithmeticRule : public ExprRewriteRule {
 
-  bool m_deepIte;
+  bool m_pullIte;
   ArithmeticRule(ExprFactory &efac, DagVisitCache &cache, bool deepIte = false)
-      : ExprRewriteRule(efac, cache), m_deepIte(deepIte) {}
-  ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o) {}
+      : ExprRewriteRule(efac, cache), m_pullIte(deepIte) {}
+  ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o), m_pullIte(o.m_pullIte) {}
 
   RewriteResult operator()(const Expr &exp) const {
     // seahorn::ScopedStats _st("rw_arith");
     if (!isOpX<BADD>(exp)) {
       return {exp, RWStatus::RW_SKIP};
     }
-    if (m_deepIte) {
+    if (m_pullIte) {
+      // -- pull ITE over BADD 
       /**
       pushing add down ite is expensive(exponential), so only use with shallow
       expressions;
@@ -183,30 +184,33 @@ struct ArithmeticRule : public ExprRewriteRule {
         return {mk<ITE>(i, addL, addR), RWStatus::RW_2};
       }
     }
-    /** In general these two rules:
+
+    /* Apply the following two rules
      * 1) flatten n-ary bvadd:
-     * bvadd(a, bvadd(b, c), d...) => bvadd(a, b, c, d);
-     * 2) consolidate all bvnum operands into one:
-     * bvadd(a, 1, 2, d) => bvadd(a, d, 3)
-     * **/
-    llvm::SmallVector<Expr, 2> args;
+     *       bvadd(a, bvadd(b, c), d) -rw-> bvadd(a, b, c, d);
+     * 2) combine all constants into one:
+     *       bvadd(a, 1, 2, d) -rw-> bvadd(a, d, 3)
+     **/
+    llvm::SmallVector<Expr, 16> args;
     mpz_class sum = 0;
     unsigned width = 0;
-    for (auto b = exp->args_begin(), e = exp->args_end(); b != e; ++b) {
-      Expr arg = *b;
+    for (auto arg_it = exp->args_begin(), e = exp->args_end(); arg_it != e; ++arg_it) {
+      Expr arg = *arg_it;
       if (op::bv::is_bvnum(arg)) {
         mpz_class argNum = op::bv::toMpz(arg);
+        // AG: XXX not handling overflow 
         sum = argNum + sum;
-        width = std::max(op::bv::widthBvNum(arg), width);
+        width = op::bv::widthBvNum(arg);
       } else if (isOpX<BADD>(arg)) {
         for (auto bKid = arg->args_begin(); bKid != arg->args_end(); ++bKid) {
           Expr kid = *bKid;
           if (op::bv::is_bvnum(kid)) {
             mpz_class kidNum = op::bv::toMpz(kid);
+            // AG: XXX not handling overflow
             sum = kidNum + sum;
-            width = std::max(op::bv::widthBvNum(kid), width);
+            width = op::bv::widthBvNum(kid);
           } else {
-            /** children has already been flattened **/
+            /* children has already been flattened */
             args.push_back(kid);
           }
         }

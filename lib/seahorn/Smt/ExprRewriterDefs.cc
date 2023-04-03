@@ -407,6 +407,7 @@ RewriteResult CompareRewriteRule::operator()(const Expr &exp) const {
         return {falseE, RWStatus::RW_DONE};
       }
     }
+
     if (UseArm && isPtrExpr(lhs, m_ptcCache) && isPtrExpr(rhs, m_ptcCache)) {
       if (!approxPtrEq(lhs, rhs, m_armCache, m_ptcCache)) {
         seahorn::Stats::count("hybrid.arm_skip_store");
@@ -417,20 +418,25 @@ RewriteResult CompareRewriteRule::operator()(const Expr &exp) const {
 
   // normalize neq: a != b ==> !(a=b)
   if (isOpX<NEQ>(exp)) {
-    Expr negation = mk<EQ>(lhs, rhs);
-    return {mk<NEG>(negation), RWStatus::RW_2};
+    Expr lhs_eq_rhs = mk<EQ>(lhs, rhs);
+    return {mk<NEG>(lhs_eq_rhs), RWStatus::RW_2};
   }
+
   return {exp, RWStatus::RW_DONE};
 }
 
 RewriteResult ITERewriteRule::operator()(const Expr &exp) const {
-  if (!isOpX<ITE>(exp)) {
+  if (!isOp<ITE>(exp)) {
     return {exp, RWStatus::RW_SKIP};
   }
 
   Expr i = exp->arg(0);
   Expr t = exp->arg(1);
   Expr e = exp->arg(2);
+  // ite(i, a, a) => a
+  if (t == e) {
+    return {t, RWStatus::RW_DONE};
+  }
   // ite(a, true, false) => a
   if (isOpX<TRUE>(t) && isOpX<FALSE>(e)) {
     return {i, RWStatus::RW_DONE};
@@ -438,10 +444,6 @@ RewriteResult ITERewriteRule::operator()(const Expr &exp) const {
   // ite(a, false, true) => !a
   if (isOpX<FALSE>(t) && isOpX<TRUE>(e)) {
     return {mk<NEG>(i), RWStatus::RW_1}; // simp dbl negation
-  }
-  // ite(i, a, a) => a
-  if (t == e) {
-    return {t, RWStatus::RW_DONE};
   }
   // ite(a, b, ite(!a, c, d)) => ite(a, b, c)
   if (isOpX<ITE>(e)) {
@@ -452,11 +454,11 @@ RewriteResult ITERewriteRule::operator()(const Expr &exp) const {
     }
   }
   // ite(true, a, b) => a
-  if (isOpX<TRUE>(i)) {
+  if (isOp<TRUE>(i)) {
     return {t, RWStatus::RW_DONE};
   }
   // ite(false, a, b) => b
-  if (isOpX<FALSE>(i)) {
+  if (isOp<FALSE>(i)) {
     return {e, RWStatus::RW_DONE};
   }
   return {exp, RWStatus::RW_DONE};

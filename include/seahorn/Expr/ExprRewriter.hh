@@ -70,7 +70,7 @@ protected:
 
   /*** \brief visits an expression
 
-       returns true if expression has been rewritten, and false if ti is placed
+       returns true if expression has been rewritten, and false if it is placed
        back on the rewrite stack
 
     visit \p e, return true if any of the following is true:
@@ -139,7 +139,7 @@ public:
     // all kids of exp has been visited, collect rewritten kids to form
     // new expression
     bool changed = false;
-    SmallVector<Expr, 4> new_kids;
+    llvm::SmallVector<Expr, 4> new_kids;
 
     size_t end = m_resultStack.size();
     size_t begin = end - arity;

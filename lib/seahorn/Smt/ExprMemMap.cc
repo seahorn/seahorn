@@ -97,47 +97,47 @@ void MemCellSet::setDefault(Expr defaultValue) {
   m_defaultValue = defaultValue;
 }
 
+bool isWellFormedCond(Expr cond) {
+  if (!isOp<EQ>(cond) && !isOp<NEQ>(cond))
+    return false;
+  using expr::numeric::isNumeric;
+  if (isNumeric(cond->left()) == isNumeric(cond->right()))
+    return false;
+
+  return true;
+}
 // ITEVistor
 VisitAction ITEVisitor::operator()(Expr exp) {
-  if (isOp<ITE>(exp)) {
-    Expr condition = exp->arg(0);
-    Expr thenBranch = exp->arg(1);
-    Expr elseBranch = exp->arg(2);
+  if (!isOp<ITE>(exp))
+    return VisitAction::doKids();
 
-    assert(isOp<EQ>(condition) || isOp<NEQ>(condition));
-    assert(expr::numeric::isNumeric(condition->left()) !=
-           expr::numeric::isNumeric(
-               condition->right())); // one side of the equals is numeric. The
-                                     // numeric side will be the key
+  Expr cond = exp->arg(0);
+  Expr thenBranch = exp->arg(1);
+  Expr elseBranch = exp->arg(2);
 
-    Expr key;
+  if (!isWellFormedCond(cond)) {
+    WARN << "Unhandled ITE condition (use `--log=cex.verbose` for more info)\n";
+    LOG("cex.verbose", WARN << *exp);
+    return VisitAction::doKids();
+  }
 
-    if (expr::numeric::isNumeric(condition->left())) {
-      key = condition->left();
-    } else {
-      key = condition->right();
-    }
+  using expr::numeric::isNumeric;
+  assert(isOp<EQ>(cond) || isOp<NEQ>(cond));
+  // one side of the equals is numeric. The numeric side will be the key
+  assert(isNumeric(cond->left()) != isNumeric(cond->right()));
 
-    if (isOp<EQ>(condition)) {
-      assert(!isOp<ITE>(thenBranch));
+  Expr key = isNumeric(cond->left()) ? cond->left() : cond->right();
 
-      m_cells->insert(key, thenBranch);
+  if (isOp<NEQ>(cond))
+    std::swap(thenBranch, elseBranch);
+  assert(!isOp<ITE>(thenBranch));
 
-      // if there is not a nested ite
-      if (!isOp<ITE>(elseBranch)) {
-        m_cells->setDefault(elseBranch);
-      }
+  m_cells->insert(key, thenBranch);
 
-    } else if (isOp<NEQ>(condition)) {
-      assert(!isOp<ITE>(elseBranch));
-
-      m_cells->insert(key, elseBranch);
-
-      // if there is not a nested ite
-      if (!isOp<ITE>(thenBranch)) {
-        m_cells->setDefault(thenBranch);
-      }
-    }
+  // if there is not a nested ite
+  if (!isOp<ITE>(elseBranch)) {
+    m_cells->setDefault(elseBranch);
+    return VisitAction::skipKids();
   }
 
   return VisitAction::doKids();

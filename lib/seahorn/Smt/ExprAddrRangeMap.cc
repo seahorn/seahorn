@@ -52,7 +52,7 @@ AddrRangeMap addrRangeMapUnion(AddrRangeMap &a, AddrRangeMap &b) {
 }
 
 AddrRangeMap addrRangeMapIntersect(AddrRangeMap &a, AddrRangeMap &b) {
-  /* appropriate to timer here since intersect is only used for compare*/
+  /* appropriate to time here since intersect is only used for compare*/
   seahorn::ScopedStats _st_("hybrid.arm_compare");
   if (a.isAllTop())
     return b;
@@ -140,16 +140,6 @@ std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm) {
   return OS;
 }
 
-AddrRange mkAddrRangeBot(void) {
-  return AddrRange(std::numeric_limits<unsigned>::max(),
-                   std::numeric_limits<unsigned>::min(), false, true);
-}
-
-AddrRange mkAddrRangeTop() {
-  return AddrRange(std::numeric_limits<unsigned>::min(),
-                   std::numeric_limits<unsigned>::max(), true, false);
-}
-
 AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
   if (r.m_isBot || r.m_isTop)
     return r;
@@ -197,7 +187,7 @@ inline void updateARMCache(ARMCache &cache, const Expr &e, AddrRangeMap arm) {
 static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache,
                                      expr::PtrTypeCheckCache &ptCache) {
   if (e->use_count() > 1) {
-    ARMCache::const_iterator cit = cache.find(&*e);
+    auto cit = cache.find(&*e);
     if (cit != cache.end()) {
       return cit->second;
     }
@@ -209,18 +199,18 @@ static AddrRangeMap s_addrRangeMapOf(Expr e, ARMCache &cache,
   }
   if (isOpX<BADD>(e)) {
     Expr base;
-    llvm::SmallVector<Expr, 2> offsets;
+    llvm::SmallVector<Expr, 4> offsets;
     bool baseFound = false;
-    for (auto b = e->args_begin(); b != e->args_end(); ++b) {
+    for (auto it = e->args_begin(); it != e->args_end(); ++it) {
       /* try to find a base and offsets */
-      if (!baseFound && mem::isPtrExpr(*b, ptCache)) {
-        base = *b;
+      if (!baseFound && mem::isPtrExpr(*it, ptCache)) {
+        base = *it;
         baseFound = true;
       } else {
-        offsets.push_back(*b);
+        offsets.push_back(*it);
       }
     }
-    if (base == NULL) {
+    if (!base) {
       AddrRangeMap res = mkARMTop(); // Fallback to { all => any }
       updateARMCache(cache, e, res);
       return res;
@@ -286,6 +276,7 @@ bool approxPtrInRangeCheck(Expr p, unsigned s, Expr q, ARMCache &c,
 bool approxPtrEq(Expr p, Expr q, ARMCache &c, PtrTypeCheckCache &ptc) {
   AddrRangeMap armP = addrRangeMapOf(p, c, ptc);
   AddrRangeMap armQ = addrRangeMapOf(q, c, ptc);
+  // AG: XXX: Computes full intersection, but only Yes/No is used. Can speed up.
   AddrRangeMap intrs = addrRangeMapIntersect(armP, armQ);
   bool res = !intrs.isAllBot();
   if (!res) {

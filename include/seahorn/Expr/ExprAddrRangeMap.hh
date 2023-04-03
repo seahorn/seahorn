@@ -5,6 +5,7 @@
 #include <limits>
 
 namespace expr {
+// AG XXX: why keys are ENode* and not Expr?
 using PtrTypeCheckCache = std::unordered_map<ENode *, bool>;
 namespace addrRangeMap {
 
@@ -17,12 +18,10 @@ struct AddrRange {
   AddrRange(unsigned low, unsigned high, bool top = false, bool bot = false)
       : m_low(low), m_high(high), m_isTop(top), m_isBot(bot) {}
   AddrRange(const AddrRange &o) = default;
-  AddrRange& operator=(const AddrRange &) = default;
+  AddrRange &operator=(const AddrRange &) = default;
 
   bool contains(unsigned offset) {
-    if (m_isBot)
-      return false;
-    return m_isTop || (offset >= m_low && offset <= m_high);
+    return !m_isBot && (m_isTop || (m_low <= offset && offset <= m_high));
   }
 
   /**
@@ -60,7 +59,8 @@ struct AddrRange {
   AddrRange join(const AddrRange &o) {
     bool top = m_isTop || o.m_isTop;
     bool bot = m_isBot && o.m_isBot;
-    return AddrRange(std::min(m_low, o.m_low), std::max(m_high, o.m_high), top, bot);
+    return AddrRange(std::min(m_low, o.m_low), std::max(m_high, o.m_high), top,
+                     bot);
   }
 
   /** shorthand for join **/
@@ -72,7 +72,7 @@ struct AddrRange {
    * @param o
    * @return AddrRange
    */
-  AddrRange overlap(const AddrRange &o) {
+  AddrRange meet(const AddrRange &o) {
     bool top = m_isTop && o.m_isTop;
     bool bot = m_isBot || o.m_isBot;
     unsigned newHigh = std::min(m_high, o.m_high);
@@ -86,14 +86,21 @@ struct AddrRange {
   }
 
   /* shorthand for overlap */
-  AddrRange operator&(const AddrRange &o) { return overlap(o); }
+  AddrRange operator&(const AddrRange &o) { return meet(o); }
 
   bool isValid();
 };
 
-AddrRange mkAddrRangeBot();
+inline AddrRange mkAddrRangeBot(void) {
+  return AddrRange(std::numeric_limits<unsigned>::max(),
+                   std::numeric_limits<unsigned>::min(), false, true);
+}
 
-AddrRange mkAddrRangeTop();
+inline AddrRange mkAddrRangeTop() {
+  return AddrRange(std::numeric_limits<unsigned>::min(),
+                   std::numeric_limits<unsigned>::max(), true, false);
+}
+
 
 /**
  * @brief zero the last n bits of low and high
@@ -124,7 +131,7 @@ public:
                bool isBot = false)
       : m_rangeMap(rangeMap), m_isTop(isTop), m_isBot(isBot) {}
   AddrRangeMap(const AddrRangeMap &o) = default;
-  AddrRangeMap& operator=(const AddrRangeMap &) = default;
+  AddrRangeMap &operator=(const AddrRangeMap &) = default;
 
   /* access to internal map */
   AddrRange &operator[](const Expr &k) { return m_rangeMap[k]; }
@@ -189,6 +196,7 @@ public:
   friend std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm);
 };
 
+// AG: XXX: Why keys are ENode* and not Expr?
 using ARMCache = std::unordered_map<ENode *, AddrRangeMap>;
 
 /**

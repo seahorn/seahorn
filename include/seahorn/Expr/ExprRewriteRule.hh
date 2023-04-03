@@ -43,14 +43,12 @@ struct ExprRewriteRule : public std::unary_function<Expr, RewriteResult> {
         falseE(mk<FALSE>(efac)) {}
   ExprRewriteRule(const ExprRewriteRule &o) = default;
 
-  RewriteResult operator()(const Expr &exp) const { return {exp, RWStatus::RW_DONE}; }
+  RewriteResult operator()(const Expr &exp) const {
+    return {exp, RWStatus::RW_DONE};
+  }
 };
 
-struct ITERewriteRule : public ExprRewriteRule {
-  ITERewriteRule(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriteRule(efac, cache) {}
-  ITERewriteRule(const ITERewriteRule &o) : ExprRewriteRule(o) {}
-
+struct ITERewriteRule {
   RewriteResult operator()(const Expr &exp) const;
 };
 
@@ -71,18 +69,18 @@ struct CompareRewriteRule : public ExprRewriteRule {
 struct BoolOpRewriteRule : public ExprRewriteRule {
   BoolOpRewriteRule(ExprFactory &efac, DagVisitCache &cache)
       : ExprRewriteRule(efac, cache) {}
-  BoolOpRewriteRule(const CompareRewriteRule &o) : ExprRewriteRule(o) {}
+  BoolOpRewriteRule(const BoolOpRewriteRule &o) = default;
 
   RewriteResult operator()(const Expr &exp) const {
     // seahorn::ScopedStats _st("rw_bool");
-    if (!isOpX<BoolOp>(exp)) {
+    if (!isOp<BoolOp>(exp)) {
       return {exp, RWStatus::RW_SKIP};
     }
 
     if (isOpX<NEG>(exp)) {
       Expr arg0 = exp->arg(0);
       // double neg => truthy
-      // e.g. !(!a) ==> a
+      // e.g. !(!a) -rw-> a
       if (isOpX<NEG>(arg0)) {
         return {arg0->arg(0), RWStatus::RW_DONE};
       }
@@ -100,6 +98,7 @@ struct BoolOpRewriteRule : public ExprRewriteRule {
         return {trueE, RWStatus::RW_DONE};
       }
     }
+
     return {exp, RWStatus::RW_SKIP};
   }
 };
@@ -150,12 +149,11 @@ struct WriteOverWriteRule : public ExprRewriteRule {
   RewriteResult rewriteStore(const Expr &exp) const;
 };
 
-struct ArithmeticRule : public ExprRewriteRule {
+struct ArithmeticRule {
 
   bool m_pullIte;
-  ArithmeticRule(ExprFactory &efac, DagVisitCache &cache, bool deepIte = false)
-      : ExprRewriteRule(efac, cache), m_pullIte(deepIte) {}
-  ArithmeticRule(const ArithmeticRule &o) : ExprRewriteRule(o), m_pullIte(o.m_pullIte) {}
+  ArithmeticRule(bool deepIte = false) : m_pullIte(deepIte) {}
+  ArithmeticRule(const ArithmeticRule &o) = default;
 
   RewriteResult operator()(const Expr &exp) const {
     // seahorn::ScopedStats _st("rw_arith");
@@ -163,7 +161,7 @@ struct ArithmeticRule : public ExprRewriteRule {
       return {exp, RWStatus::RW_SKIP};
     }
     if (m_pullIte) {
-      // -- pull ITE over BADD 
+      // -- pull ITE over BADD
       /**
       pushing add down ite is expensive(exponential), so only use with shallow
       expressions;
@@ -194,11 +192,12 @@ struct ArithmeticRule : public ExprRewriteRule {
     llvm::SmallVector<Expr, 16> args;
     mpz_class sum = 0;
     unsigned width = 0;
-    for (auto arg_it = exp->args_begin(), e = exp->args_end(); arg_it != e; ++arg_it) {
+    for (auto arg_it = exp->args_begin(), e = exp->args_end(); arg_it != e;
+         ++arg_it) {
       Expr arg = *arg_it;
       if (op::bv::is_bvnum(arg)) {
         mpz_class argNum = op::bv::toMpz(arg);
-        // AG: XXX not handling overflow 
+        // AG: XXX not handling overflow
         sum = argNum + sum;
         width = op::bv::widthBvNum(arg);
       } else if (isOpX<BADD>(arg)) {
@@ -220,7 +219,7 @@ struct ArithmeticRule : public ExprRewriteRule {
     }
     // bv num always at the back
     if (width > 0) {
-      args.push_back(op::bv::bvnum(sum, width, m_efac));
+      args.push_back(op::bv::bvnum(sum, width, exp->efac()));
     }
     Expr res;
     if (args.size() > 1) {

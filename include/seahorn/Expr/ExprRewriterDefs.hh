@@ -26,10 +26,9 @@ public:
   ITECompRewriteConfig(ExprFactory &efac, DagVisitCache &cache, ARMCache &armC,
                        PtrTypeCheckCache &ptC, op::array::StoreMapCache &smC,
                        unsigned wordSize, unsigned ptrWidth)
-      : ExprRewriterConfigBase(efac, cache), m_iteRule(efac, cache),
+      : ExprRewriterConfigBase(efac, cache),
         m_compRule(efac, cache, ptC, armC, ptrWidth), m_boolRule(efac, cache),
-        m_arrayRule(efac, cache, armC, ptC, smC, wordSize, ptrWidth),
-        m_arithRule(efac, cache) {}
+        m_arrayRule(efac, cache, armC, ptC, smC, wordSize, ptrWidth) {}
 
   RewriteResult doRewrite(const Expr &exp);
   bool shouldRewrite(const Expr &exp) const;
@@ -45,7 +44,7 @@ private:
 
 public:
   PointerArithmeticConfig(ExprFactory &efac, DagVisitCache &cache)
-      : ExprRewriterConfigBase(efac, cache), m_arithRule(efac, cache, true) {}
+      : ExprRewriterConfigBase(efac, cache), m_arithRule(true) {}
 
   RewriteResult doRewrite(const Expr &exp);
   bool shouldRewrite(const Expr &exp) const;
@@ -64,7 +63,7 @@ private:
 public:
   WriteOverWriteConfig(ExprFactory &efac, DagVisitCache &cache,
                        op::array::StoreMapCache &sC, unsigned ptrWidth)
-      : ExprRewriterConfigBase(efac, cache), m_arithRule(efac, cache, true),
+      : ExprRewriterConfigBase(efac, cache), m_arithRule(true),
         m_wowRule(efac, cache, sC, ptrWidth) {}
 
   RewriteResult doRewrite(const Expr &exp);

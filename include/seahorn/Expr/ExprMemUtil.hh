@@ -8,7 +8,29 @@
 /** Util functions and visitors for Expr trees representing memory **/
 
 namespace expr {
-using namespace addrRangeMap;
+namespace op {
+namespace array {
+
+// cons list => (offset, value expr)
+using OffsetValueMap = std::map<unsigned long, Expr>;
+using StoreMapCache = std::unordered_map<ENode *, std::unique_ptr<OffsetValueMap>>;
+
+/* need to de-allocate OV maps */
+void clearStoreMapCache(StoreMapCache &cache);
+
+/**
+ * \brief when <old> is rewritten to <new>
+ * move cached ovmap of <old> to <new> **/
+void transferStoreMapCache(ENode *oldE, ENode *newE, StoreMapCache &c);
+
+Expr storeMapNew(Expr arr, Expr base, Expr ovA, Expr ovB, StoreMapCache &c);
+
+Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c);
+
+Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c);
+}
+
+}
 namespace mem {
 /** Adhoc heuristic: Returns true if e is either:
  * bvnum larger than 0xbf000000, or

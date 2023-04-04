@@ -112,13 +112,6 @@ NOP(STORE_MAP, "store-map", FUNCTIONAL, ArrayOp, typeCheck::arrayType::StoreMap)
 namespace op {
 namespace array {
 
-// cons list => (offset, value expr)
-using OffsetValueMap = std::map<unsigned long, Expr>;
-using StoreMapCache = std::unordered_map<ENode *, OffsetValueMap *>;
-
-/* need to de-allocate OV maps */
-void clearStoreMapCache(StoreMapCache &cache);
-
 inline Expr select(Expr a, Expr idx) { return mk<SELECT>(a, idx); }
 inline Expr selectArray(Expr sel) {
   assert(isOpX<SELECT>(sel));
@@ -129,32 +122,6 @@ inline Expr selectIdx(Expr sel) {
   return sel->arg(1);
 }
 inline Expr store(Expr a, Expr idx, Expr v) { return mk<STORE>(a, idx, v); }
-
-bool ovCmp(const Expr a, const Expr b);
-
-/* Container should be nary node type, usually struct */
-template <typename R, typename Container>
-inline Expr storeMap(Expr a, Expr base, R &map) {
-  std::sort(map.begin(), map.end(), ovCmp); // usually only 2 elements
-  return mk<STORE_MAP>(a, base, mknary<Container>(map));
-}
-
-/**
- * \brief when <old> is rewritten to <new>
- * move cached ovmap of <old> to <new> **/
-void transferStoreMapCache(ENode *oldE, ENode *newE, StoreMapCache &c);
-
-Expr storeMapNew(Expr arr, Expr base, Expr ovA, Expr ovB, StoreMapCache &c);
-
-/** @brief get offset-value map of storeMap **/
-inline Expr storeMapGetMap(Expr stm) {
-  assert(isOpX<STORE_MAP>(stm));
-  return stm->arg(2);
-}
-
-Expr storeMapInsert(Expr stm, Expr ov, StoreMapCache &c);
-
-Expr storeMapFind(Expr stm, Expr o, StoreMapCache &c);
 
 inline Expr storeArray(Expr st) {
   assert(isOpX<STORE>(st));
@@ -172,6 +139,22 @@ inline Expr constArray(Expr domain, Expr v) {
   return mk<CONST_ARRAY>(domain, v);
 }
 inline Expr aDefault(Expr a) { return mk<ARRAY_DEFAULT>(a); }
+
+bool ovLessThen(const Expr a, const Expr b);
+
+/* Container should be nary node type, usually struct */
+template <typename R, typename Container>
+inline Expr storeMap(Expr a, Expr base, R &map) {
+  std::sort(map.begin(), map.end(), ovLessThen); // usually only 2 elements
+  return mk<STORE_MAP>(a, base, mknary<Container>(map));
+}
+
+/** @brief get offset-value map of storeMap **/
+inline Expr storeMapGetMap(Expr stm) {
+  assert(isOpX<STORE_MAP>(stm));
+  return stm->arg(2);
+}
+
 } // namespace array
 } // namespace op
 } // namespace expr

@@ -1,6 +1,6 @@
 #include "BvOpSem2MemRepr.hh"
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
-#include "seahorn/Expr/ExprMemUtils.h"
+#include "seahorn/Expr/ExprMemUtil.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpMem.hh"

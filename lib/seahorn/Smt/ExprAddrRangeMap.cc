@@ -1,5 +1,5 @@
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
-#include "seahorn/Expr/ExprMemUtils.h"
+#include "seahorn/Expr/ExprMemUtil.hh"
 #include "seahorn/Support/Stats.hh"
 
 namespace expr {

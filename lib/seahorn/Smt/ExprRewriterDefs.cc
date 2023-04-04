@@ -67,7 +67,8 @@ RewriteResult WriteOverWriteConfig::doRewrite(const Expr &exp) {
   return {exp, RWStatus::RW_DONE};
 }
 
-void WriteOverWriteConfig::onAfterRewrite(const Expr &oldE, const Expr &newE) const {
+void WriteOverWriteConfig::onAfterRewrite(const Expr &oldE,
+                                          const Expr &newE) const {
   if (isOpX<STORE_MAP>(oldE) && isOpX<STORE_MAP>(newE) && oldE != newE) {
     op::array::transferStoreMapCache(&*oldE, &*newE, m_wowRule.m_smapC);
   }
@@ -108,7 +109,8 @@ RewriteResult ReadOverWriteRule::operator()(const Expr &exp) const {
   }
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverStore(const Expr &arr, const Expr &idx) const {
+RewriteResult ReadOverWriteRule::rewriteReadOverStore(const Expr &arr,
+                                                      const Expr &idx) const {
   const Expr &arrN = op::array::storeArray(arr);
   const Expr &idxN = op::array::storeIdx(arr);
   Expr res = mk<ITE>(mk<EQ>(idx, idxN), op::array::storeVal(arr),
@@ -116,7 +118,8 @@ RewriteResult ReadOverWriteRule::rewriteReadOverStore(const Expr &arr, const Exp
   return {std::move(res), RWStatus::RW_2};
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverIte(const Expr &arr, const Expr &idx) const {
+RewriteResult ReadOverWriteRule::rewriteReadOverIte(const Expr &arr,
+                                                    const Expr &idx) const {
   const Expr &i = arr->arg(0);
   const Expr &t = arr->arg(1);
   const Expr &e = arr->arg(2);
@@ -124,7 +127,8 @@ RewriteResult ReadOverWriteRule::rewriteReadOverIte(const Expr &arr, const Expr 
   return {std::move(res), RWStatus::RW_2};
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr, const Expr &idx) const {
+RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr,
+                                                       const Expr &idx) const {
   const Expr &inMem = arr->arg(0);
   const Expr &idxN = arr->arg(1);
   const Expr &len = arr->arg(2);
@@ -162,7 +166,8 @@ RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr, const Ex
   return {std::move(res), RWStatus::RW_2};
 }
 
-Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap, const Expr &idx) const {
+Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap,
+                                        const Expr &idx) const {
   const Expr &arr = storeMap->arg(0);
   const Expr &base = storeMap->arg(1);
   const Expr &consList = storeMap->arg(2);
@@ -172,7 +177,7 @@ Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap, const Expr &idx) c
   Expr res = arr;
   auto it = m_smapCache.find(&*storeMap);
   if (it != m_smapCache.end()) {
-    op::array::OffsetValueMap *cached = it->second;
+    auto &cached = it->second;
     for (auto ovIt = cached->cbegin(); ovIt != cached->cend(); ovIt++) {
       Expr oIdx =
           mk<BADD>(base, op::bv::bvnum(ovIt->first, m_ptrWidth, base->efac()));
@@ -184,7 +189,7 @@ Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap, const Expr &idx) c
 
   // Fallback to stored cons list, re-build cache
   Stats::count("hybrid.smap_revert_ite_fallback");
-  op::array::OffsetValueMap *ovM = new op::array::OffsetValueMap();
+  auto ovM = std::make_unique<op::array::OffsetValueMap>();
   Expr head = consList;
   while (head) {
     Expr ov = head->arg(0);
@@ -199,12 +204,15 @@ Expr ReadOverWriteRule::revertSMapToIte(const Expr &storeMap, const Expr &idx) c
   res = op::array::select(res, idx);
   // XXX check for potential issue with reference counting, what if
   // XXX storeMap was already in the cache. Then Ref() will double count.
+  assert(m_smapCache.count(&*storeMap) == 0);
   storeMap->Ref();
-  m_smapCache.insert({&*storeMap, ovM});
+  m_smapCache.insert({&*storeMap, std::move(ovM)});
   return res;
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(const Expr &arr, const Expr &idx) const {
+RewriteResult
+ReadOverWriteRule::rewriteReadOverStoreMap(const Expr &arr,
+                                           const Expr &idx) const {
   Expr nxtArr = arr->arg(0), base = arr->arg(1);
   Expr smap = op::array::storeMapGetMap(arr);
 
@@ -242,7 +250,8 @@ RewriteResult ReadOverWriteRule::rewriteReadOverStoreMap(const Expr &arr, const 
   }
 }
 
-RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(const Expr &arr, const Expr &idx) const {
+RewriteResult ReadOverWriteRule::rewriteReadOverMemcpy(const Expr &arr,
+                                                       const Expr &idx) const {
   /** select(copy(a, p, b, q, s), i) =>
    * ITE(p ≤ i < p + s, read(b, q + (i − p)), read(a, i)) **/
   Expr res;

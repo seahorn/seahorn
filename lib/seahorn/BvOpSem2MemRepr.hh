@@ -2,6 +2,7 @@
 
 #include "BvOpSem2RawMemMgr.hh"
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
+#include "seahorn/Expr/ExprMemUtil.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 

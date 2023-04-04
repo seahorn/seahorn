@@ -2,7 +2,7 @@
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprCore.hh"
-#include "seahorn/Expr/ExprMemUtils.h"
+#include "seahorn/Expr/ExprMemUtil.hh"
 #include "seahorn/Expr/ExprOpArray.hh"
 #include "seahorn/Expr/ExprOpBv.hh"
 #include "seahorn/Expr/ExprOpCore.hh"

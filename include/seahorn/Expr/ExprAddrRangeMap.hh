@@ -5,23 +5,51 @@
 #include <limits>
 
 namespace expr {
+
 // AG XXX: why keys are ENode* and not Expr?
 using PtrTypeCheckCache = std::unordered_map<ENode *, bool>;
+
 namespace addrRangeMap {
 
-struct AddrRange {
+class AddrRangeMap;
+/// \brief An interval (range) of addresses
+class AddrRange {
   unsigned m_low;
   unsigned m_high;
-  bool m_isTop;
-  bool m_isBot;
-  AddrRange() : m_low(0), m_high(0), m_isTop(false), m_isBot(false) {}
+  friend class AddrRangeMap;
+
+  void initTop() {
+    m_low = std::numeric_limits<unsigned>::min();
+    m_high = std::numeric_limits<unsigned>::max();
+  }
+  void initBot() {
+    m_low = 1;
+    m_high = 0;
+  }
+
+public:
+  AddrRange() : m_low(0), m_high(0) {}
   AddrRange(unsigned low, unsigned high, bool top = false, bool bot = false)
-      : m_low(low), m_high(high), m_isTop(top), m_isBot(bot) {}
+      : m_low(low), m_high(high) {
+    if (bot) {
+      initBot();
+    } else if (top) {
+      initTop();
+    }
+  }
   AddrRange(const AddrRange &o) = default;
   AddrRange &operator=(const AddrRange &) = default;
 
-  bool contains(unsigned offset) {
-    return !m_isBot && (m_isTop || (m_low <= offset && offset <= m_high));
+  static AddrRange mkTop() { return AddrRange(0, 0, true, false); }
+  static AddrRange mkBot() { return AddrRange(1, 0, false, true); }
+
+  bool isTop() const {
+    return m_low == std::numeric_limits<unsigned>::min() &&
+           m_high == std::numeric_limits<unsigned>::max();
+  }
+  bool isBot() const { return m_low > m_high; }
+  bool contains(unsigned offset) const {
+    return isTop() || (!isBot() && (m_low <= offset && offset <= m_high));
   }
 
   /**
@@ -30,24 +58,18 @@ struct AddrRange {
    * @param b(low_b, hi_b)
    * @return AddrRange(low_a + low_b, hi_a + hi_b)
    */
-  AddrRange add(const AddrRange &o) {
-    bool top = m_isTop || o.m_isTop;
-    bool bot = m_isBot && o.m_isBot;
-    unsigned newLow = m_low + o.m_low, newHigh = m_high + o.m_high;
-    if (top) {
-      newLow = std::numeric_limits<unsigned>::min();
-      newHigh = std::numeric_limits<unsigned>::max();
-    }
-    if (m_isBot) {
-      newLow = o.m_low, newHigh = o.m_high;
-    } else if (o.m_isBot) {
-      newLow = m_low, newHigh = m_high;
-    }
-    return AddrRange(newLow, newHigh, top, bot);
+  AddrRange add(const AddrRange &o) const {
+    if (isTop() || o.isTop())
+      return mkTop();
+
+    if (isBot() || o.isBot())
+      return mkBot();
+
+    return AddrRange(m_low + o.m_low, m_high + o.m_high, false, false);
   }
 
   /** shorthand for add **/
-  AddrRange operator+(const AddrRange &o) { return add(o); }
+  AddrRange operator+(const AddrRange &o) const { return add(o); }
 
   /**
    * @brief Return new AddrRange that "joins" the ranges of a and b
@@ -56,15 +78,20 @@ struct AddrRange {
    * @param b(low_b, hi_b, kind_b)
    * @return AddrRange(min(low_a, low_b), max(hi_a, hi_b), kind_a | kind_b)
    */
-  AddrRange join(const AddrRange &o) {
-    bool top = m_isTop || o.m_isTop;
-    bool bot = m_isBot && o.m_isBot;
-    return AddrRange(std::min(m_low, o.m_low), std::max(m_high, o.m_high), top,
-                     bot);
+  AddrRange join(const AddrRange &o) const {
+    if (isTop() || o.isTop())
+      return mkTop();
+    if (isBot())
+      return o;
+    if (o.isBot())
+      return *this;
+
+    return AddrRange(std::min(m_low, o.m_low), std::max(m_high, o.m_high),
+                     false, false);
   }
 
   /** shorthand for join **/
-  AddrRange operator|(const AddrRange &o) { return join(o); }
+  AddrRange operator|(const AddrRange &o) const { return join(o); }
 
   /**
    * @brief Returns new AddrRange that overlaps this and o; if this and o
@@ -72,35 +99,37 @@ struct AddrRange {
    * @param o
    * @return AddrRange
    */
-  AddrRange meet(const AddrRange &o) {
-    bool top = m_isTop && o.m_isTop;
-    bool bot = m_isBot || o.m_isBot;
-    unsigned newHigh = std::min(m_high, o.m_high);
-    unsigned newLow = std::max(m_low, o.m_low);
-    if (newHigh < newLow) {
-      bot = true, top = false;
-      newLow = std::numeric_limits<unsigned>::max(),
-      newHigh = std::numeric_limits<unsigned>::min();
-    }
-    return AddrRange(newLow, newHigh, top, bot);
+  AddrRange meet(const AddrRange &o) const {
+    if (o.isTop())
+      return *this;
+    if (isTop())
+      return o;
+
+    if (isBot() || o.isBot())
+      return mkBot();
+
+    return AddrRange(std::max(m_low, o.m_low), std::min(m_high, o.m_high));
   }
 
   /* shorthand for overlap */
-  AddrRange operator&(const AddrRange &o) { return meet(o); }
+  AddrRange operator&(const AddrRange &o) const { return meet(o); }
 
-  bool isValid();
+  bool isValid() const;
+
+  /// Zero Least Significant Bits
+  AddrRange zeroLSB(size_t bits) {
+    if (isBot() || isTop())
+      return *this;
+
+    unsigned mask = ~0;
+    mask <<= bits;
+    return AddrRange(m_low & mask, m_high & mask, false, false);
+  }
 };
 
-inline AddrRange mkAddrRangeBot(void) {
-  return AddrRange(std::numeric_limits<unsigned>::max(),
-                   std::numeric_limits<unsigned>::min(), false, true);
-}
+inline AddrRange mkAddrRangeBot(void) { return AddrRange::mkBot(); }
 
-inline AddrRange mkAddrRangeTop() {
-  return AddrRange(std::numeric_limits<unsigned>::min(),
-                   std::numeric_limits<unsigned>::max(), true, false);
-}
-
+inline AddrRange mkAddrRangeTop() { return AddrRange::mkTop(); }
 
 /**
  * @brief zero the last n bits of low and high
@@ -109,46 +138,54 @@ inline AddrRange mkAddrRangeTop() {
  * @param n number of bits to zero out
  * @return AddrRange with both low and high last n bits zeroed
  */
-AddrRange zeroBitsRange(AddrRange &r, size_t n);
-
-/** Given a base addr a, store upper and lower range being queried from.
- * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
- * map => {a => (u, l)} **/
-using arm_range_map_t = std::unordered_map<Expr, AddrRange>;
-using const_arm_iterator = arm_range_map_t::const_iterator;
-using arm_iterator = arm_range_map_t::iterator;
+inline AddrRange zeroBitsRange(AddrRange &r, size_t n) {
+  return r.zeroLSB(n);
+}
 
 /** Given a base addr a, store upper and lower range being queried from.
  * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
  * map => {a => (u, l)} **/
 class AddrRangeMap {
+public:
+  /** Given a base addr a, store upper and lower range being queried from.
+   * E.g. ptr is ite(i, bvadd(a, u), bvsub(a, l)) =>
+   * map => {a => (u, l)} **/
+  using arm_range_map_t = std::unordered_map<Expr, AddrRange>;
+  using const_arm_iterator = arm_range_map_t::const_iterator;
+  using arm_iterator = arm_range_map_t::iterator;
+
+private:
   arm_range_map_t m_rangeMap;
   bool m_isTop;
   bool m_isBot;
 
 public:
-  AddrRangeMap(arm_range_map_t rangeMap = {}, bool isTop = false,
+  AddrRangeMap(const arm_range_map_t &rangeMap = {}, bool isTop = false,
                bool isBot = false)
       : m_rangeMap(rangeMap), m_isTop(isTop), m_isBot(isBot) {}
-  AddrRangeMap(const AddrRangeMap &o) = default;
+  AddrRangeMap(const AddrRangeMap &) = default;
+  AddrRangeMap(AddrRangeMap &&) = default;
+
+  AddrRangeMap &operator=(AddrRangeMap &&) = default;
   AddrRangeMap &operator=(const AddrRangeMap &) = default;
 
   /* access to internal map */
   AddrRange &operator[](const Expr &k) { return m_rangeMap[k]; }
+  AddrRange at(const Expr &k) const { return m_rangeMap.at(k); }
 
   arm_iterator begin() { return m_rangeMap.begin(); }
   arm_iterator end() { return m_rangeMap.end(); }
 
-  const_arm_iterator cbegin() { return m_rangeMap.cbegin(); }
-  const_arm_iterator cend() { return m_rangeMap.cend(); }
+  const_arm_iterator cbegin() const { return m_rangeMap.cbegin(); }
+  const_arm_iterator cend() const { return m_rangeMap.cend(); }
 
-  size_t count(Expr base) { return m_rangeMap.count(base); };
-
+  size_t count(const Expr &base) { return m_rangeMap.count(base); };
   arm_iterator find(const Expr &k) { return m_rangeMap.find(k); }
+  const_arm_iterator find(const Expr &k) const { return m_rangeMap.find(k); }
 
-  size_t size() { return m_rangeMap.size(); }
+  size_t size() const { return m_rangeMap.size(); }
 
-  bool isValid();
+  bool isValid() const;
 
   /* modification and utility */
 
@@ -179,13 +216,13 @@ public:
   /**
    * @brief whether this ARM is { all => top }
    */
-  bool isAllTop() { return m_isTop; }
+  bool isAllTop() const { return m_isTop; }
 
-  bool isAllBot() { return m_isBot; }
+  bool isAllBot() const { return m_isBot; }
 
-  void setTop(bool t) { m_isTop = t; }
+  void setTop(bool v) { m_isTop = v; }
 
-  void setBot(bool t) { m_isBot = t; }
+  void setBot(bool v) { m_isBot = v; }
 
   /* printer */
   template <typename T> void print(T &OS) const;

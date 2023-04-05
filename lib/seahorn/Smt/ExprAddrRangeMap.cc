@@ -5,15 +5,14 @@
 namespace expr {
 namespace addrRangeMap {
 
-bool AddrRange::isValid() {
-  if (m_isTop && m_isBot)
+bool AddrRange::isValid() const {
+  if (isTop() && isBot())
     return false;
-  if (m_isTop)
+  if (isTop())
     return m_low == std::numeric_limits<unsigned>::min() &&
            m_high == std::numeric_limits<unsigned>::max();
-  if (m_isBot)
-    return m_high == std::numeric_limits<unsigned>::min() &&
-           m_low == std::numeric_limits<unsigned>::max();
+  if (isBot())
+    return m_high == 0 && m_low == 1;
 
   return m_low <= m_high;
 }
@@ -68,7 +67,7 @@ AddrRangeMap addrRangeMapIntersect(AddrRangeMap &a, AddrRangeMap &b) {
       AddrRange bRange = bEntry->second;
       AddrRange aRange = aEntry->second;
       AddrRange nRange = aRange & bRange;
-      if (!nRange.m_isBot) {
+      if (!nRange.isBot()) {
         res[bEntry->first] = nRange;
         isBot = false;
       }
@@ -105,9 +104,9 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
     for (auto m = m_rangeMap.begin(); m != m_rangeMap.end(); m++) {
       auto range = m->second;
       OS << "  " << *m->first << " => ";
-      if (range.m_isTop)
+      if (range.isTop())
         OS << "any\n";
-      else if (range.m_isBot)
+      else if (range.isBot())
         OS << "none\n";
       else
         OS << "(" << range.m_low << ", " << range.m_high << ")\n";
@@ -116,7 +115,7 @@ template <typename T> void AddrRangeMap::print(T &OS) const {
   }
 }
 
-bool AddrRangeMap::isValid() {
+bool AddrRangeMap::isValid() const {
   if (m_isBot && m_isTop)
     return false;
   if (m_isBot || m_isTop)
@@ -138,16 +137,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, AddrRangeMap const &arm) {
 std::ostream &operator<<(std::ostream &OS, AddrRangeMap const &arm) {
   arm.print(OS);
   return OS;
-}
-
-AddrRange zeroBitsRange(AddrRange &r, size_t bits) {
-  if (r.m_isBot || r.m_isTop)
-    return r;
-  unsigned new_low = r.m_low >> bits;
-  new_low = new_low << bits;
-  unsigned new_high = r.m_high >> bits;
-  new_high = new_high << bits;
-  return AddrRange(new_low, new_high, r.m_isTop, r.m_isBot);
 }
 
 AddrRange addrRangeOf(Expr e) {
@@ -177,10 +166,11 @@ AddrRange addrRangeOf(Expr e) {
   return mkAddrRangeTop();
 }
 
-inline void updateARMCache(ARMCache &cache, const Expr &e, AddrRangeMap arm) {
+inline void updateARMCache(ARMCache &cache, const Expr &e,
+                           const AddrRangeMap &arm) {
   if (e->use_count() > 1) {
     e->Ref();
-    cache[&*e] = arm;
+    cache.insert({&*e, arm});
   }
 }
 

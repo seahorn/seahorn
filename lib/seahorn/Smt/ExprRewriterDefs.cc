@@ -10,7 +10,6 @@ static llvm::cl::opt<bool>
            llvm::cl::init(false));
 
 namespace expr {
-using namespace addrRangeMap;
 namespace utils {
 bool shouldCache(const Expr &e) {
   if (isOpX<SELECT>(e) || isOpX<STORE>(e) || isOpX<ITE>(e)) {

@@ -160,8 +160,14 @@ inline Z3_ast mk_bind_core(z3::context &ctx, const expr::Operator &op,
     assert(arity == 2 && "Only 1D arrays are supported");
     // In Z3, selects are used for lambda applications.
     // (Lambdas are of ArraySort.)
+    // Check that lambda application type checks
+    // i.e. rator : t0 --> _anyType and rand: t0
+    assert(Z3_get_sort_kind(ctx,
+        Z3_get_array_sort_domain(ctx, Z3_get_sort(ctx, zargs[0]))) ==
+                                 Z3_get_sort_kind(ctx, Z3_get_sort(ctx, zargs[1])) &&
+                                 "Array domain and argument must have the same sort");
     return Z3_mk_select(ctx, zargs[0], zargs[1]);
-  }
+}
   return nullptr;
 }
 

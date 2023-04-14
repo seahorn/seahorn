@@ -593,6 +593,21 @@ public:
       return;
     }
 
+    if (f->getFunctionType()->getReturnType()->isVoidTy()) {
+      if (f->getName().startswith("_ZN4core3ptr56drop_in_place")) {
+        // core::ptr::drop_in_place is recursive
+        WARN << "Skipping a non-inlineable call to: " << f->getName();
+        return;
+      } else if (f->getName().find("core..clone..Clone$GT$5clone") !=
+                 StringRef::npos) {
+        // some implementations of ::clone are recursive
+        // if we see a call, then it could not have been inlined, hence it is
+        // recursive
+        WARN << "Skipping a non-inlineable call to: " << f->getName();
+        return;
+      }
+    }
+
     if (CB.getMetadata("shadow.mem")) {
       visitShadowMemCall(CB);
       return;
@@ -674,8 +689,11 @@ public:
       visitKnownFunctionCall(CB);
     }
 
-    ERR << "unhandled call instruction: " << CB;
-    llvm_unreachable(nullptr);
+    ERR << "Unexpected call instruction: " << CB;
+    ERR << "Either inlining failed, or calling a recursive function. "
+           "Aborting...";
+    assert(false);
+    std::exit(1);
   }
 
   void visitSmtCall(CallBase &CB) {

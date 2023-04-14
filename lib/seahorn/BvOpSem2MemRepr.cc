@@ -124,6 +124,7 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
   } else {
     DOG(ERR << "Word size and pointer are not aligned and "
                "alignment is not ignored!");
+    DOG(ERR << "Try --horn-bv2-lambdas=true or --horn-bv2-word-size=1");
     assert(false);
   }
   return MemValTy(res);

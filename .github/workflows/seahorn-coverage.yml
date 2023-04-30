@@ -1,0 +1,40 @@
+# workflow to run coverage tests
+name: Coverage
+# Controls when the action will run
+on:
+  schedule:
+    - cron: 0 0 * * *  # run every day at UTC 00:00
+  workflow_dispatch:
+    inputs:
+      Triggerer:
+        description: 'Triggered by:'
+        required: true
+        default: ''
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: Coverage
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+        with:
+          ref: dev14  # only checkout dev14
+      - name: Set dev14 commit SHA
+        run: | # set dev14 last commit SHA
+          echo "COMMIT_SHA=$(git log -1 --format='%H')" >> $GITHUB_ENV
+      - name: Build seahorn builder
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm14 --build-arg BUILD_TYPE=$BUILD_TYPE
+      - name: Collect coverage report
+        run:  docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm14 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./all.info
+          name: codecov-seahorn
+          override_branch: dev14
+          override_commit: ${{ env.COMMIT_SHA }}
+          fail_ci_if_error: true
+          verbose: true

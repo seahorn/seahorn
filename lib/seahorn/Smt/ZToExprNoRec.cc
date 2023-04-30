@@ -533,7 +533,9 @@ private:
       case Z3_OP_CONST_ARRAY: {
         auto &sort = *(kids_it++);
         auto &val = *(kids_it++);
-        res = op::array::constArray(sort, val);
+        // Expr const-array take domain sort as first arg
+        // Z3/SMT-LIB const-array take array sort as first arg
+        res = op::array::constArray(sort->arg(0), val);
         break;
       }
       case Z3_OP_STORE:

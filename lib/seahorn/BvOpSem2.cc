@@ -2618,13 +2618,8 @@ Expr coerceConstArrayToLambda(Expr e, ExprFactory &efac) {
     }
     return strct::mk(kids);
   } else if (isOpX<CONST_ARRAY>(e)) {
-    // An e is of the following form:
-    // const-array([ARRAY
-    //  bv(64)
-    //  bv(8)
-    //  ], 0:bv(8))
-    Expr dom = e->arg(0)->arg(0); // get domain
-    Expr val = e->arg(1);         // get value
+    Expr dom = e->arg(0); // get domain
+    Expr val = e->arg(1); // get value
     Expr addr = bind::mkConst(mkTerm<std::string>("addr", efac), dom);
     Expr decl = bind::fname(addr);
     Expr res = mk<LAMBDA>(decl, val);

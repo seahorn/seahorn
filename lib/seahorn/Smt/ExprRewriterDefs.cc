@@ -80,18 +80,6 @@ RewriteResult ReadOverWriteRule::operator()(const Expr &exp) const {
   const Expr &arr = exp->arg(0);
   const Expr &idx = exp->arg(1);
 
-  // XXX make this optional, it is potentially costly but only used for stats
-  if (!isOpX<ITE>(arr) && m_cache.find(&*exp) == m_cache.end()) {
-    if (isOpX<STORE_MAP>(arr)) {
-      auto nRows = op::array::storeMapGetMap(arr)->arity();
-      seahorn::Stats::uset("hybrid.read_over_writes",
-                           seahorn::Stats::get("hybrid.read_over_writes") +
-                               nRows);
-    } else {
-      seahorn::Stats::count("hybrid.read_over_writes");
-    }
-  }
-
   // Read-over-write/ite: push select down to leaves
   if (isOpX<STORE>(arr)) {
     return rewriteReadOverStore(arr, idx);
@@ -104,7 +92,7 @@ RewriteResult ReadOverWriteRule::operator()(const Expr &exp) const {
   } else if (isOpX<STORE_MAP>(arr)) {
     return rewriteReadOverStoreMap(arr, idx);
   } else {
-    return {exp, RWStatus::RW_DONE};
+    return {exp, RWStatus::RW_SKIP};
   }
 }
 
@@ -140,8 +128,6 @@ RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr,
     unsigned cLen = bv::toMpz(len).get_ui() - m_wordSize;
     Expr offset = op::bv::bvnum(cLen, op::bv::widthBvNum(len), efac);
     Expr last = utils::ptrAdd(idxN, offset);
-    // idxN <= idx <= idxN + sz
-    Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
     Expr otherVal = op::array::select(inMem, idx);
     if (UseArm &&
         !approxPtrInRangeCheck(idxN, cLen, idx, m_armCache, m_ptCache)) {
@@ -149,17 +135,19 @@ RewriteResult ReadOverWriteRule::rewriteReadOverMemset(const Expr &arr,
       seahorn::Stats::count("hybrid.arm_skip_memset");
       return {std::move(otherVal), RWStatus::RW_1};
     }
+    // idxN <= idx <= idxN + sz
+    Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
     res = mk<ITE>(cmp, val, otherVal);
   } else {
     Expr wordSzE = op::bv::bvnum(m_wordSize, m_ptrWidth, len->efac());
     Expr last = utils::ptrSub(utils::ptrAdd(idxN, len), wordSzE);
     // idxN <= idx <= idxN + sz
-    Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
     Expr otherVal = op::array::select(inMem, idx);
     if (UseArm && !approxPtrEq(idx, idxN, m_armCache, m_ptCache)) {
       seahorn::Stats::count("hybrid.arm_skip_memset");
       return {std::move(otherVal), RWStatus::RW_1};
     }
+    Expr cmp = utils::ptrInRangeCheck(idxN, idx, last);
     res = mk<ITE>(cmp, val, otherVal);
   }
   return {std::move(res), RWStatus::RW_2};

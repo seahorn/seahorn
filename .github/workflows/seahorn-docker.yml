@@ -1,0 +1,63 @@
+# workflow to build and test seahorn
+
+name: Nightly
+
+# Controls when the action will run.
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  schedule:
+    - cron: 0 0 * * *  # run every day at UTC 00:00
+  workflow_dispatch:
+    branches: dev14
+    inputs:
+      Triggerer:
+        description: 'Triggered by:'
+        required: true
+        default: ''
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "test"
+  test:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Log manual trigger info
+        if: ${{ github.event_name == 'workflow_dispatch' }}  # only if triggered manually
+        run: |
+          echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+        with:
+          ref: dev14  # only checkout dev14
+      - name: Build seahorn builder
+        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm14
+      - name: Copy build out to /host
+        run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm14 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
+      - name: Build seahorn container
+        run: docker build . --file docker/seahorn.Dockerfile --tag seahorn_container
+      - name: Run opsem tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem "
+      - name: Run opsem widemem tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D opsem-opts=--horn-bv2-widemem test/opsem "
+      - name: Run opsem extra widemem tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D opsem-opts=--horn-bv2-extra-widemem test/opsem "
+      - name: Run mcfuzz tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/mcfuzz"
+      - name: Run smc tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/smc"
+      # Logging in using this mechanism prints the following warning
+      # WARNING! Your password will be stored unencrypted in /home/runner/.docker/config.json.
+      # There does not seem to be an easy way around it though using docker actions may mitigate
+      # it.
+      - name: Login to DockerHub Registry
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only login if nightly or manual run
+        run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+      - name: tag and push seahorn (nightly/manual)
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only push if nightly or manual run
+        run: |
+          docker tag seahorn_container seahorn/seahorn-llvm14:nightly
+          docker push seahorn/seahorn-llvm14:nightly

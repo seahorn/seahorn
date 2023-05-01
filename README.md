@@ -449,11 +449,13 @@ miss the example
 * [Arie Gurfinkel](https://arieg.bitbucket.org/)
 * [Jorge Navas](https://jorgenavas.github.io/)
 * [Temesghen Kahsai](http://www.lememta.info/)
-
 * [Jakub Kuderski](https://github.com/kuhar)
 * [Nham Le](https://github.com/nhamlv-55)
 * [Charles Lei](https://github.com/mrthefakeperson)
-* Xiang Zhou 
+* [Xiang Zhou](https://github.com/danblitzhou)
+* [Siddharth Priya](https://github.com/priyasiddharth)
+* [Isabel Garcia-Contreras](https://igcontreras.github.io/)
+* [Yusen Su](https://github.com/LinerSu)
 * EMAIL ME IF YOUR NAME SHOULD BE HERE
 
 [seahorn-web]: https://seahorn.github.io

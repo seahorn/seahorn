@@ -245,8 +245,8 @@ are:
 The easiest way to get started with SeaHorn is via a docker distribution. 
 
 ```shell
-$ docker pull seahorn/seahorn-llvm10:nightly
-$ docker run --rm -it seahorn/seahorn-llvm10:nightly
+$ docker pull seahorn/seahorn-llvm14:nightly
+$ docker run --rm -it seahorn/seahorn-llvm14:nightly
 ```
 
 Start with exploring what the `sea` command can do:
@@ -266,6 +266,18 @@ phased out, new things are added. If you find problems in the blog, let us know.
 We at least will update the blog post to indicate that it is not expected to
 work with the latest version of the code.
 
+
+You can also manually install by:
+
+Following the instructions in the Docker file
+Dockerfile: [`docker/seahorn-builder.Dockerfile`](docker/seahorn-builder.Dockerfile).
+
+If using LLVM-14 from apt.LLVM.org (version with package bugs)
+Fist running the below commnad to fix an issue with LLVM-14 and libpolly-14
+And then run the commands in the docker above
+```shell 
+$ apt download libpolly-14-dev && sudo dpkg --force-all -i libpolly-14-dev*
+```
 
 # Developer's Zone
 

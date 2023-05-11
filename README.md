@@ -266,6 +266,21 @@ phased out, new things are added. If you find problems in the blog, let us know.
 We at least will update the blog post to indicate that it is not expected to
 work with the latest version of the code.
 
+You can also manually install by:
+
+Following the instructions in the Docker file
+Dockerfile: [`docker/seahorn-builder.Dockerfile`](docker/seahorn-builder.Dockerfile).
+
+If this does not work, run:
+```shell
+$ wget https://apt.llvm.org/llvm.sh
+$ chmod +x llvm.sh
+$ sudo ./llvm.sh 14
+$ apt download libpolly-14-dev && sudo dpkg --force-all -i libpolly-14-dev*
+```
+The first 3 commands will install LLVM 14, the 4th will install libpolly which is wrongly omitted from LLVM 14 (but included in subsequent versions)
+
+Next, follow the instruction in the Docker file above
 
 # Developer's Zone
 

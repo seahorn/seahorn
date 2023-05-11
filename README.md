@@ -271,7 +271,7 @@ You can also manually install by:
 Following the instructions in the Docker file
 Dockerfile: [`docker/seahorn-builder.Dockerfile`](docker/seahorn-builder.Dockerfile).
 
-If this does not work, run:
+If this does not work, run: 
 ```shell
 $ wget https://apt.llvm.org/llvm.sh
 $ chmod +x llvm.sh

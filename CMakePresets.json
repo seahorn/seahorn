@@ -7,10 +7,85 @@
     },
     "configurePresets": [
         {
-            "name": "defaultPresets",
+            "name": "default-jammy",
             "hidden": true,
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build"
+            "binaryDir": "${sourceDir}/build",
+            "environment": {
+                "Z3_ROOT": "/opt/z3-4.8.9",
+                "YICES2_HOME": "/opt/yices-2.6.1",
+                "CMAKE_INSTALL_PREFIX": "run",
+                "CMAKE_CXX_COMPILER": "clang++-14",
+                "CMAKE_C_COMPILER": "clang-14",
+                "SEA_ENABLE_LLD": "ON",
+                "CPACK_GENERATOR": "TGZ",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "Debug-jammy",
+            "inherits": [
+                "default-jammy"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "Z3_ROOT": "$env{Z3_ROOT}",
+                "YICES2_HOME": "$env{YICES2_HOME}",
+                "CMAKE_INSTALL_PREFIX": "$env{CMAKE_INSTALL_PREFIX}",
+                "CMAKE_CXX_COMPILER": "$env{CMAKE_CXX_COMPILER}",
+                "CMAKE_C_COMPILER": "$env{CMAKE_C_COMPILER}",
+                "SEA_ENABLE_LLD": "$env{SEA_ENABLE_LLD}",
+                "CPACK_GENERATOR": "$env{CPACK_GENERATOR}",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "$env{CMAKE_EXPORT_COMPILE_COMMANDS}"
+            }
+        },
+        {
+            "name": "RelWithDebInfo-jammy",
+            "inherits": [
+                "default-jammy"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "Z3_ROOT": "$env{Z3_ROOT}",
+                "YICES2_HOME": "$env{YICES2_HOME}",
+                "CMAKE_INSTALL_PREFIX": "$env{CMAKE_INSTALL_PREFIX}",
+                "CMAKE_CXX_COMPILER": "$env{CMAKE_CXX_COMPILER}",
+                "CMAKE_C_COMPILER": "$env{CMAKE_C_COMPILER}",
+                "SEA_ENABLE_LLD": "$env{SEA_ENABLE_LLD}",
+                "CPACK_GENERATOR": "$env{CPACK_GENERATOR}",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "$env{CMAKE_EXPORT_COMPILE_COMMANDS}"
+            }
+        },
+        {
+            "name": "Coverage-jammy",
+            "inherits": [
+                "default-jammy"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "Z3_ROOT": "$env{Z3_ROOT}",
+                "YICES2_HOME": "$env{YICES2_HOME}",
+                "CMAKE_INSTALL_PREFIX": "$env{CMAKE_INSTALL_PREFIX}",
+                "CMAKE_CXX_COMPILER": "$env{CMAKE_CXX_COMPILER}",
+                "CMAKE_C_COMPILER": "$env{CMAKE_C_COMPILER}",
+                "SEA_ENABLE_LLD": "$env{SEA_ENABLE_LLD}",
+                "CPACK_GENERATOR": "$env{CPACK_GENERATOR}",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "$env{CMAKE_EXPORT_COMPILE_COMMANDS}"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug-jammy",
+            "configurePreset": "Debug-jammy"
+        },
+        {
+            "name": "RelWithDebInfo-jammy",
+            "configurePreset": "RelWithDebInfo-jammy"
+        },
+        {
+            "name": "Coverage-jammy",
+            "configurePreset": "Coverage-jammy"
         }
     ]
 }

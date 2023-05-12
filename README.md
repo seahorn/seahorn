@@ -347,6 +347,16 @@ In particular, you will need a `Debug` build of LLVM to compile `SeaHorn` in
 `Debug** mode. Make sure you have plenty of patience, disk space, and time if you
 decide to go this route.
 
+Alternatively, the project can be configured using cmake presets. To do this, create a file in the root `verify-c-common` directory called `CMakeUserPresets.json`. On Linux, copy the contents of `default-jammy.json` into it. You will then have to replace `Z3_ROOT` and `YICES_ROOT` with directories containing binary distributions for Z3 and Yices in the environment variables in the presets file.
+
+Then, you can simply run:
+```bash
+$ cmake --preset <BUILD_TYPE>
+```
+to configure cmake, where `<BUILD_TYPE>` is one of: `Debug`, `RelWithDebInfo` or `Coverage`.
+
+This will also allow the project to be configured and compiled within VS Code using the CMake Tools extension.
+
 ## Compiling on a Mac
 
 **Do not include `-DSEA_ENABLE_LLD=ON`**. The default compiler is clang, so you

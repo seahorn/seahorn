@@ -25,3 +25,4 @@
 /.cache/
 .ccls
 .ccls-root
+CMakeUserPresets.json

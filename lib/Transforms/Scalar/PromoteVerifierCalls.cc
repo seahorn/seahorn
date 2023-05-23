@@ -77,6 +77,9 @@ char PromoteVerifierCalls::ID = 0;
 bool PromoteVerifierCalls::runOnModule(Module &M) {
   LOG("pvc", errs() << "Running promote-verifier-calls pass\n";);
 
+  if (auto *sea_printf = M.getFunction("sea_printf")) {
+    sea_printf->deleteBody();
+  }
   auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
   using SBIOp = SeaBuiltinsOp;
   m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);

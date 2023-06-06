@@ -14,12 +14,13 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 using namespace llvm;
 
 static llvm::cl::opt<std::string>
     EntryPoint("entry-point",
-               llvm::cl::desc("Entry point if main does not exist"),
+               llvm::cl::desc("Set Entry point to be other than main."),
                llvm::cl::init(""));
 
 namespace seahorn {
@@ -57,10 +58,11 @@ public:
 
   bool runOnModule(Module &M) override {
 
-    if (M.getFunction("main")) {
-      LOG("dummy-main", errs() << "DummyMainFunction: Main already exists.\n");
-
-      return false;
+    if (EntryPoint != "" && M.getFunction("main")) {
+      LOG("dummy-main",
+          WARN << "DummyMainFunction: Main already exists. Deleting it!\n");
+      // NOTE: assuming no uses of main
+      M.getFunction("main")->eraseFromParent();
     }
 
     Function *Entry = nullptr;

@@ -277,7 +277,7 @@ ExtraWideMemManager<T>::storeValueToMem(Expr _val,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: store of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;
@@ -317,7 +317,7 @@ Expr ExtraWideMemManager<T>::loadValueFromMem(ExtraWideMemManager::PtrTy base,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: load of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;
@@ -595,7 +595,8 @@ ExtraWideMemManager<T>::salloc(unsigned int bytes, uint32_t align) {
   assert(isa<AllocaInst>(m_ctx.getCurrentInst()));
   align = std::max(align, m_alignment);
   auto region = m_main.getMAllocator().salloc(bytes, align);
-  assert(region.second > region.first);
+  // allocated size >= 0
+  assert(region.second >= region.first);
   // The size is min(alloc_size, requested_size)
   return PtrTy(mkStackPtr(region.second).getBase(),
                m_ctx.alu().ui(0UL, ptrSizeInBits()),

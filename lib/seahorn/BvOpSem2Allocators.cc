@@ -193,8 +193,11 @@ public:
   AddrInterval salloc(unsigned bytes, uint32_t align) override {
     unsigned start = m_allocas.empty() ? 0 : m_allocas.back().m_end;
     start = llvm::alignTo(start, align);
-
     unsigned end = start + bytes;
+    LOG(
+        "opsem", if (bytes == 0) {
+          WARN << "Adding zero-sized allocation interval at: " << start << "\n";
+        });
     end = llvm::alignTo(end, align);
 
     const AllocaInst *alloca = dyn_cast<AllocaInst>(&m_ctx.getCurrentInst());

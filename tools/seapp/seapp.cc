@@ -491,7 +491,7 @@ int main(int argc, char **argv) {
     // -- Externalize some user-selected functions
     pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
 
-    // -- Create a main function if we do not have one.
+    // -- Replace main function by entry point.
     pm_wrapper.add(seahorn::createDummyMainFunctionPass());
 
     // -- promote verifier specific functions to special names
@@ -584,7 +584,7 @@ int main(int argc, char **argv) {
 
     pm_wrapper.add(llvm::createDeadCodeEliminationPass());
     // Superseded by DCE in LLVM12
-    //pm_wrapper.add(llvm::createDeadInstEliminationPass());
+    // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
     if (!KeepArithOverflow)
@@ -619,7 +619,7 @@ int main(int argc, char **argv) {
       // -- instructions
       pm_wrapper.add(llvm::createDeadCodeEliminationPass());
       // Superseded by DCE in LLVM12
-      //pm_wrapper.add(llvm::createDeadInstEliminationPass());
+      // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
 
     // AG: Used for inconsistency analysis
@@ -628,8 +628,8 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createLowerAssertPass());
       // LowerAssert might generate some dead code
       pm_wrapper.add(llvm::createDeadCodeEliminationPass());
-      // Superseded by DCE in LLVM12      
-      //pm_wrapper.add(llvm::createDeadInstEliminationPass());
+      // Superseded by DCE in LLVM12
+      // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
@@ -664,7 +664,7 @@ int main(int argc, char **argv) {
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE
     // INLINE!
     pm_wrapper.add(llvm::createDeadCodeEliminationPass());
-    // Superseded by DCE in LLVM12      
+    // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
     pm_wrapper.add(llvm::createUnifyFunctionExitNodesPass());
@@ -685,9 +685,6 @@ int main(int argc, char **argv) {
     // -- Enable function slicing
     // AG: NOT USED. Not part of std pipeline
     pm_wrapper.add(seahorn::createSliceFunctionsPass());
-
-    // -- Create a main function if we sliced it away
-    pm_wrapper.add(seahorn::createDummyMainFunctionPass());
 
     // AG: Dangerous. Promotes verifier.assume() to llvm.assume()
     if (PromoteAssumptions)

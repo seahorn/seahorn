@@ -1,5 +1,6 @@
 /** Insert dummy main function if one does not exist */
 
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
@@ -17,6 +18,8 @@
 #include "seahorn/Support/SeaLog.hh"
 
 using namespace llvm;
+
+#define DEBUG_TYPE "sea-dummy-main"
 
 static llvm::cl::opt<std::string>
     EntryPoint("entry-point",
@@ -57,11 +60,18 @@ public:
   DummyMainFunction() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override {
-
     if (EntryPoint != "" && M.getFunction("main")) {
+      std::unique_ptr<OptimizationRemarkEmitter> OwnedORE =
+          std::make_unique<OptimizationRemarkEmitter>(M.getFunction("main"));
+      OptimizationRemarkEmitter *ORE = OwnedORE.get();
+
       LOG("dummy-main",
           WARN << "DummyMainFunction: Main already exists. Deleting it!\n");
       // NOTE: assuming no uses of main
+      ORE->emit(
+          OptimizationRemark(DEBUG_TYPE, "ReplaceMain", M.getFunction("main"))
+          << " Will replace main function with entry to (in-order) "
+          << EntryPoint);
       M.getFunction("main")->eraseFromParent();
     }
 

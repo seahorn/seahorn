@@ -309,7 +309,7 @@ class Seapp(sea.LimitedCmd):
                          help='Abstract memory instructions', dest='abs_mem_lvl',
                          choices=['none','only-load','only-store','load-and-store'],
                          default='none')
-        ap.add_argument ('--entry', dest='entry', help='Make entry point if main does not exist',
+        ap.add_argument ('--entry', dest='entry', help='Make given function the entry point, deleting main if it exists.',
                          default=None, metavar='str')
         ap.add_argument ('--externalize-addr-taken-functions',
                          help='Externalize uses of address-taken functions',

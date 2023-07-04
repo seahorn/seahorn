@@ -890,8 +890,8 @@ class Seaopt(sea.LimitedCmd):
                          help='Unrolling threshold (default = 150)',
                          dest='unroll_threshold',
                          default=150, metavar='NUM')
-        ap.add_argument ('--enable-vectorize', dest='enable_vectorize', default=False,
-                         action='store_true', help='Enable LLVM vectorization optimizations')
+        add_bool_argument(ap, 'enable-vectorize', dest='enable_vectorize', default=False,
+                          help='Enable LLVM vectorization passes')
         add_in_out_args (ap)
         _add_S_arg (ap)
         return ap
@@ -930,6 +930,15 @@ class Seaopt(sea.LimitedCmd):
         argv.extend(['--unroll-allow-partial=false',
                      '--unroll-partial-threshold=0'])
 
+        # new option to disable vectorization more globally
+        if args.enable_vectorize:
+            argv.append('--seaopt-enable-vectorize=true')
+        else:
+            # this is the default. For compatibility, do not add anything
+            # argv.append('--seaopt-enable-vectorize=false')
+            pass
+
+        # XXX See option above. Perhaps remove other vectorization related options
         # LLVM 12 onwards we need to disable slp vectorization (vec instr not handled by sea-dsa and opsem)
         # vectorization for loops is split into multiple options so not adding any here.
         # See https://sourcegraph.com/github.com/llvm/llvm-project@release/12.x/-/blob/llvm/lib/Transforms/Vectorize/LoopVectorize.cpp

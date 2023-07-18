@@ -358,11 +358,10 @@ public:
           Expr inRange = m_ctx.alu().doUle(
               bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
           if (dagSize(inRange) < 64) {
-            LOG("opsem", errs()
-                             << "Adding range condition: " << *inRange << "\n";);
+            LOG("opsem",
+                errs() << "Adding range condition: " << *inRange << "\n";);
           } else {
-            LOG("opsem", errs()
-                             << "Adding range condition: ...\n";);
+            LOG("opsem", errs() << "Adding range condition: ...\n";);
           }
           m_ctx.addScopedRely(inRange);
           return {ai.m_start, ai.m_end};

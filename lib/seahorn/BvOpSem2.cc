@@ -477,8 +477,12 @@ public:
       addr = m_ctx.mem().salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
-      LOG("opsem", errs() << "!4 Alloca of (" << *nElts << " * " << typeSz
-                          << ") bytes: " << I << "\n";);
+      if (dagSize(nElts) < 64) {
+        LOG("opsem", errs() << "!4 Alloca of (" << *nElts << " * " << typeSz
+                            << ") bytes: " << I << "\n";);
+      } else {
+        LOG("opsem", errs() << "!4 Alloca of ...\n";);
+      }
       addr = m_ctx.mem().salloc(nElts, typeSz);
     }
 

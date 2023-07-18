@@ -357,8 +357,13 @@ public:
           auto width = m_mem.ptrSizeInBits();
           Expr inRange = m_ctx.alu().doUle(
               bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
-          LOG("opsem", errs()
-                           << "Adding range condition: " << *inRange << "\n";);
+          if (dagSize(inRange) < 64) {
+            LOG("opsem", errs()
+                             << "Adding range condition: " << *inRange << "\n";);
+          } else {
+            LOG("opsem", errs()
+                             << "Adding range condition: ...\n";);
+          }
           m_ctx.addScopedRely(inRange);
           return {ai.m_start, ai.m_end};
         }

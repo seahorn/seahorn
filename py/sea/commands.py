@@ -379,6 +379,8 @@ class Seapp(sea.LimitedCmd):
                           help='Allow arithmetic overflow intrinsics')
         add_bool_argument(ap, 'ignore-define-verifier-fns', dest='ignore_defined_verifier_fns',
                           help='Treat only undef functions as verifier calls')
+        add_bool_argument(ap, 'promote-nondet-undef', dest='promote_nondet_undef',
+                          default=True, help='Replace all undef values with non-determinism')
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -483,7 +485,10 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--horn-keep-arith-overflow=true')
             else:
                 argv.append('--horn-keep-arith-overflow=false')
-
+            if args.promote_nondet_undef is None or args.promote_nondet_undef:
+                argv.append('--promote-nondet-undef=true')
+            else:
+                argv.append('--promote-nondet-undef=false')                
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

@@ -20,6 +20,8 @@
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
+
 #include "seahorn/Support/Stats.hh"
 
 #define GSA_LOG(...) LOG("gsa", __VA_ARGS__)
@@ -261,8 +263,11 @@ void GateAnalysisImpl::processPhi(PHINode *PN, Instruction *insertionPt) {
       Value *FalseVal = SuccToVal[FalseDest];
 
       // Construct gamma node only when necessary.
-      assert(TrueVal != Undef || FalseVal != Undef);
-      if (TrueVal == FalseVal) {
+      if (TrueVal == Undef && FalseVal == Undef) {
+        LOG("gsa", errs() << "Inserting unDef since all incoming Undef at "
+                          << *insertionPt << "\n";);
+        flowingValues[BB] = Undef;
+      } else if (TrueVal == FalseVal) {
         flowingValues[BB] = TrueVal;
       } else if (ThinnedGsa && (TrueVal == Undef || FalseVal == Undef)) {
         flowingValues[BB] = FalseVal == Undef ? TrueVal : FalseVal;

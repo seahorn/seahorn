@@ -126,6 +126,7 @@ void reduceToReturnPaths(Function &F, SeaBuiltinsInfo &SBI) {
   if (F.isDeclaration())
     return;
 
+  removeUnreachableBlocks(F);
   SmallVector<const BasicBlock *, 16> exits;
 
   for (auto &BB : F)

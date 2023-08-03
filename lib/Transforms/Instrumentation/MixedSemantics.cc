@@ -19,6 +19,7 @@
 
 #include "boost/range.hpp"
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/Support/SeaLog.hh"
 
 static llvm::cl::opt<bool>
     ReduceMain("ms-reduce-main", llvm::cl::desc("Reduce main to return paths"),
@@ -45,7 +46,8 @@ static void removeError(Function &F, SeaBuiltinsInfo &SBI) {
         continue;
       if (!cf->getName().equals("verifier.error"))
         continue;
-
+      LOG("mixed-sem", errs()
+                           << "Replace " << *ci << " with assume(false)\n.";);
       auto *assumeFn =
           SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
       ReplaceInstWithInst(ci, CallInst::Create(assumeFn, ConstantInt::getFalse(

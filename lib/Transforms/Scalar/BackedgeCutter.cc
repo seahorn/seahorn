@@ -105,6 +105,7 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
       DOG(INFO << "add unwinding assert for a (un)conditional back edge");
     }
     // -- call assume(false) which will get stuck
+    DOG(WARN << "add assume(false) an (un)conditional back edge");
     auto *assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, *F.getParent());
     CallInst::Create(assumeFn, ConstantInt::getFalse(F.getContext()), "",
                      const_cast<llvm::BranchInst *>(TI));

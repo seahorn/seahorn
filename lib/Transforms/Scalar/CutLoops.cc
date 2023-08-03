@@ -180,6 +180,9 @@ bool seahorn::CutLoop(Loop *L, seahorn::SeaBuiltinsInfo &SBI,
   for (BasicBlock *latch : latches) {
     BranchInst *bi = dyn_cast<BranchInst>(latch->getTerminator());
     if (bi->isUnconditional()) {
+      DOG(WARN << "add assume(false) since (un)conditional branch"
+               << "\n";);
+
       CallInst::Create(assumeFn, ConstantInt::getFalse(assumeFn->getContext()),
                        "", bi);
       new UnreachableInst(assumeFn->getContext(), bi);

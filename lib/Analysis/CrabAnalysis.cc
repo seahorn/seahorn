@@ -14,6 +14,8 @@
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"
 
+#include "seadsa/Global.hh"
+
 namespace {
 clam::CrabDomain::Type CrabDom;
 }
@@ -51,8 +53,11 @@ void CrabAnalysis::initCrabAnalysis(
     const llvm::Module &M, seadsa::GlobalAnalysis &dsa,
     llvm::TargetLibraryInfoWrapperPass &tliPass) {
 
+  clam::SeaDsaHeapAbstractionParams params;
+  params.is_context_sensitive = (dsa.kind() == seadsa::GlobalAnalysisKind::CONTEXT_SENSITIVE);
+  params.precision_level = clam::CrabBuilderPrecision::MEM;
   std::unique_ptr<clam::HeapAbstraction> heap_abs =
-      std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa);
+    std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa, params);
 
   // -- Set parameters for CFG
   clam::CrabBuilderParams cfg_builder_params;

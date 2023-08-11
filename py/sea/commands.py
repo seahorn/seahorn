@@ -517,7 +517,7 @@ class MixedSem(sea.LimitedCmd):
         ap.add_argument ('--no-ms', dest='ms_skip', help='Skip mixed semantics',
                          default=False, action='store_true')
         ap.add_argument ('--reduce-main', dest='reduce_main',
-                         help='Do not reduce main to return paths only',
+                         help='Reduce main to return paths only',
                          default=True, action='store_false')
         # some passes only after mixed semantics
         ap.add_argument ('--symbolize-constant-loop-bounds', dest='sym_bounds',

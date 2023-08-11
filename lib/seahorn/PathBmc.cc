@@ -211,8 +211,11 @@ void PathBmcEngine::initializeCrab() {
 
   // -- Build an instance of clam HeapAbstraction from ShadowMem
   const Module &M = *(m_fn->getParent());
+  clam::SeaDsaHeapAbstractionParams params;
+  params.is_context_sensitive = (m_sm.getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_SENSITIVE);
+  params.precision_level = clam::CrabBuilderPrecision::MEM;  
   std::unique_ptr<clam::HeapAbstraction> heap_abs =
-      std::make_unique<clam::SeaDsaHeapAbstraction>(M, m_sm.getDsaAnalysis());
+    std::make_unique<clam::SeaDsaHeapAbstraction>(M, m_sm.getDsaAnalysis(), params);
   m_mem_ssa = m_sm.getMemorySSA(*const_cast<Function *>(m_fn));
   assert(m_mem_ssa);
 

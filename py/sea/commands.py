@@ -381,6 +381,8 @@ class Seapp(sea.LimitedCmd):
                           help='Treat only undef functions as verifier calls')
         add_bool_argument(ap, 'promote-nondet-undef', dest='promote_nondet_undef',
                           default=True, help='Replace all undef values with non-determinism')
+        add_bool_argument(ap, 'replace-loops-with-nd-funcs', dest='replace_loops_with_nd_funcs',
+                          default=False, help='Replace all loops effects with a function that returns non-deterministic outputs')
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -489,6 +491,10 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--promote-nondet-undef=true')
             else:
                 argv.append('--promote-nondet-undef=false')                
+            if args.replace_loops_with_nd_funcs:
+                argv.append('--horn-replace-loops-with-nd-funcs=true')
+            else:
+                argv.append('--horn-replace-loops-with-nd-funcs=false')
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])

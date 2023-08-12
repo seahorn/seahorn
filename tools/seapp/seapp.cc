@@ -179,6 +179,12 @@ static llvm::cl::opt<bool>
                        llvm::cl::desc("Promote verifier.assume to llvm.assume"),
                        llvm::cl::init(false));
 
+static llvm::cl::opt<bool> ReplaceLoopsWithNDFuncs(
+    "horn-replace-loops-with-nd-funcs",
+    llvm::cl::desc(
+        "Replace all loops with functions that return nondet values"),
+    llvm::cl::init(false));
+
 // static llvm::cl::opt<int>
 //     SROA_Threshold("sroa-threshold",
 //                    llvm::cl::desc("Threshold for ScalarReplAggregates pass"),
@@ -405,6 +411,9 @@ int main(int argc, char **argv) {
 
   pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
   pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
+  if (ReplaceLoopsWithNDFuncs) {
+    pm_wrapper.add(llvm_seahorn::createSeaLoopExtractorPass());
+  }
 
   if (RenameNondet)
     // -- ren-nondet utility pass

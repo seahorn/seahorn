@@ -63,7 +63,8 @@ template <class T>
 Expr ExtraWideMemManager<T>::ptrEq(ExtraWideMemManager::PtrTy p1,
                                    ExtraWideMemManager::PtrTy p2) const {
   return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
-                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
+                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()),
+                 m_size.ptrEq(p1.getSize(), p2.getSize()));
 }
 template <class T>
 Expr ExtraWideMemManager<T>::castPtrSzToSlotSz(const Expr val) const {

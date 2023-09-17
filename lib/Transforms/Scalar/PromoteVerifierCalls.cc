@@ -102,6 +102,8 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   m_free = SBI.mkSeaBuiltinFn(SBIOp::FREE, M);
   m_set_shadowmem = SBI.mkSeaBuiltinFn(SBIOp::SET_SHADOWMEM, M);
   m_get_shadowmem = SBI.mkSeaBuiltinFn(SBIOp::GET_SHADOWMEM, M);
+  m_hyper_pre_gt = SBI.mkSeaBuiltinFn(SBIOp::HYPER_PRE_GT, M);
+  m_hyper_post_gt = SBI.mkSeaBuiltinFn(SBIOp::HYPER_POST_GT, M);
 
   // XXX DEPRECATED
   // Do not keep unused functions in llvm.used
@@ -251,8 +253,12 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
                /** pagai embedded invariants */
                fn->getName().equals("llvm.invariant") ||
                /** my suggested name for pagai invariants */
-               fn->getName().equals("pagai.invariant"))) {
+               fn->getName().equals("pagai.invariant") ||
+               /** our suggested name for pre and post calls */
+               fn->getName().equals("__hyper_pre_gt") ||
+               fn->getName().equals("__hyper_post_gt"))) {
       auto arg0 = CI.getOperand(0);
+      bool change_arg_to_bool = true;
 
       CallInst *nfnCi = nullptr, *chkCi = nullptr;
       if (auto partialFn = extractPartialFnCall(arg0)) {
@@ -294,12 +300,26 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
           nfn = m_assertNotFn;
         else if (fn->getName().equals("__CPROVER_assume"))
           nfn = m_assumeFn;
+        else if (fn->getName().equals("__hyper_pre_gt")) {
+          nfn = m_hyper_pre_gt;
+          change_arg_to_bool = false;
+        }
+        else if (fn->getName().equals("__hyper_post_gt")) {
+          nfn = m_hyper_post_gt;
+          change_arg_to_bool = false;
+        }
         else
           assert(0);
 
         // Generates code.
         IRBuilder<> Builder(F.getContext());
-        auto *cond = coerceToBool(arg0, Builder, I);
+        Value *cond;
+        if (change_arg_to_bool)
+          cond = coerceToBool(arg0, Builder, I);
+        else {
+          Builder.SetInsertPoint(&I);
+          cond = (Value *)arg0;
+        }
         nfnCi = Builder.CreateCall(nfn, cond);
       }
 

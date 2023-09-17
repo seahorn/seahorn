@@ -31,6 +31,8 @@ enum class SeaBuiltinsOp {
   FREE,               /* sea.free */
   SET_SHADOWMEM,      /* sea.set_shadowmem */
   GET_SHADOWMEM,      /* sea.get_shadowmem */
+  HYPER_PRE_GT,      /* sea.set_shadowmem */
+  HYPER_POST_GT,      /* sea.get_shadowmem */
   UNKNOWN
 };
 
@@ -55,6 +57,7 @@ class SeaBuiltinsInfo {
   llvm::Function *mkFreeFn(llvm::Module &M);
   llvm::Function *mkSetShadowMem(llvm::Module &M);
   llvm::Function *mkGetShadowMem(llvm::Module &M);
+  llvm::Function *mkHyper(llvm::Module &M, SeaBuiltinsOp);
 
 public:
   SeaBuiltinsOp getSeaBuiltinOp(const llvm::CallBase &cb) const;

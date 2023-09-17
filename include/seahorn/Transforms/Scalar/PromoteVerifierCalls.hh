@@ -35,6 +35,8 @@ namespace seahorn
     Function *m_free;
     Function *m_set_shadowmem;
     Function *m_get_shadowmem;
+    Function *m_hyper_pre_gt;
+    Function *m_hyper_post_gt;
 
     PromoteVerifierCalls() : ModulePass(ID) {}
 

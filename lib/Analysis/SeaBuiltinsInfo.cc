@@ -33,6 +33,8 @@ using namespace llvm;
 #define SEA_FREE "sea.free"
 #define SEA_SET_SHADOWMEM "sea.set_shadowmem"
 #define SEA_GET_SHADOWMEM "sea.get_shadowmem"
+#define HYPER_PRE_GREATER "hyper.pre.gt"
+#define HYPER_POST_GREATER "hyper.post.gt"
 
 SeaBuiltinsOp
 seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
@@ -63,6 +65,8 @@ seahorn::SeaBuiltinsInfo::getSeaBuiltinOp(const llvm::CallBase &cb) const {
       .Case(SEA_FREE, SBIOp::FREE)
       .Case(SEA_SET_SHADOWMEM, SBIOp::SET_SHADOWMEM)
       .Case(SEA_GET_SHADOWMEM, SBIOp::GET_SHADOWMEM)
+      .Case(HYPER_PRE_GREATER, SBIOp::HYPER_PRE_GT)
+      .Case(HYPER_POST_GREATER, SBIOp::HYPER_POST_GT)
       .Default(SBIOp::UNKNOWN);
 }
 
@@ -112,6 +116,9 @@ llvm::Function *SeaBuiltinsInfo::mkSeaBuiltinFn(SeaBuiltinsOp op,
     return mkSetShadowMem(M);
   case SBIOp::GET_SHADOWMEM:
     return mkGetShadowMem(M);
+  case SBIOp::HYPER_PRE_GT:
+  case SBIOp::HYPER_POST_GT:
+    return mkHyper(M, op);
   }
   llvm_unreachable(nullptr);
 }
@@ -425,6 +432,29 @@ Function *SeaBuiltinsInfo::mkFreeFn(Module &M) {
     FN->addParamAttr(0, Attribute::NoCapture);
     // XXX maybe even add the following
     // FN->setDoesNotAccessMemory();
+  }
+  return FN;
+}
+
+Function *SeaBuiltinsInfo::mkHyper(Module &M, SeaBuiltinsOp op) {
+  auto &C = M.getContext();
+  const char *name = nullptr;
+  using SBIOp = SeaBuiltinsOp;
+  switch (op) {
+  default:
+    assert(false);
+    llvm_unreachable(nullptr);
+  case SBIOp::HYPER_PRE_GT:
+    name = HYPER_PRE_GREATER;
+    break;
+  case SBIOp::HYPER_POST_GT:
+    name = HYPER_POST_GREATER;
+    break;
+  }
+  auto FC = M.getOrInsertFunction(name, Type::getVoidTy(C), Type::getInt32Ty(C));
+  auto *FN = dyn_cast<Function>(FC.getCallee());
+  if (FN) {
+    setCommonAttrs(*FN);
   }
   return FN;
 }

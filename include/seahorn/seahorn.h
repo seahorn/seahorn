@@ -80,4 +80,7 @@ extern char sea_get_shadowmem(char, char *);
 #define sassert(X) (void)((X) || (__VERIFIER_error(), 0))
 #endif
 
+extern void __hyper_pre_gt(int);
+extern void __hyper_post_gt(int);
+
 #endif

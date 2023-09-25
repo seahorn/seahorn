@@ -12,6 +12,8 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/HornClauseDBWto.hh"
 
+#include <list>
+
 namespace seahorn
 {
   using namespace llvm;

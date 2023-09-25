@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
     branches: dev14
     inputs:
-      Triggerer:
-        description: 'Triggered by:'
+      TriggerReason:
+        description: 'Triggered for reason:'
         required: true
         default: ''
 
@@ -27,7 +27,7 @@ jobs:
       - name: Log manual trigger info
         if: ${{ github.event_name == 'workflow_dispatch' }}  # only if triggered manually
         run: |
-          echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"
+          echo "Reason for manual trigger: ${{ github.event.inputs.TriggerReason }}"
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check Out Repo
         uses: actions/checkout@v2

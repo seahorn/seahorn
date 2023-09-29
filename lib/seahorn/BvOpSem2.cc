@@ -977,9 +977,6 @@ public:
   void reportDoAssert(const char *tag, const Instruction &I, boost::tribool res,
                       bool expected) {
 
-    llvm::SmallString<256> msg;
-    llvm::raw_svector_ostream out(msg);
-
     bool isGood = false;
 
     if (res) {
@@ -989,7 +986,8 @@ public:
     } else {
       isGood = false;
     }
-
+    llvm::SmallString<256> msg;
+    llvm::raw_svector_ostream out(msg);
     out << tag;
     out << (isGood ? " passed " : " failed ");
 
@@ -3427,12 +3425,19 @@ void Bv2OpSem::unhandledValue(const Value &v,
 }
 void Bv2OpSem::unhandledInst(const Instruction &inst,
                              seahorn::details::Bv2OpSemContext &ctx) {
+  llvm::SmallString<1024> msg;
+  llvm::raw_svector_ostream out(msg);
   if (ctx.isIgnored(inst))
     return;
   ctx.ignore(inst);
-  LOG("opsem", WARN << "unhandled instruction: " << inst << " @ "
-                    << inst.getParent()->getName() << " in "
-                    << inst.getParent()->getParent()->getName());
+  out << "unhandled instruction: " << inst << " @ "
+      << inst.getParent()->getName() << " in "
+      << inst.getParent()->getParent()->getName() << " ";
+  auto dloc = inst.getDebugLoc();
+  if (dloc) {
+    out << dloc->getFilename() << ":" << dloc->getLine() << "]";
+  }
+  LOG("opsem", WARN << out.str());
 }
 
 /// \brief Returns a symbolic register corresponding to a value
@@ -3551,10 +3556,11 @@ void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
   auto &tli = m_pass.getAnalysis<TargetLibraryInfoWrapperPass>();
 
   clam::SeaDsaHeapAbstractionParams params;
-  params.is_context_sensitive = (dsa.kind() == seadsa::GlobalAnalysisKind::CONTEXT_SENSITIVE);
+  params.is_context_sensitive =
+      (dsa.kind() == seadsa::GlobalAnalysisKind::CONTEXT_SENSITIVE);
   params.precision_level = clam::CrabBuilderPrecision::MEM;
   std::unique_ptr<clam::HeapAbstraction> heap_abs =
-    std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa, params);
+      std::make_unique<clam::SeaDsaHeapAbstraction>(M, dsa, params);
 
   // -- Set parameters for CFG
   clam::CrabBuilderParams cfg_builder_params;

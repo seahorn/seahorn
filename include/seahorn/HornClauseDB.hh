@@ -207,6 +207,9 @@ public:
   /// Returns the current invariants for the predicate
   Expr getInvariants(Expr pred) const;
 
+  /// Reset the DB and clears it.
+  void resetDB();
+
   std::map<Expr, ExprVector> &getAllConstraints() { return m_constraints; }
   std::map<Expr, ExprVector> &getAllInvariants() { return m_invariants; }
 

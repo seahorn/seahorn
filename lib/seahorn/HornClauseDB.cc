@@ -156,6 +156,17 @@ Expr HornClauseDB::getInvariants(Expr pred) const {
   return getLemmas(m_invariants, m_rels, pred);
 }
 
+void HornClauseDB::resetDB() {
+  m_rels.clear();
+  m_vars.clear();
+  m_rules.clear();
+  m_queries.clear();
+  m_constraints.clear();
+  m_invariants.clear();
+  m_body_idx.clear();
+  m_head_idx.clear();
+}
+
 raw_ostream &HornClauseDB::write(raw_ostream &o) const {
   std::ostringstream oss;
   oss << "Predicates:\n";

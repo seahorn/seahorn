@@ -53,6 +53,7 @@ enum class OpFamilyId {
   BvOp,
   GateOp,
   MutModelOp,
+  MemOp,
 };
 
 /// \brief An operator labeling a node of an expression tree

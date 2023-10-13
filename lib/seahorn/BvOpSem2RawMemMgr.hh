@@ -28,6 +28,9 @@ class RawMemManagerCore : public MemManagerCore {
   /// \brief Source of unique identifiers
   mutable unsigned m_id;
 
+  /// \brief Base name for stack ptr objs
+  Expr m_spObjName;
+
 public:
   RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned int ptrSz,
                     unsigned int wordSz, bool useLambdas);
@@ -274,6 +277,27 @@ public:
   /// brief Creates a bit-vector for number 1 of a given width
   Expr mkOneE(unsigned width, ExprFactory &efac) {
     return bv::bvnum(1UL, width, efac);
+  }
+
+  /// \brief Create based ptr expression given \a base and \a offset :
+  /// eg: base=sea.obj, offset=16 => sea.obj.16
+  PtrTy mkBasedPtr(Expr base, unsigned offset) {
+    return PtrTy(
+        bind::mkConst(op::variant::variant(offset, base), ptrSort().toExpr()));
+  }
+
+  PtrTy mkBasedStackPtr(unsigned offset) {
+    return mkBasedPtr(m_spObjName, offset);
+  }
+
+  unsigned basedPtrOffset(Expr p) {
+    assert(isOpX<VARIANT>(p));
+    return op::variant::variantNum(p);
+  }
+
+  Expr basedPtrBase(Expr p) {
+    assert(isOpX<VARIANT>(p));
+    return op::variant::mainVariant(p);
   }
 
   /// \brief Returns an expression corresponding to a load from memory

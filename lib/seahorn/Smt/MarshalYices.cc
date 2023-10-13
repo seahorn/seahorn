@@ -398,7 +398,24 @@ term_t marshal_yices::encode_term(Expr e, ycache_t &cache) {
       res = yices_bvlshr(t1, t2);
     else if (isOpX<BASHR>(e))
       res = yices_bvashr(t1, t2);
-    else
+    else if (isOpX<UADD_NO_OVERFLOW>(e)) {
+      /*
+        (define-fun bvuadd_noovfl ((x (_ BitVec 64)) (y (_ BitVec 64))) Bool
+        (= (extract (badd (zext x 1) (zext y 1)) 64 64) 0)
+        * same approach as Z3_mk_bvadd_no_overflow *
+       */
+      auto t1_sz = yices_term_bitsize(t1);
+      auto t2_sz = yices_term_bitsize(t2);
+      assert(t1_sz == t2_sz);
+      Expr x = e->arg(0), y = e->arg(1);
+      Expr xZ = op::bv::zext(x, t1_sz + 1);
+      Expr yZ = op::bv::zext(y, t2_sz + 1);
+      Expr sum = mk<BADD>(xZ, yZ);                  // add zero-extended t1 t2
+      Expr ex = op::bv::extract(t1_sz, t1_sz, sum); // extract MSB
+      Expr zeroBit = bv::bvnum(0, 1, x->efac());
+      Expr noovfl = mk<EQ>(ex, zeroBit);
+      res = encode_term(noovfl, cache);
+    } else
       return encode_term_fail(e, "unhandle binary case");
   } else if (isOpX<BEXTRACT>(e)) {
     assert(bv::high(e) >= bv::low(e));

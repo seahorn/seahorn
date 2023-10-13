@@ -48,7 +48,7 @@
 #include "seahorn/Expr/ExprOpVariant.hh"
 
 #include "seahorn/Expr/ExprOpBv.hh"
-
+#include "seahorn/Expr/ExprOpMem.hh"
 #include "seahorn/Expr/ExprOpMisc.hh"
 
 namespace expr {
@@ -65,4 +65,12 @@ Expr replaceAll(Expr exp, Expr s, Expr t);
 Expr replaceAllSimplify(Expr exp, Expr s, Expr t);
 /** Returns true if e1 contains e2 as a sub-expression */
 bool contains(Expr e1, Expr e2);
+
+template <typename Value>
+void clearENodePtrCache(std::unordered_map<ENode *, Value> &cache) {
+  for (auto &kv : cache)
+    kv.first->efac().Deref(kv.first);
+  cache.clear();
+}
+
 } // namespace expr

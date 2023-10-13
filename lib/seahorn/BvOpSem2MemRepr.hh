@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BvOpSem2RawMemMgr.hh"
+#include "seahorn/Expr/ExprAddrRangeMap.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 
@@ -51,17 +52,13 @@ public:
 };
 
 /// \brief Represent memory regions by logical arrays
-class OpSemMemArrayRepr : public OpSemMemRepr {
+class OpSemMemArrayReprBase : public OpSemMemRepr {
 public:
-  OpSemMemArrayRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
-                    unsigned memCpyUnrollCnt)
+  OpSemMemArrayReprBase(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+                        unsigned memCpyUnrollCnt)
       : OpSemMemRepr(memManager, ctx), m_memCpyUnrollCnt(memCpyUnrollCnt) {}
 
   Expr coerce(Expr _, Expr val) override { return val; }
-
-  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override {
-    return op::array::select(mem.toExpr(), ptr.toExpr());
-  }
 
   MemValTy storeAlignedWordToMem(Expr val, PtrTy ptr, PtrSortTy ptrSort,
                                  MemValTy mem) override {
@@ -92,6 +89,74 @@ public:
 
 private:
   unsigned m_memCpyUnrollCnt;
+};
+
+/// \brief default un-optmized array mem repr
+class OpSemMemArrayRepr : public OpSemMemArrayReprBase {
+public:
+  OpSemMemArrayRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+                    unsigned memCpyUnrollCnt)
+      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt) {}
+
+  /** load(mem, ptr) -> select(mem, ptr) **/
+  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override {
+    return op::array::select(mem.toExpr(), ptr.toExpr());
+  }
+};
+
+using namespace expr;
+using namespace expr::addrRangeMap;
+/// \brief Represent memory regions by:
+/// store: array
+/// load: optimized ITE
+class OpSemMemHybridRepr : public OpSemMemArrayReprBase {
+public:
+  OpSemMemHybridRepr(RawMemManagerCore &memManager, Bv2OpSemContext &ctx,
+                     unsigned memCpyUnrollCnt)
+      : OpSemMemArrayReprBase(memManager, ctx, memCpyUnrollCnt),
+        m_cache(DagVisitCache()), m_armCache(ARMCache()),
+        m_smapCache(op::array::StoreMapCache()),
+        m_ptCache(PtrTypeCheckCache()) {}
+
+  ~OpSemMemHybridRepr() override;
+
+  /**
+   * mem: 1. array const i.e. A (uninitialized)
+   *      2. store expr i.e. store(mem, idx, val)
+   *      3. ITE of array expr i.e. ite(cond, mem1, mem2)
+   * MemValTy = ArrayConst A | Store A id val | ITE cond mem1 mem2
+   * match mem with
+   *      ArrayConst A -> { return select(A, ptr) (A[ptr]) }
+   *      Store A idx val -> { return ite( (idx == ptr), val, A[ptr] )}
+   *      ITE cond mem1 mem2 -> { return ite(cond, mem1[ptr], mem2[ptr]) }
+   * **/
+  Expr loadAlignedWordFromMem(PtrTy ptr, MemValTy mem) override;
+
+  MemValTy storeAlignedWordToMem(Expr val, PtrTy ptr, PtrSortTy ptrSort,
+                                 MemValTy mem) override;
+
+  MemValTy MemSet(PtrTy ptr, Expr _val, unsigned len, MemValTy mem,
+                  unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+  MemValTy MemSet(PtrTy ptr, Expr _val, Expr len, MemValTy mem,
+                  unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len, MemValTy memTrsfrRead,
+                  MemValTy memRead, unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+
+  MemValTy MemCpy(PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead,
+                  MemValTy memRead, unsigned wordSzInBytes, PtrSortTy ptrSort,
+                  uint32_t align) override;
+
+private:
+  DagVisitCache m_cache;
+  op::array::StoreMapCache
+      m_smapCache; // cache most-recently updated store-map => ordered ov map
+  ARMCache m_armCache;
+  PtrTypeCheckCache m_ptCache;
+
+  Expr normalizePtr(Expr ptr);
 };
 
 /// \brief Represent memory regions by lambda functions

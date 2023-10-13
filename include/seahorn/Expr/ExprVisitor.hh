@@ -77,6 +77,7 @@ public:
 
   static inline VisitAction skipKids() { return VisitAction(true); }
   static inline VisitAction doKids() { return VisitAction(false); }
+
   static inline VisitAction changeTo(Expr e) {
     return VisitAction(e, true, std::make_shared<IdentityRewriter>());
   }

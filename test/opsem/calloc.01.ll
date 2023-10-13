@@ -1,5 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+; RUN: %seabmc --horn-based-ptr-obj --horn-hybrid-array --horn-hybrid-use-arm --horn-hybrid-compress-stores --log=opsem3 --horn-vcgen-use-ite "%s" 2>&1 | %oc %s
+
 ;; test calloc initializing memory to 0
 ; CHECK: ^sat$
 ; ModuleID = 'calloc.01.ll'

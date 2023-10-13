@@ -428,6 +428,16 @@ TrackingRawMemManager::PtrTy
 TrackingRawMemManager::mkStackPtr(unsigned int offset) {
   return MAIN_MEM_MGR.mkStackPtr(offset);
 }
+
+TrackingRawMemManager::PtrTy
+TrackingRawMemManager::mkBasedPtr(Expr base, unsigned int offset) {
+  return MAIN_MEM_MGR.mkBasedPtr(base, offset);
+}
+TrackingRawMemManager::PtrTy
+TrackingRawMemManager::mkBasedStackPtr(unsigned int offset) {
+  return MAIN_MEM_MGR.mkBasedStackPtr(offset);
+}
+
 unsigned int TrackingRawMemManager::getMetadataMemWordSzInBits() {
   // slice of metadata keys 2nd metadata key onwards
   auto sec_metadata_keys = hana::slice(

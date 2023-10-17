@@ -3,7 +3,7 @@
 
 namespace {
 template <typename T, typename... Rest>
-auto as_std_array(const T &t, const Rest &... rest) ->
+auto as_std_array(const T &t, const Rest &...rest) ->
     typename std::array<T, sizeof...(Rest) + 1> {
   return {t, rest...};
 }
@@ -13,7 +13,6 @@ auto as_std_array(const T &t, const Rest &... rest) ->
 
 namespace seahorn {
 namespace details {
-
 OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemSet(PtrTy ptr, Expr _val,
                                                  unsigned len, MemValTy mem,
                                                  unsigned wordSzInBytes,
@@ -98,7 +97,6 @@ OpSemMemRepr::MemValTy OpSemMemArrayRepr::MemCpy(
     PtrTy dPtr, PtrTy sPtr, Expr len, MemValTy memTrsfrRead, MemValTy memRead,
     unsigned wordSzInBytes, PtrSortTy ptrSort, uint32_t align) {
   (void)ptrSort;
-
   Expr res = memRead.toExpr();
   Expr srcMem = memTrsfrRead.toExpr();
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
@@ -140,7 +138,7 @@ OpSemMemArrayRepr::MemCpy(PtrTy dPtr, PtrTy sPtr, unsigned len,
   Expr res;
 
   if (wordSzInBytes == 1 || (wordSzInBytes == 4 && align % 4 == 0) ||
-      (wordSzInBytes == 8 && align %  4 == 0) ||
+      (wordSzInBytes == 8 && align % 4 == 0) ||
       m_memManager.isIgnoreAlignment()) {
     Expr srcMem = memTrsfrRead.toExpr();
     res = memRead.toExpr();

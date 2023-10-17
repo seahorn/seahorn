@@ -357,7 +357,7 @@ public:
           auto width = m_mem.ptrSizeInBits();
           Expr inRange = m_ctx.alu().doUle(
               bytes, m_ctx.alu().ui(m_maxSymbAllocSz, width), width);
-          if (dagSize(inRange) < 64) {
+          if (dagSize(inRange) < DAG_PRINT_LIMIT) {
             LOG("opsem",
                 errs() << "Adding range condition: " << *inRange << "\n";);
           } else {

@@ -5,6 +5,7 @@
 #include "BvOpSem2MemRepr.hh"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "seahorn/Expr/ExprLlvm.hh"
@@ -565,7 +566,7 @@ Expr RawMemManagerCore::loadValueFromMem(const PtrTy &ptr, const MemValTy &mem,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: load of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;
@@ -608,7 +609,7 @@ RawMemManagerCore::storeValueToMem(Expr _val, PtrTy ptr, MemValTy mem,
     llvm_unreachable(nullptr);
     break;
   case Type::FixedVectorTyID:
-  case Type::ScalableVectorTyID:      
+  case Type::ScalableVectorTyID:
     errs() << "Error: store of vectors is not supported\n";
     llvm_unreachable(nullptr);
     break;
@@ -641,6 +642,15 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
 RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
                                                       Expr len, MemValTy mem,
                                                       uint32_t align) {
+  auto *memset = dyn_cast<llvm::MemSetInst>(&m_ctx.getCurrentInst());
+  LOG(
+      "opsem", if (memset == NULL) {
+        ERR << "Unexpected instruction found: " << m_ctx.getCurrentInst()
+            << "\n";
+      });
+  auto lenValue = memset->getArgOperand(2);
+  auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
+  makeMemAligned({len, lenBitWidth});
   return m_memRepr->MemSet(ptr, _val, len, mem, wordSizeInBytes(), ptrSort(),
                            align);
 }
@@ -651,6 +661,7 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
                                                       MemValTy memTrsfrRead,
                                                       MemValTy memRead,
                                                       uint32_t align) {
+
   return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, memRead,
                            wordSizeInBytes(), ptrSort(), align);
 }
@@ -660,6 +671,15 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
                                                       MemValTy memTrsfrRead,
                                                       MemValTy memRead,
                                                       uint32_t align) {
+  auto *memcpy = dyn_cast<llvm::MemCpyInst>(&m_ctx.getCurrentInst());
+  LOG(
+      "opsem", if (memcpy == NULL) {
+        ERR << "Unexpected instruction found: " << m_ctx.getCurrentInst()
+            << "\n";
+      });
+  auto lenValue = memcpy->getArgOperand(2);
+  auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
+  makeMemAligned({len, lenBitWidth});
   return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, memRead,
                            wordSizeInBytes(), ptrSort(), align);
 }
@@ -757,16 +777,12 @@ void RawMemManagerCore::onFunctionEntry(const Function &fn) {
   Expr res = m_sp0.toExpr();
   if (m_ctx.isKnownRegister(res))
     res = m_ctx.read(m_sp0.toExpr());
-
-  // align of semantic_word_size, or 4 if it's less than 4
-  unsigned offsetBits = 2;
-  switch (wordSizeInBytes()) {
-  case 8:
-    offsetBits = 3;
+  if (ExplicitSp0) {
+    LOG("opsem.verbose",
+        INFO << "Skipping adding alignment constraint for explicit Sp0.\n");
+  } else {
+    makeMemAligned({res, ptrSizeInBits()});
   }
-  m_ctx.addDef(bv::bvnum(0U, offsetBits, m_efac),
-               m_ctx.alu().Extract({res, ptrSizeInBits()}, 0 /* low */,
-                                   offsetBits - 1 /* high */));
 
   auto stackRange = m_allocator->getStackRange();
 
@@ -808,6 +824,28 @@ bool RawMemManagerCore::isPtrTyVal(Expr e) {
 
 bool RawMemManagerCore::isMemVal(Expr e) {
   return (e && !strct::isStructVal(e));
+}
+
+void RawMemManagerCore::makeMemAligned(
+    std::pair<Expr, unsigned /* bitwidth */> e) {
+  // This function adds an assumption that (e % (offsetBits/8)) == 0
+  // align of semantic_word_size, or 4 if it's less than 4
+  unsigned offsetBits = 2;
+  switch (wordSizeInBytes()) {
+  case 8:
+    offsetBits = 3;
+  }
+  m_ctx.addDef(bv::bvnum(0U, offsetBits, m_efac),
+               m_ctx.alu().Extract(e, 0 /* low */, offsetBits - 1 /* high */));
+  LOG(
+      "opsem",
+      if (dagSize(e.first) < DAG_PRINT_LIMIT) {
+        INFO << "Adding memory (offset=" << offsetBits
+             << " bits) alignment constraint for: " << *e.first << "\n";
+      } else {
+        INFO << "Adding memory (offset=" << offsetBits
+             << " bits) alignment constraint\n";
+      });
 }
 
 } // namespace details

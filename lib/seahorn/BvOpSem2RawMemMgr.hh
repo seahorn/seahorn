@@ -360,6 +360,9 @@ public:
 
   Bv2OpSem &sem() const { return m_sem; }
   Bv2OpSemContext &ctx() const { return m_ctx; }
+
+  /// \brief Add an alignment constrainst on given expr 'e'.
+  void makeMemAligned(std::pair<Expr, unsigned /* bitwidth */> e);
 };
 
 inline std::ostream &operator<<(std::ostream &OS,

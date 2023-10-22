@@ -671,7 +671,13 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
                                                       MemValTy memTrsfrRead,
                                                       MemValTy memRead,
                                                       uint32_t align) {
-  auto *memcpy = dyn_cast<llvm::MemCpyInst>(&m_ctx.getCurrentInst());
+  const MemTransferInst *memcpy =
+      dyn_cast<llvm::MemCpyInst>(&m_ctx.getCurrentInst());
+  // NOTE: memmove llvm inst maps to memcpy opsem so check for memmove
+
+  if (memcpy == NULL) {
+    memcpy = dyn_cast<llvm::MemMoveInst>(&m_ctx.getCurrentInst());
+  }
   LOG(
       "opsem", if (memcpy == NULL) {
         ERR << "Unexpected instruction found: " << m_ctx.getCurrentInst()

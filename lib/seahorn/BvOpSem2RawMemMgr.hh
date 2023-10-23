@@ -362,7 +362,8 @@ public:
   Bv2OpSemContext &ctx() const { return m_ctx; }
 
   /// \brief Add an alignment constrainst on given expr 'e'.
-  void makeMemAligned(std::pair<Expr, unsigned /* bitwidth */> e);
+  void makeMemAligned(std::pair<Expr, unsigned /* bitwidth */> e,
+                      unsigned minBitWidth = 0);
 };
 
 inline std::ostream &operator<<(std::ostream &OS,

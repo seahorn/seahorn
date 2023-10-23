@@ -642,6 +642,17 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
 RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
                                                       Expr len, MemValTy mem,
                                                       uint32_t align) {
+  auto simplifiedLength = len;
+  if (m_ctx.shouldSimplify()) {
+    simplifiedLength = m_ctx.simplify(len);
+  }
+  if (m_ctx.alu().isNum(simplifiedLength)) {
+    unsigned numBytes = m_ctx.alu()
+                            .toNum(simplifiedLength)
+                            .get_ui(); /* assume: len should >= 0 */
+    return MemSet(ptr, _val, numBytes, mem, align);
+  }
+
   auto *memset = dyn_cast<llvm::MemSetInst>(&m_ctx.getCurrentInst());
   LOG(
       "opsem", if (memset == NULL) {
@@ -650,9 +661,10 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
       });
   auto lenValue = memset->getArgOperand(2);
   auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
-  makeMemAligned({len, lenBitWidth});
-  return m_memRepr->MemSet(ptr, _val, len, mem, wordSizeInBytes(), ptrSort(),
-                           align);
+
+  makeMemAligned({simplifiedLength, lenBitWidth});
+  return m_memRepr->MemSet(ptr, _val, simplifiedLength, mem, wordSizeInBytes(),
+                           ptrSort(), align);
 }
 
 /// \brief Executes symbolic memcpy with concrete length
@@ -671,6 +683,16 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
                                                       MemValTy memTrsfrRead,
                                                       MemValTy memRead,
                                                       uint32_t align) {
+  auto simplifiedLength = len;
+  if (m_ctx.shouldSimplify()) {
+    simplifiedLength = m_ctx.simplify(len);
+  }
+  if (m_ctx.alu().isNum(simplifiedLength)) {
+    unsigned numBytes = m_ctx.alu()
+                            .toNum(simplifiedLength)
+                            .get_ui(); /* assume: len should >= 0 */
+    return MemCpy(dPtr, sPtr, numBytes, memTrsfrRead, memRead, align);
+  }
   const MemTransferInst *memcpy =
       dyn_cast<llvm::MemCpyInst>(&m_ctx.getCurrentInst());
   // NOTE: memmove llvm inst maps to memcpy opsem so check for memmove
@@ -685,8 +707,9 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
       });
   auto lenValue = memcpy->getArgOperand(2);
   auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
-  makeMemAligned({len, lenBitWidth});
-  return m_memRepr->MemCpy(dPtr, sPtr, len, memTrsfrRead, memRead,
+
+  makeMemAligned({simplifiedLength, lenBitWidth});
+  return m_memRepr->MemCpy(dPtr, sPtr, simplifiedLength, memTrsfrRead, memRead,
                            wordSizeInBytes(), ptrSort(), align);
 }
 
@@ -787,7 +810,8 @@ void RawMemManagerCore::onFunctionEntry(const Function &fn) {
     LOG("opsem.verbose",
         INFO << "Skipping adding alignment constraint for explicit Sp0.\n");
   } else {
-    makeMemAligned({res, ptrSizeInBits()});
+    makeMemAligned({res, ptrSizeInBits()}, /* minBitWidth= */
+                   2 /* stack pointer has to be atleast 32-bit aligned  */);
   }
 
   auto stackRange = m_allocator->getStackRange();
@@ -833,25 +857,35 @@ bool RawMemManagerCore::isMemVal(Expr e) {
 }
 
 void RawMemManagerCore::makeMemAligned(
-    std::pair<Expr, unsigned /* bitwidth */> e) {
+    std::pair<Expr, unsigned /* bitwidth */> e, unsigned minBitWidth) {
   // This function adds an assumption that (e % (offsetBits/8)) == 0
-  // align of semantic_word_size, or 4 if it's less than 4
-  unsigned offsetBits = 2;
-  switch (wordSizeInBytes()) {
-  case 8:
-    offsetBits = 3;
+  unsigned offsetBits = getByteAlignmentBits();
+  if (offsetBits < minBitWidth) {
+    offsetBits = minBitWidth;
+  }
+  if (offsetBits == 0 || ignoreAlignment()) {
+    return; // no constraint to add
   }
   m_ctx.addDef(bv::bvnum(0U, offsetBits, m_efac),
                m_ctx.alu().Extract(e, 0 /* low */, offsetBits - 1 /* high */));
-  LOG(
-      "opsem",
-      if (dagSize(e.first) < DAG_PRINT_LIMIT) {
-        INFO << "Adding memory (offset=" << offsetBits
-             << " bits) alignment constraint for: " << *e.first << "\n";
-      } else {
-        INFO << "Adding memory (offset=" << offsetBits
-             << " bits) alignment constraint\n";
-      });
+
+  // print to log
+  llvm::SmallString<1024> msg;
+  llvm::raw_svector_ostream out(msg);
+  out << "For expr in instruction " << m_ctx.getCurrentInst() << ": ";
+  auto dloc = m_ctx.getCurrentInst().getDebugLoc();
+  if (dloc) {
+    out << "at " << dloc->getFilename() << ":" << dloc->getLine() << "]";
+  }
+  out << "\n";
+  if (dagSize(e.first) < DAG_PRINT_LIMIT) {
+    out << "Adding memory (offset=" << offsetBits
+        << " bits) alignment constraint for: " << *e.first << "\n";
+  } else {
+    out << "Adding memory (offset=" << offsetBits
+        << " bits) alignment constraint.\n";
+  }
+  LOG("opsem", INFO << out.str());
 }
 
 } // namespace details

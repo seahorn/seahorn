@@ -119,7 +119,7 @@ Expr ExtraWideMemManager<T>::isDereferenceable(ExtraWideMemManager::PtrTy p,
   auto ptr_size = p.getSize();
   auto ptr_offset = p.getOffset();
 
-  if (m_ctx.shouldSimplify()) {
+  if (m_ctx.shouldSimplifyNonMem()) {
     ptr_size = m_ctx.simplify(p.getSize());
     ptr_offset = m_ctx.simplify(p.getOffset());
     byteSz = m_ctx.simplify(byteSz);

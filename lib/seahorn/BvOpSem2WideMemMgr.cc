@@ -56,7 +56,7 @@ WideMemManager::getAddressable(WideMemManager::PtrTy p) const {
 Expr WideMemManager::isDereferenceable(WideMemManager::PtrTy p, Expr byteSz) {
   // size should be >= byteSz
   auto ptr_size = p.getSize();
-  if (m_ctx.shouldSimplify()) {
+  if (m_ctx.shouldSimplifyNonMem()) {
     ptr_size = m_ctx.simplify(p.getSize());
     byteSz = m_ctx.simplify(byteSz);
   }

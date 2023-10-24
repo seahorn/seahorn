@@ -643,7 +643,7 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
                                                       Expr len, MemValTy mem,
                                                       uint32_t align) {
   auto simplifiedLength = len;
-  if (m_ctx.shouldSimplify()) {
+  if (m_ctx.shouldSimplifyNonMem()) {
     simplifiedLength = m_ctx.simplify(len);
   }
   if (m_ctx.alu().isNum(simplifiedLength)) {
@@ -684,7 +684,7 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemCpy(PtrTy dPtr, PtrTy sPtr,
                                                       MemValTy memRead,
                                                       uint32_t align) {
   auto simplifiedLength = len;
-  if (m_ctx.shouldSimplify()) {
+  if (m_ctx.shouldSimplifyNonMem()) {
     simplifiedLength = m_ctx.simplify(len);
   }
   if (m_ctx.alu().isNum(simplifiedLength)) {

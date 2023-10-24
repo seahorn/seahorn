@@ -162,7 +162,8 @@ private:
   std::shared_ptr<ZSimplifier<EZ3>> m_z3_simplifier;
   std::shared_ptr<ZSolver<EZ3>> m_z3_solver;
 
-  bool m_shouldSimplify = false;
+  bool m_shouldSimplify = false;       // simplify memory exprs
+  bool m_shouldSimplifyNonMem = false; // simplify non-mem exprs
   std::unordered_set<Expr> m_addedToSolver;
 
   bool m_trackingOn = false;
@@ -181,6 +182,8 @@ public:
   Expr simplify(Expr u);
 
   bool shouldSimplify() { return m_shouldSimplify; }
+
+  bool shouldSimplifyNonMem() { return m_shouldSimplifyNonMem; }
 
   bool isTrackingOn() { return m_trackingOn; }
 

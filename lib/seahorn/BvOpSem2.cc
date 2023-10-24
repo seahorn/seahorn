@@ -124,6 +124,11 @@ static llvm::cl::opt<bool> SimplifyExpr(
     llvm::cl::desc("Simplify expressions as they are written to memory"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    SimplifyExprNonMem("horn-bv2-simplify-nonmem",
+                       llvm::cl::desc("Simplify non memory expressions"),
+                       llvm::cl::init(true));
+
 static llvm::cl::opt<enum seahorn::details::VacCheckOptions> VacuityCheckOpt(
     "horn-bv2-vacuity-check",
     llvm::cl::desc("A choice for levels of vacuity check"),
@@ -2560,6 +2565,7 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
   params.set("ctrl_c", true);
   params.set(":rewriter.flat", false);
   m_shouldSimplify = SimplifyExpr;
+  m_shouldSimplifyNonMem = SimplifyExprNonMem;
   m_alu = mkBvOpSemAlu(*this);
   OpSemMemManager *mem = nullptr;
 

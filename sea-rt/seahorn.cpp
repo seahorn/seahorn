@@ -33,6 +33,14 @@ void __SEA_assume(bool x) {
   assert(x);
 }
 
+void btor2mlir_print_input_num(unsigned num, unsigned value, unsigned width) { 
+  sealog("input, %d, %d, %d\n", num, value, width);
+}
+
+void btor2mlir_print_state_num(unsigned num, unsigned value, unsigned width) { 
+  sealog("state, %d, %d, %d\n", num, value, width);
+}
+
 bool __seahorn_get_value_i1(int ctr, bool *g_arr, int g_arr_sz) {
   sealog("[sea] __seahorn_get_value_i1(%d, %d)\n", ctr, g_arr_sz);
   if (ctr >= g_arr_sz) {

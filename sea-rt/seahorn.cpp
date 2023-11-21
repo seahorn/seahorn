@@ -29,6 +29,11 @@ void __VERIFIER_assume(int x) {
   assert(x);
 }
 
+void __VERIFIER_assert(bool x, int property) {
+  sealog("[sea] __VERIFIER_assert was called for property: %d,\n", property);
+  assert(x);
+}
+
 void __SEA_assume(bool x) {
   assert(x);
 }

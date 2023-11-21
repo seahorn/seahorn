@@ -22,7 +22,7 @@ extern void __VERIFIER_error(void);
 extern void __VERIFIER_assume(int);
 extern void __SEA_assume(bool);
 
-extern void __VERIFIER_assert(bool);
+extern void __VERIFIER_assert(bool, int property);
 extern void __VERIFIER_assert_not(bool);
 extern void __VERIFIER_assert_if(bool, bool);
 /**

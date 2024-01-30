@@ -72,6 +72,7 @@ public:
   /// Called before children are visited
   /// Returns false to skip visiting children
   bool preVisit(Expr exp) {
+    LOG("tc", llvm::errs() << "well-formed: " << m_isWellFormed << "\n";);
     LOG("tc", llvm::errs() << "pre-visiting: " << *exp << "\n";);
 
     if (!m_topMost) {

@@ -37,7 +37,8 @@ RUN cmake .. -GNinja \
   cmake --build . --target test_hex_dump && \
   cmake --build . --target package && \
   units/units_z3 && \
-  units/units_yices2
+  units/units_yices2 && \
+  units/units_type_checker
 
 ENV PATH "/seahorn/build/run/bin:$PATH"
 WORKDIR /seahorn

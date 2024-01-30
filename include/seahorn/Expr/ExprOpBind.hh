@@ -118,7 +118,9 @@ namespace expr {
         Expr fappArgType = tc.typeOf(*fappArgs);
         Expr functionalArgType = *functionalArgs;
 
-        if (fappArgType != functionalArgType)
+        // NOTE: A valid application is
+        //       (\lambda (x: unit -> consttype). body(x)) (rand: consttype)
+        if (functionalArgType->arity() == 1 && fappArgType != functionalArgType->first())
           return sort::errorTy(exp->efac());
 
         ++fappArgs;
@@ -353,10 +355,23 @@ namespace expr {
     bool operator()(Expr e) {
       if (isOpX<VARIANT>(e))
         return this->operator()(variant::mainVariant(e));
-
+      // A const is a nullary function application of ConstDecl.
+      // Thus, it has only one argument -- the ConstDecl function declaration.
       return isOpX<FAPP>(e) && e->arity() == 1 && isOpX<FDECL>(fname(e));
     }
   };
+
+  class IsConstDecl : public std::unary_function<Expr, bool> {
+  public:
+    bool operator()(Expr e) {
+      // A const decl is a nullary function declaration
+      // of unit -> SomeConstType (e.g. bv(32)).
+      // A function decl has two args -- name and SomeConstType.
+      return isOpX<FDECL>(e) && (e)->arity() == 2;
+    }
+  };
+
+
   } // namespace bind
   } // namespace op
 

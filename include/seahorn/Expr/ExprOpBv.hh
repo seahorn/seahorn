@@ -258,11 +258,19 @@ struct Extend : public TypeCheckBase {
       return sort::errorTy(exp->efac());
 
     Expr bv = exp->left();
+
     Expr bvSort = exp->right(); // NOTE: bvSort should be the BVSORT operator,
                                 // so we shouldn't do tc.typeOf() on it
 
-    if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort))
-      return getExtendReturnType(exp, tc);
+    if (isOp<BVSORT>(tc.typeOf(bv)) && isOp<BVSORT>(bvSort)) {
+      // INVARIANT: exp has atleast two args.
+      // ASSUME: sext, zext only has two args and
+      // target sort is at arg1.
+      auto a1 = exp->arg(1);
+      Expr bvsort = isOp<BVSORT>(a1) ? a1 : tc.typeOf(a1);
+      auto width = bv::width(bvsort);
+      return bv::bvsort(width, exp->efac());
+    }
 
     return sort::errorTy(exp->efac());
   }

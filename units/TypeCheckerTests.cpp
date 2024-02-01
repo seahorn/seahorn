@@ -1,4 +1,6 @@
 /**==-- Type Checker Tests --==*/
+#include "seahorn/Expr/ExprErrBinder.hh"
+#include "seahorn/Expr/TypeCheckerErrors.hh"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "boost/lexical_cast.hpp"
@@ -51,16 +53,45 @@ Expr bvConst(const std::string &n, ExprFactory &efac, unsigned width) {
   return bv::bvConst(mkTerm<std::string>(n, efac), width);
 }
 
+void checkNotWellFormedSingle(TypeChecker &tc, Expr errorSort, Expr e,
+                              Expr error) {
+  llvm::errs() << "Expression: " << *e << "\n";
+  Expr ty = tc.typeOf(e);
+
+  CHECK(ty == errorSort);
+  CHECK(tc.getErrorExp() == error);
+  if (ty)
+    llvm::errs() << "Type is " << *ty << "\n\n";
+  else
+    llvm::errs() << "Not well-formed expression. Type inference failed\n";
+}
+
 void checkNotWellFormed(std::vector<Expr> e, std::vector<Expr> error) {
+  Expr errorSort = sort::errorTy(e[0]->efac());
+  TypeChecker tc;
+
+  for (unsigned i = 0; i < e.size(); i++) {
+    checkNotWellFormedSingle(tc, errorSort, e[i], error[i]);
+  }
+}
+
+void checkNotWellFormedWCode(std::vector<g_TyErrorCode> code,
+                             std::vector<Expr> e, std::vector<Expr> error) {
   Expr errorSort = sort::errorTy(e[0]->efac());
   TypeChecker tc;
 
   for (unsigned i = 0; i < e.size(); i++) {
     llvm::errs() << "Expression: " << *e[i] << "\n";
     Expr ty = tc.typeOf(e[i]);
-
-    CHECK(ty == errorSort);
-    CHECK(tc.getErrorExp() == error[i]);
+    bool isError = isOp<ERROR_TY>(ty) || isOp<ERRORBINDER>(ty);
+    CHECK(isError == true);
+    if (isOp<ERRORBINDER>(ty)) {
+      auto actual_code = getTerm<mpz_class>(ty->arg(0)).get_ui();
+      CHECK(actual_code == code[i]);
+      CHECK(tc.getErrorExp() == error[i]);
+    } else {
+      checkNotWellFormedSingle(tc, errorSort, e[i], error[i]);
+    }
     if (ty)
       llvm::errs() << "Type is " << *ty << "\n\n";
     else
@@ -1222,7 +1253,8 @@ TEST_CASE("lambdaWellFormed.test") {
   Expr boolDeclSort = mk<FUNCTIONAL_TY>(boolSort);
   Expr unintSort = sort::unintTy(efac);
   Expr unintDeclSort = mk<FUNCTIONAL_TY>(unintSort);
-  Expr functionalSort = mk<FUNCTIONAL_TY>(boolDeclSort, unintDeclSort, unintSort);
+  Expr functionalSort =
+      mk<FUNCTIONAL_TY>(boolDeclSort, unintDeclSort, unintSort);
 
   Expr boolBound0 = bind::bvar(0, boolSort);
   Expr boolBound1 = bind::bvar(1, boolSort);
@@ -1386,6 +1418,8 @@ TEST_CASE("fappNotWellFormed.test") {
   Expr intBound1 = bind::bvar(1, intSort);
 
   std::vector<Expr> e;
+  std::vector<g_TyErrorCode> code;
+
   Expr temp;
   std::vector<Expr> error;
   Expr tempError;
@@ -1401,36 +1435,40 @@ TEST_CASE("fappNotWellFormed.test") {
       aBoolDecl, aIntDecl,
       mk<MINUS>(intBound1, bInt)); // boolBound0, intBound -> (aInt - bInt)
   e.push_back(lambda);
-
   checkWellFormed(e, functionalSort);
   e.clear();
 
-  tempError = mk<FAPP>(fdecl, aBool); // number of argumetns doesn't match
+  tempError = mk<FAPP>(fdecl, aBool); // number of arguments doesn't match
   error.push_back(tempError);
   e.push_back(tempError);
+  code.push_back(TYERR2);
 
   tempError =
       mk<FAPP>(lambda, bInt,
                aInt); // type of arguments doesn't match (should be BOOL INT)
   error.push_back(tempError);
   e.push_back(tempError);
+  code.push_back(TYERR1);
 
   tempError = mk<FAPP>(bInt, aBool,
                        aInt); // first parameter should be a functional type
   error.push_back(tempError);
   e.push_back(tempError);
+  code.push_back(TYERR2);
 
   tempError = error.back();
   error.push_back(tempError);
   temp = mk<FAPP>(lambda, mk<AND>(aBool, aBool), tempError);
   e.push_back(temp);
+  code.push_back(TYERR1);
 
   tempError = mk<PLUS>(aInt); // not enough arguments
   error.push_back(tempError);
   temp = mk<FAPP>(lambda, mk<AND>(aBool, aBool), tempError);
   e.push_back(temp);
+  code.push_back(TYERR2);
 
-  checkNotWellFormed(e, error);
+  checkNotWellFormedWCode(code, e, error);
 }
 TEST_CASE(
     "generalNotWellFormed.test") { // make sure that the cache works correctly

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "seahorn/Expr/ExprErrBinder.hh"
 #include "seahorn/Expr/ExprOpSort.hh"
 #include "seahorn/Expr/TypeChecker.hh"
 #include "seahorn/Expr/TypeCheckerBase.hh"
+#include "seahorn/Expr/TypeCheckerErrors.hh"
 
 namespace expr {
 namespace op {
@@ -168,6 +170,7 @@ struct Any : TypeCheckBase {
     return sort::anyTy(exp->efac());
   }
 };
+
 } // namespace typeCheck
 } // namespace op
 } // namespace expr

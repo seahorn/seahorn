@@ -4,11 +4,12 @@
 #include "seahorn/Expr/ExprApi.hh"
 #include "seahorn/Expr/ExprCore.hh"
 #include "seahorn/Expr/ExprOpArray.hh"
+// #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/ExprErrBinder.hh"
 #include "seahorn/Expr/ExprOpBool.hh"
 #include "seahorn/Expr/ExprOpCore.hh"
 #include "seahorn/Expr/ExprOpSort.hh"
 #include "seahorn/Expr/ExprOpVariant.hh"
-
 #include "llvm/Support/ErrorHandling.h"
 
 namespace expr {
@@ -106,7 +107,7 @@ namespace expr {
 
       if (!(isOp<FUNCTIONAL_TY>(functionalType) &&
             exp->arity() == functionalType->arity()))
-        return sort::errorTy(exp->efac());
+        return mkErrorBinding(TYERR2, TYPE_ERR_LOC_INFO, exp);
 
       auto fappArgs = exp->args_begin();
       std::advance(fappArgs, 1); // note: the first child is the fdecl
@@ -118,11 +119,12 @@ namespace expr {
         Expr fappArgType = tc.typeOf(*fappArgs);
         Expr functionalArgType = *functionalArgs;
 
-        // NOTE: A valid application is
+        // NOTE: A valid application is:
         //       (\lambda (x: unit -> consttype). body(x)) (rand: consttype)
-        if (functionalArgType->arity() == 1 && fappArgType != functionalArgType->first())
-          return sort::errorTy(exp->efac());
-
+        if (functionalArgType->arity() == 1 &&
+            fappArgType != functionalArgType->first()) {
+          return mkErrorBinding(TYERR1, TYPE_ERR_LOC_INFO, exp);
+        }
         ++fappArgs;
         ++functionalArgs;
       }

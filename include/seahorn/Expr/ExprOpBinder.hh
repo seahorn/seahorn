@@ -145,7 +145,6 @@ static inline bool binderCheck(Expr exp, TypeChecker &tc,
   // makes sure that all of the binders arguments are constants and store their
   // types
   for (auto b = exp->args_begin(), e = exp->args_end() - 1; b != e; b++) {
-    (*b)->dump();
     if (!bind::IsConstDecl()(*b))
       return false;
 

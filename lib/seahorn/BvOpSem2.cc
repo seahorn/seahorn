@@ -1683,6 +1683,28 @@ public:
                         getCarryBitPadWidth(I)));
       }
     } break;
+    case Intrinsic::umax:
+    case Intrinsic::umin: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0;
+      Expr op1;
+      GetOpExprs(I, op0, op1);
+
+      // llvm.umax.<type>(<type> %a, <type> %b) Intrinsic can be converted into:
+      //  %a >_unsigned %b ? %a : %b
+      // similar for llvm.umin
+      //  %a <_unsigned %b ? %a : %b
+      Expr cond = I.getIntrinsicID() == Intrinsic::umax
+                      ? m_ctx.alu().doUgt(op0, op1, ty->getScalarSizeInBits())
+                      : m_ctx.alu().doUlt(op0, op1, ty->getScalarSizeInBits());
+      if (!cond) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Expr res = bind::lite(cond, op0, op1);
+        setValue(I, res);
+      }
+    } break;
     default:
       // interpret by non-determinism (and a warning)
       if (!I.getType()->isVoidTy())

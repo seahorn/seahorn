@@ -62,9 +62,12 @@ Expr ExtraWideMemManager<T>::isMetadataSet(MetadataKind kind,
 template <class T>
 Expr ExtraWideMemManager<T>::ptrEq(ExtraWideMemManager::PtrTy p1,
                                    ExtraWideMemManager::PtrTy p2) const {
+  // NOTE: we consider two pointers to be same if their address (base and ofset)
+  //       is the same. Size is ignored. This is done to have parity with memset
+  //       like operations that zero out main memory but do not touch shadow
+  //       memory.
   return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
-                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()),
-                 m_size.ptrEq(p1.getSize(), p2.getSize()));
+                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
 }
 template <class T>
 Expr ExtraWideMemManager<T>::castPtrSzToSlotSz(const Expr val) const {

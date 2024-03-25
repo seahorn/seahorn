@@ -37,14 +37,28 @@ entry:
   %1 = icmp ult i64 %0, 10
   call void @verifier.assume(i1 %1) #6
   %2 = call i64 @nd_uint64_t() #6
-  %3 = icmp ugt i64 %2, 5
+  %3 = icmp eq i64 %2, 18446744073709551615
   call void @verifier.assume(i1 %3) #6
   %4 = call i64 @llvm.umax.i64(i64 noundef %0, i64 noundef %2) #6
-  %5 = icmp ugt i64 %4, 9
-  %.not.i = icmp ult i64 %2, %0
-  %or.cond.i = select i1 %5, i1 %.not.i, i1 false
+  %5 = icmp eq i64 %4, %2
+  br i1 %5, label %6, label %verifier.error
+
+6:                                               ; preds = %entry
+  %7 = call i64 @nd_uint64_t() #6
+  %8 = icmp ugt i64 %7, 5
+  call void @verifier.assume(i1 %8) #6
+  %9 = call i64 @llvm.umax.i64(i64 noundef %0, i64 noundef %7) #6
+  %10 = icmp ugt i64 %9, 9
+  %.not.i = icmp ult i64 %7, %0
+  %or.cond.i = select i1 %10, i1 %.not.i, i1 false
   call void @verifier.assume(i1 %or.cond.i)
+  br label %verifier.error
+
+verifier.error:                                   ; preds = %entry, %6
   call void @seahorn.fail()
+  br label %verifier.error.split
+
+verifier.error.split:                             ; preds = %verifier.error
   ret i32 42
 }
 

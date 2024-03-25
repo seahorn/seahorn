@@ -1683,20 +1683,38 @@ public:
                         getCarryBitPadWidth(I)));
       }
     } break;
+    case Intrinsic::smax:
+    case Intrinsic::smin:
     case Intrinsic::umax:
     case Intrinsic::umin: {
+      // llvm.<sign_type>max.<type>(<type> %a, <type> %b) Intrinsic can be
+      // converted into:
+      //  %a >_sign_type %b ? %a : %b
+      // similar for llvm.umin
+      //  %a <_sign_type %b ? %a : %b
       Type *ty = I.getOperand(0)->getType();
       Expr op0;
       Expr op1;
       GetOpExprs(I, op0, op1);
 
-      // llvm.umax.<type>(<type> %a, <type> %b) Intrinsic can be converted into:
-      //  %a >_unsigned %b ? %a : %b
-      // similar for llvm.umin
-      //  %a <_unsigned %b ? %a : %b
-      Expr cond = I.getIntrinsicID() == Intrinsic::umax
-                      ? m_ctx.alu().doUgt(op0, op1, ty->getScalarSizeInBits())
-                      : m_ctx.alu().doUlt(op0, op1, ty->getScalarSizeInBits());
+      bool is_signed = I.getIntrinsicID() == Intrinsic::smax ||
+                       I.getIntrinsicID() == Intrinsic::smin;
+      bool is_max = I.getIntrinsicID() == Intrinsic::smax ||
+                    I.getIntrinsicID() == Intrinsic::umax;
+      Expr cond;
+      if (is_signed) {
+        if (is_max) {
+          cond = m_ctx.alu().doSgt(op0, op1, ty->getScalarSizeInBits());
+        } else {
+          cond = m_ctx.alu().doSlt(op0, op1, ty->getScalarSizeInBits());
+        }
+      } else {
+        if (is_max) {
+          cond = m_ctx.alu().doUgt(op0, op1, ty->getScalarSizeInBits());
+        } else {
+          cond = m_ctx.alu().doUlt(op0, op1, ty->getScalarSizeInBits());
+        }
+      }
       if (!cond) {
         LOG("opsem", WARN << "An operation returned null:" << I);
         setValue(I, Expr());

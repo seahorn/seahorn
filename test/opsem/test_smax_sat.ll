@@ -2,20 +2,20 @@
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; CHECK: ^sat$
-; ModuleID = 'test_umax_sat.bc'
-source_filename = "unsigned_max.c"
+; ModuleID = 'test_smax_sat.bc'
+source_filename = "signed_max.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
 @llvm.used = appending global [4 x i8*] [i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*)], section "llvm.metadata"
 
-declare i64 @nd_uint64_t() local_unnamed_addr #0
+declare i64 @nd_int64_t() local_unnamed_addr #0
 
 ; Function Attrs: inaccessiblememonly nofree norecurse nounwind
 declare void @seahorn.fail() #1
 
 ; Function Attrs: mustprogress nofree nosync nounwind readnone speculatable willreturn
-declare i64 @llvm.umax.i64(i64, i64) #2
+declare i64 @llvm.smax.i64(i64, i64) #2
 
 ; Function Attrs: inaccessiblememonly nofree norecurse nounwind
 declare void @verifier.assume(i1) #1
@@ -33,24 +33,24 @@ declare void @seahorn.fn.enter() local_unnamed_addr #4
 define dso_local i32 @main() local_unnamed_addr #5 {
 entry:
   call void @seahorn.fn.enter() #6
-  %0 = call i64 @nd_uint64_t() #6
-  %1 = icmp ult i64 %0, 10
+  %0 = call i64 @nd_int64_t() #6
+  %1 = icmp slt i64 %0, 10
   call void @verifier.assume(i1 %1) #6
-  %2 = call i64 @nd_uint64_t() #6
-  %3 = icmp eq i64 %2, 18446744073709551615
+  %2 = call i64 @nd_int64_t() #6
+  %3 = icmp eq i64 %2, 9223372036854775807
   call void @verifier.assume(i1 %3) #6
-  %4 = call i64 @llvm.umax.i64(i64 noundef %0, i64 noundef %2) #6
+  %4 = call i64 @llvm.smax.i64(i64 noundef %0, i64 noundef %2) #6
   %5 = icmp eq i64 %4, %2
   br i1 %5, label %6, label %verifier.error
 
 6:                                               ; preds = %entry
-  %7 = call i64 @nd_uint64_t() #6
-  %8 = icmp ugt i64 %7, 5
+  %7 = call i64 @nd_int64_t() #6
+  %8 = icmp sgt i64 %7, -11
   call void @verifier.assume(i1 %8) #6
-  %9 = call i64 @llvm.umax.i64(i64 noundef %0, i64 noundef %7) #6
-  %10 = icmp ule i64 %9, 9
-  %.not.i = icmp uge i64 %7, %0
-  %or.cond.i = select i1 %10, i1 %.not.i, i1 false
+  %9 = call i64 @llvm.smax.i64(i64 noundef %0, i64 noundef %7) #6
+  %10 = icmp sge i64 %9, 10
+  %eq = icmp eq i64 %9, %7
+  %or.cond.i = select i1 %10, i1 %eq, i1 false
   call void @verifier.assume(i1 %or.cond.i)
   br label %verifier.error
 

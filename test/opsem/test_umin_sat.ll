@@ -34,13 +34,13 @@ define dso_local i32 @main() local_unnamed_addr #5 {
 entry:
   call void @seahorn.fn.enter() #6
   %0 = call i64 @nd_uint64_t() #6
-  %1 = icmp ult i64 %0, 10
+  %1 = icmp ult i64 %0, 1
   call void @verifier.assume(i1 %1) #6
   %2 = call i64 @nd_uint64_t() #6
   %3 = icmp ugt i64 %2, 5
   call void @verifier.assume(i1 %3) #6
   %4 = call i64 @llvm.umin.i64(i64 noundef %0, i64 noundef %2) #6
-  %5 = icmp ule i64 %4, 9
+  %5 = icmp eq i64 %4, 0
   %.not.i = icmp ugt i64 %2, %0
   %or.cond.i = select i1 %5, i1 %.not.i, i1 false
   call void @verifier.assume(i1 %or.cond.i)

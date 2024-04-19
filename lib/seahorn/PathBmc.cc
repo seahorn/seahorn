@@ -681,19 +681,19 @@ bool PathBmcEngine::encodeBoolPathFromCrabCex(
       const PHINode *PHI = nullptr;
       if (s->is_assign()) {
         auto assign = static_cast<const assign_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
+        if (boost::optional<llvm::WeakVH> lhs =
                 assign->lhs().name().get()) {
-          PHI = dyn_cast<PHINode>(*lhs);
+	  PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_bool_assign_var()) {
         auto assign = static_cast<const bool_assign_var_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
+        if (boost::optional<llvm::WeakVH> lhs =
                 assign->lhs().name().get()) {
           PHI = dyn_cast<PHINode>(*lhs);
         }
       } else if (s->is_arr_assign()) {
         auto assign = static_cast<const arr_assign_t *>(s);
-        if (boost::optional<const llvm::Value *> lhs =
+        if (boost::optional<llvm::WeakVH> lhs =
                 assign->lhs().name().get()) {
           PHI = dyn_cast<PHINode>(*lhs);
         }

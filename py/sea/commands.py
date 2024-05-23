@@ -667,7 +667,7 @@ class NdcInst(sea.LimitedCmd):
 
 class SimpleMemoryChecks(sea.LimitedCmd):
     def __init__(self, quiet=False):
-        super(SimpleMemoryChecks, self).__init__('smc',
+        super(SimpleMemoryChecks, self).__init__('smc-checks',
                                                  'Simple Memory Safety Checks',
                                        allow_extra=True)
 

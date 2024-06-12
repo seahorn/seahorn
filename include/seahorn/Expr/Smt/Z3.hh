@@ -3,7 +3,6 @@
    Z3 interface
 
  */
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wsuggest-override"
 #pragma clang diagnostic ignored "-Wcast-qual"
@@ -612,9 +611,17 @@ public:
       *(out++) = z3.toExpr(r[i]);
   }
 
+  std::string getReasonUnknown() {
+    return std::string(Z3_solver_get_reason_unknown(ctx, solver));
+  }
+
   boost::tribool solve() {
     boost::tribool res = z3l_to_tribool(Z3_solver_check(ctx, solver));
     ctx.check_error();
+    if (indeterminate(res)) {
+      llvm::errs() << "Reason (for unknown status) : " << getReasonUnknown()
+                   << "\n";
+    }
     return res;
   }
 

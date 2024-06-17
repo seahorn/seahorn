@@ -1,12 +1,13 @@
 #include "seahorn/BvOpSem2.hh"
 #include "BvOpSem2ExtraWideMemMgr.hh"
+#include "BvOpSem2FatMemMgr.hh"
 #include "BvOpSem2RawMemMgr.hh"
-
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
+
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CommandLine.h"
@@ -24,6 +25,7 @@
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
+#include "seahorn/Expr/TypeChecker.hh"
 
 #include "BvOpSem2Context.hh"
 
@@ -175,6 +177,11 @@ static llvm::cl::opt<bool> UseLVIInferRng(
     "horn-bv2-lvi-rng",
     llvm::cl::desc("Use LVI (LazyValueInfo) to infer rng invariants"),
     llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    UseOwnSem("horn-bv2-own-sem",
+              llvm::cl::desc("Interpret Ownership semantics during VCGen"),
+              llvm::cl::init(false));
+
 namespace {
 
 const Value *extractUniqueScalar(const CallBase &CB) {
@@ -477,8 +484,17 @@ public:
       }
       unsigned nElts = ogv.getValue().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
-      LOG("opsem",
-          errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";);
+      LOG(
+          "opsem", auto dloc = I.getDebugLoc(); if (dloc) {
+            unsigned line = dloc.getLine();
+            unsigned col = dloc.getCol();
+            StringRef file = (*dloc).getFilename();
+            errs() << "!3 Alloca of " << memSz << " bytes: " << I << " ["
+                   << file << ":" << line << ":" << col << "]"
+                   << "\n";
+          } else {
+            errs() << "!3 Alloca of " << memSz << " bytes: " << I << "\n";
+          });
       addr = m_ctx.mem().salloc(memSz);
     } else {
       Expr nElts = lookup(*I.getOperand(0));
@@ -515,6 +531,14 @@ public:
   }
 
   void visitLoadInst(LoadInst &I) {
+    Stats::count("opsem.load");
+    auto dloc = I.getDebugLoc();
+    if (dloc) {
+      LOG("opsem.load",
+          INFO << dloc->getFilename() << ":" << dloc->getLine() << "]";);
+    } else {
+      LOG("opsem.load", INFO << I;);
+    }
     setValue(I, executeLoadInst(*I.getPointerOperand(), I.getAlignment(),
                                 I.getType(), m_ctx));
   }
@@ -659,7 +683,30 @@ public:
         hana::make_pair(BOOST_HANA_STRING("sea.set_shadowmem"),
                         &OpSemVisitor::visitSetShadowMem),
         hana::make_pair(BOOST_HANA_STRING("sea.get_shadowmem"),
-                        &OpSemVisitor::visitGetShadowMem));
+                        &OpSemVisitor::visitGetShadowMem),
+        hana::make_pair(BOOST_HANA_STRING("sea.begin_unique"),
+                        &OpSemVisitor::visitBeginUnique),
+        hana::make_pair(BOOST_HANA_STRING("sea.end_unique"),
+                        &OpSemVisitor::visitEndUnique),
+        hana::make_pair(BOOST_HANA_STRING("sea.bor_mkbor"),
+                        &OpSemVisitor::visitBorMkBor),
+        hana::make_pair(BOOST_HANA_STRING("sea.bor_mksuc"),
+                        &OpSemVisitor::visitBorMkSuc),
+        hana::make_pair(BOOST_HANA_STRING("sea.bor_mem2reg"),
+                        &OpSemVisitor::visitBorMem2Reg),
+        hana::make_pair(BOOST_HANA_STRING("sea.mov_reg2mem"),
+                        &OpSemVisitor::visitMovReg2Mem),
+        hana::make_pair(BOOST_HANA_STRING("sea.die"), &OpSemVisitor::visitDie),
+        hana::make_pair(BOOST_HANA_STRING("sea.move"),
+                        &OpSemVisitor::visitMove),
+        hana::make_pair(BOOST_HANA_STRING("sea.mkown"),
+                        &OpSemVisitor::visitMkOwn),
+        hana::make_pair(BOOST_HANA_STRING("sea.mkshr"),
+                        &OpSemVisitor::visitMkShr),
+        hana::make_pair(BOOST_HANA_STRING("sea.set_fatptr_slot"),
+                        &OpSemVisitor::visitFatPointerInstr),
+        hana::make_pair(BOOST_HANA_STRING("sea.get_fatptr_slot"),
+                        &OpSemVisitor::visitFatPointerInstr));
 
     auto visitFunDecl = [&](StringRef candidate) {
       auto found = false;
@@ -813,12 +860,18 @@ public:
   void visitBranchSentinel(CallBase &CB) {}
 
   void visitGetShadowMem(CallBase &CB) {
+    Stats::count("opsem.getShadowMem");
     if (!m_ctx.getMemReadRegister()) {
       LOG("opsem", ERR << "No read register found - check if corresponding"
                           "shadow instruction is present.");
       m_ctx.setMemReadRegister(Expr());
       return;
     }
+    auto returnType = CB.getType();
+    assert(returnType->isIntegerTy());
+    llvm::IntegerType *intType = llvm::cast<llvm::IntegerType>(returnType);
+    // Use instruction bitwidth, not than machine bitwidth to read metadata
+    unsigned bitWidth = intType->getBitWidth();
     Expr slot = lookup(*CB.getOperand(0));
     if (!m_ctx.alu().isNum(slot)) {
       LOG("opsem", ERR << "Metadata slot should resolve to a number.");
@@ -832,9 +885,8 @@ public:
     Expr ptr = lookup(*CB.getOperand(1));
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     OpSemMemManager &memManager = m_ctx.mem();
-    auto res =
-        memManager.getMetadata(static_cast<MetadataKind>(slotNum), ptr, memIn,
-                               memManager.getMetadataMemWordSzInBits() / 8);
+    auto res = memManager.getMetadata(static_cast<MetadataKind>(slotNum), ptr,
+                                      memIn, bitWidth / 8);
     setValue(CB, res);
     m_ctx.setMemReadRegister(Expr());
   };
@@ -852,6 +904,15 @@ public:
     }
     Expr ptr = lookup(*CB.getOperand(1));
     Expr exprToSet = lookup(*CB.getOperand(2));
+    auto toSetTy = CB.getOperand(2)->getType();
+    assert(toSetTy->isIntegerTy());
+    llvm::IntegerType *intType = llvm::cast<llvm::IntegerType>(toSetTy);
+    // Use instruction bitwidth, not than machine bitwidth to read metadata
+    unsigned bitWidth = intType->getBitWidth();
+    if (bitWidth < m_ctx.mem().getMetadataMemWordSzInBits()) {
+      exprToSet = m_ctx.alu().doZext(
+          exprToSet, m_ctx.mem().getMetadataMemWordSzInBits(), bitWidth);
+    }
     auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
     Expr res = m_ctx.mem().setMetadata(static_cast<MetadataKind>(slotNum), ptr,
                                        memIn, exprToSet);
@@ -978,6 +1039,30 @@ public:
     m_ctx.setMemWriteRegister(Expr());
   }
 
+  void visitOutIsArg0(CallBase &CB) {
+    Expr ptrIn = lookup(*CB.getOperand(0));
+    setValue(CB, ptrIn);
+  }
+
+  void visitMkOwn(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitMkShr(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitBeginUnique(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitEndUnique(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitBorMkBor(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitBorMkSuc(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitBorMem2Reg(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitMovReg2Mem(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitMove(CallBase &CB) { visitOutIsArg0(CB); }
+
+  void visitDie(CallBase &CB) {}
   /// Report outcome of vacuity and incremental assertion checking
   void reportDoAssert(const char *tag, const Instruction &I, boost::tribool res,
                       bool expected) {
@@ -1138,6 +1223,27 @@ public:
     } else if (f->getName().equals("__sea_recover_pointer_hm")) {
       Expr fat_ptr = lookup(*CB.getOperand(0));
       setValue(CB, fat_ptr);
+    } else if (f->getName().equals("sea.set_fatptr_slot")) {
+      Expr ptr = lookup(*CB.getOperand(0));
+      Expr slot = lookup(*CB.getOperand(1));
+      if (!m_ctx.alu().isNum(slot)) {
+        LOG("opsem", ERR << "Fatptr slot should resolve to a number.");
+        assert(false);
+      }
+      size_t slotNum = m_ctx.alu().toNum(slot).get_ui();
+      Expr data = lookup(*CB.getOperand(2));
+      Expr res = m_ctx.mem().setFatData(ptr, slotNum, data);
+      setValue(CB, res);
+    } else if (f->getName().equals("sea.get_fatptr_slot")) {
+      Expr ptr = lookup(*CB.getOperand(0));
+      Expr slot = lookup(*CB.getOperand(1));
+      if (!m_ctx.alu().isNum(slot)) {
+        LOG("opsem", ERR << "Fatptr slot should resolve to a number.");
+        assert(false);
+      }
+      size_t slotNum = m_ctx.alu().toNum(slot).get_ui();
+      Expr res = m_ctx.mem().getFatData(ptr, slotNum);
+      setValue(CB, res);
     }
   }
 
@@ -2627,6 +2733,10 @@ Bv2OpSemContext::Bv2OpSemContext(Bv2OpSem &sem, SymStore &values,
     } else {
       mem = mkExtraWideMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
     }
+  } else if (UseOwnSem && UseTrackingMemory) {
+    mem = mkFatEWWTManager(sem, *this, ptrSize, wordSize, UseLambdas);
+  } else if (UseOwnSem) {
+    mem = mkFatEWWManager(sem, *this, ptrSize, wordSize, UseLambdas);
   } else {
     mem = mkRawMemManager(m_sem, *this, ptrSize, wordSize, UseLambdas);
   }
@@ -2701,6 +2811,12 @@ Expr Bv2OpSemContext::simplify(Expr u) {
 }
 
 void Bv2OpSemContext::write(Expr v, Expr u) {
+// Typecheck expr in debug mode
+#ifndef NDEBUG
+  TypeChecker tc;
+  auto ty = tc.typeOf(u);
+  assert(!(isOp<ERROR_TY>(ty) || isOp<ERRORBINDER>(ty)));
+#endif
   if (shouldSimplify()) {
     u = simplify(u);
   }

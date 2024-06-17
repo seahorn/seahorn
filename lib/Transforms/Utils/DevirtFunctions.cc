@@ -149,6 +149,11 @@ CallSiteResolverByTypes::getTargets(CallBase &CB, bool &isComplete) {
   if (it != m_targets_map.end()) {
     return &it->second;
   } else {
+    LOG("devirt", errs() << "Target not found for id=" << *id << "\n";);
+    for (auto ptr = m_targets_map.begin(); ptr != m_targets_map.end(); ++ptr) {
+      LOG("devirt", errs() << "id found:" << *ptr->first << "\n";);
+    }
+
     // This shouldn't happen
     return nullptr;
   }
@@ -205,15 +210,14 @@ CallSiteResolverByDsa::CallSiteResolverByDsa(Module &M,
           continue;
         }
         std::sort(dsa_targets.begin(), dsa_targets.end());
-            num_resolved_calls++;
+        num_resolved_calls++;
         m_targets_map.insert({&CB, dsa_targets});
-            DOG({
-              INFO << "Devirt (dsa): resolved " << CB
-                   << " with targets:";
+        DOG({
+          INFO << "Devirt (dsa): resolved " << CB << " with targets:";
           for (auto F : dsa_targets) {
-                INFO << "\t@" << F->getName();
-              }
-            });
+            INFO << "\t@" << F->getName();
+          }
+        });
       }
     }
   }
@@ -307,7 +311,9 @@ void CallSiteResolverByCHA::cacheBounceFunction(CallBase &CB,
 
 DevirtualizeFunctions::DevirtualizeFunctions(llvm::CallGraph *cg,
                                              bool allowIndirectCalls)
-  : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) { (void)m_cg;}
+    : m_cg(cg), m_allowIndirectCalls(allowIndirectCalls) {
+  (void)m_cg;
+}
 
 DevirtualizeFunctions::~DevirtualizeFunctions() {}
 
@@ -315,6 +321,7 @@ void DevirtualizeFunctions::visitCallBase(CallBase &CB) {
   // -- skip direct calls
   if (!isIndirectCall(CB))
     return;
+  LOG("devirt", errs() << "Pushing to worklist: " << CB << "\n";);
 
   // This is an indirect call site.  Put it in the worklist of call
   // sites to transforms.
@@ -325,7 +332,7 @@ void DevirtualizeFunctions::visitCallInst(CallInst &CI) {
   // we cannot take the address of an inline asm
   if (CI.isInlineAsm())
     return;
-
+  LOG("devirt", errs() << "Visiting callbase: " << CI << "\n";);
   visitCallBase(CI);
 }
 
@@ -349,9 +356,8 @@ Function *DevirtualizeFunctions::mkBounceFn(CallBase &CB,
   }
 
   if (Function *bounce = CSR->getBounceFunction(CB)) {
-    DOG(errs() << "Reusing bounce function for " << CB
-               << "\n\t" << bounce->getName() << "::" << *(bounce->getType())
-               << "\n";);
+    DOG(errs() << "Reusing bounce function for " << CB << "\n\t"
+               << bounce->getName() << "::" << *(bounce->getType()) << "\n";);
     return bounce;
   }
 
@@ -363,8 +369,7 @@ Function *DevirtualizeFunctions::mkBounceFn(CallBase &CB,
   }
 
   DOG({
-    errs() << "Building a bounce for call site:\n"
-           << CB << " using:\n";
+    errs() << "Building a bounce for call site:\n" << CB << " using:\n";
     for (auto &f : *Targets) {
       errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
     }
@@ -378,7 +383,8 @@ Function *DevirtualizeFunctions::mkBounceFn(CallBase &CB,
   Value *ptr = CB.getCalledOperand();
   SmallVector<Type *, 8> TP;
   TP.push_back(ptr->getType());
-  for (auto i = CB.data_operands_begin(), e = CB.data_operands_end(); i != e; ++i)
+  for (auto i = CB.data_operands_begin(), e = CB.data_operands_end(); i != e;
+       ++i)
     TP.push_back((*i)->getType());
 
   FunctionType *NewTy = FunctionType::get(CS.getType(), TP, false);
@@ -524,12 +530,13 @@ void DevirtualizeFunctions::mkDirectCall(CallBase &CB, CallSiteResolver *CSR) {
   const AliasSet *Targets = CSR->getTargets(CB, isComplete);
   if (!Targets || Targets->empty()) {
     // cannot resolve the indirect call
+    LOG("devirt", errs() << "Target not found for call" << CB << "\n";);
     return;
   }
+  LOG("devirt", errs() << "Creating bounce fn: " << CB << "\n";);
 
   DOG({
-    errs() << "Resolving indirect call site:\n"
-           << CB << " using:\n";
+    errs() << "Resolving indirect call site:\n" << CB << " using:\n";
     for (auto &f : *Targets) {
       errs() << "\t" << f->getName() << " :: " << *(f->getType()) << "\n";
     }
@@ -555,6 +562,8 @@ void DevirtualizeFunctions::mkDirectCall(CallBase &CB, CallSiteResolver *CSR) {
 
   // Replace the original call with a call to the bounce function.
   if (CallInst *CI = dyn_cast<CallInst>(&CB)) {
+    LOG("devirt", errs() << "Processing callinst: " << CI << "\n";);
+
     // The last operand in the op list is the callee
     SmallVector<Value *, 8> Params;
     Params.reserve(std::distance(CI->op_begin(), CI->op_end()));

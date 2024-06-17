@@ -618,6 +618,8 @@ public:
     return res;
   }
 
+  z3::stats stats() { return solver.statistics(); }
+
   template <typename Range> boost::tribool solveAssuming(const Range &lits) {
     z3::ast_vector av(ctx);
     for (Expr a : lits)

@@ -433,10 +433,8 @@ Expr OpSemMemLambdaRepr::coerceArrayToLambda(Expr arrVal) {
   Expr name = bind::fname(arrVal);
   Expr rTy = bind::rangeTy(name);
   Expr idxTy = sort::arrayIndexTy(rTy);
-
   Expr bvAddr = bind::mkConst(mkTerm<std::string>("addr", m_efac), idxTy);
   Expr sel = op::array::select(arrVal, bvAddr);
-
   return bind::abs<LAMBDA>(as_std_array(bvAddr), sel);
 }
 

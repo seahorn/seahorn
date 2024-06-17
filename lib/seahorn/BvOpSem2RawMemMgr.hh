@@ -35,6 +35,8 @@ public:
   RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
                     unsigned wordSz, bool useLambdas, bool ignoreAlignment);
 
+  RawMemManagerCore(const RawMemManagerCore &orig);
+
   ~RawMemManagerCore();
 
   OpSemAllocator &getMAllocator() const;
@@ -356,7 +358,7 @@ public:
 
   bool isMemVal(Expr e);
 
-  PtrTy getAddressable(PtrTy p);
+  PtrTy getAddressable(PtrTy p) const;
 
   Bv2OpSem &sem() const { return m_sem; }
   Bv2OpSemContext &ctx() const { return m_ctx; }

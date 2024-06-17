@@ -39,7 +39,7 @@ protected:
 
 public:
   template <typename... Ts>
-  OpSemMemManagerMixin(Ts &&... Args)
+  OpSemMemManagerMixin(Ts &&...Args)
       : BaseT(std::forward<Ts>(Args)...),
         OpSemMemManager(base().sem(), base().ctx(), base().ptrSizeInBytes(),
                         base().wordSizeInBytes(), base().isIgnoreAlignment()) {}
@@ -444,6 +444,10 @@ public:
     if (!isMemVal(e))
       return Expr();
     return Expr(BaseMemValTy(e).getRaw());
+  }
+
+  Expr getAddressable(PtrTy ptr) const override {
+    return Expr(base().getAddressable(BasePtrTy(std::move(ptr))));
   }
 };
 } // namespace details

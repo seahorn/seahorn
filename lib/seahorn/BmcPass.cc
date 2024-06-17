@@ -346,6 +346,23 @@ public:
       Stats::sset("Result", "TRUE");
 
     LOG(
+        "bmc_z3stats", z3::stats stats = bmc.getStats();
+        llvm::SmallString<1024> msg;
+        llvm::raw_svector_ostream out(msg); for (unsigned i = 0;
+                                                 i < stats.size(); ++i) {
+          out << "Z3_STAT " << stats.key(i) << ": ";
+          if (stats.is_uint(i)) {
+            out << stats.uint_value(i);
+          } else if (stats.is_double(i)) {
+            out << stats.double_value(i);
+          } else {
+            // Fallback for any unexpected type, though Z3 typically uses uint
+            // and double.
+            out << "Unknown value type";
+          }
+          out << "\n";
+        } errs() << out.str(););
+    LOG(
         "bmc_core",
         // producing bmc core is expensive. Enable only if specifically
         // requested

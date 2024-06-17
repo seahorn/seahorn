@@ -93,6 +93,9 @@ public:
     return m_smt_solver.getModel();
   }
 
+  /// get z3 solver stats.
+  z3::stats getStats() { return m_smt_solver.stats(); }
+
   /// Returns the BMC trace (if available)
   ZBmcTraceTy getTrace();
 

@@ -12,8 +12,8 @@
 #include <seahorn/seahorn.h>
 #include <stdlib.h>
 
-extern uint8_t nd_char();
-extern bool nd_bool();
+extern char nd_char(void);
+extern bool nd_bool(void);
 
 int main() {
   size_t szBytes1 = nd_char();

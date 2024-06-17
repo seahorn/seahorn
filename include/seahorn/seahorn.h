@@ -1,5 +1,8 @@
 #ifndef _SEAHORN__H_
 #define _SEAHORN__H_
+
+#include <seahorn/ownsem.h>
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -52,12 +55,18 @@ extern void sea_reset_modified(char *);
  * arg1 - A
  * arg2 - V
  */
-extern void sea_set_shadowmem(char, char *, char);
+extern void sea_set_shadowmem(char, char *, size_t);
 /* Get a value from shadow memory slot S at address A.
  * arg0 - S. Note that 0 is main memory and should not be used.
  * arg1 - A
  */
-extern char sea_get_shadowmem(char, char *);
+extern size_t sea_get_shadowmem(char, char *);
+#define TRACK_READ_MEM 0
+#define TRACK_WRITE_MEM 1
+#define TRACK_ALLOC_MEM 2
+#define TRACK_CUSTOM0_MEM 3
+#define TRACK_CUSTOM1_MEM 4
+
 #ifdef __cplusplus
 }
 #endif

@@ -30,7 +30,8 @@ struct TrackingMemoryTuple {
                            (RawMemManager, m_r_metadata),
                            (RawMemManager, m_w_metadata),
                            (RawMemManager, m_a_metadata),
-                           (RawMemManager, m_c0_metadata));
+                           (RawMemManager, m_c0_metadata),
+                           (RawMemManager, m_c1_metadata));
 
   /// \brief A helper function to get number of memory elements in tuple
   static constexpr auto GetTupleSize() {

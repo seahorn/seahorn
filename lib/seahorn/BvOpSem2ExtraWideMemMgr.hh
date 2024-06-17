@@ -15,7 +15,7 @@
 namespace seahorn {
 namespace details {
 
-template <class T> class ExtraWideMemManager : public MemManagerCore {
+template <class T> class ExtraWideMemManagerCore : public MemManagerCore {
 
   /// \brief Base name for non-deterministic pointer
   Expr m_freshPtrName;
@@ -82,6 +82,7 @@ public:
 
     MemValTyImpl(RawMemValTy &&raw_val, Expr &&offset_val, Expr &&size_val) {
       assert(!strct::isStructVal(size_val));
+      auto a = {raw_val, offset_val, size_val};
       m_v = strct::mk(std::move(raw_val), std::move(offset_val),
                       std::move(size_val));
     }
@@ -89,6 +90,7 @@ public:
     MemValTyImpl(const RawPtrTy &raw_val, const Expr &offset_val,
                  const Expr &size_val) {
       assert(!strct::isStructVal(size_val));
+      auto a = {raw_val, offset_val, size_val};
       m_v = strct::mk(raw_val, offset_val, size_val);
     }
 
@@ -159,10 +161,10 @@ public:
   /// \brief A null pointer expression (cache)
   PtrTy m_nullPtr;
 
-  ExtraWideMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
-                      unsigned wordSz, bool useLambdas = false);
+  ExtraWideMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx, unsigned ptrSz,
+                          unsigned wordSz, bool useLambdas = false);
 
-  ~ExtraWideMemManager() = default;
+  ~ExtraWideMemManagerCore() = default;
 
   Expr bytesToSlotExpr(unsigned bytes);
 
@@ -267,25 +269,26 @@ public:
 
   Expr isDereferenceable(PtrTy p, Expr byteSz);
 
-  typename ExtraWideMemManager<T>::RawMemValTy
-  setModified(ExtraWideMemManager::PtrTy ptr,
-              ExtraWideMemManager::MemValTy mem);
+  typename ExtraWideMemManagerCore<T>::RawMemValTy
+  setModified(ExtraWideMemManagerCore::PtrTy ptr,
+              ExtraWideMemManagerCore::MemValTy mem);
 
-  Expr isMetadataSet(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-                     ExtraWideMemManager::MemValTy mem);
+  Expr isMetadataSet(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+                     ExtraWideMemManagerCore::MemValTy mem);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  setMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-              ExtraWideMemManager::MemValTy mem, Expr val);
+  typename ExtraWideMemManagerCore<T>::MemValTy
+  setMetadata(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+              ExtraWideMemManagerCore::MemValTy mem, Expr val);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  memsetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr,
-                 unsigned int len, ExtraWideMemManager::MemValTy memIn,
+  typename ExtraWideMemManagerCore<T>::MemValTy
+  memsetMetadata(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+                 unsigned int len, ExtraWideMemManagerCore::MemValTy memIn,
                  unsigned int val);
 
-  typename ExtraWideMemManager<T>::MemValTy
-  memsetMetadata(MetadataKind kind, ExtraWideMemManager::PtrTy ptr, Expr len,
-                 ExtraWideMemManager::MemValTy memIn, unsigned int val);
+  typename ExtraWideMemManagerCore<T>::MemValTy
+  memsetMetadata(MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr,
+                 Expr len, ExtraWideMemManagerCore::MemValTy memIn,
+                 unsigned int val);
 
   Expr getMetadata(MetadataKind kind, PtrTy ptr, MemValTy memIn,
                    unsigned int byteSz);
@@ -327,5 +330,13 @@ OpSemMemManager *mkTrackingExtraWideMemManager(Bv2OpSem &sem,
                                                Bv2OpSemContext &ctx,
                                                unsigned ptrSz, unsigned wordSz,
                                                bool useLambdas);
+// ExtraWide with Tracking MemManager
+using EWWTMemManager = OpSemMemManagerMixin<
+    ExtraWideMemManagerCore<OpSemMemManagerMixin<TrackingRawMemManager>>>;
+
+// ExtraWide with Tracking MemManager
+using EWWMemManager = OpSemMemManagerMixin<
+    ExtraWideMemManagerCore<OpSemMemManagerMixin<RawMemManagerCore>>>;
+
 } // namespace details
 } // namespace seahorn

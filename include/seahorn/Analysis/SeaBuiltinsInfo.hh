@@ -31,6 +31,19 @@ enum class SeaBuiltinsOp {
   FREE,               /* sea.free */
   SET_SHADOWMEM,      /* sea.set_shadowmem */
   GET_SHADOWMEM,      /* sea.get_shadowmem */
+  MK_OWN,
+  MK_SHR,
+  BOR_MKBOR,
+  BOR_MKBOR_PART,
+  BOR_MEM2REG, /* sea.bor_mem2reg */
+  MOV_REG2MEM, /* sea.bor_reg2mem */
+  BOR_MKSUC,
+  BEGIN_UNIQUE,
+  END_UNIQUE,
+  DIE,
+  MOVE,
+  SET_FATPTR_SLOT,
+  GET_FATPTR_SLOT,
   UNKNOWN
 };
 
@@ -55,6 +68,20 @@ class SeaBuiltinsInfo {
   llvm::Function *mkFreeFn(llvm::Module &M);
   llvm::Function *mkSetShadowMem(llvm::Module &M);
   llvm::Function *mkGetShadowMem(llvm::Module &M);
+  llvm::Function *mkMkOwn(llvm::Module &M);
+  llvm::Function *mkMkShr(llvm::Module &M);
+  llvm::Function *mkBorMkBor(llvm::Module &M);
+  llvm::Function *mkBorMkBorPart(llvm::Module &M);
+  llvm::Function *mkBorMkSuc(llvm::Module &M);
+  llvm::Function *mkBorMem2Reg(llvm::Module &M);
+  llvm::Function *mkMovReg2Mem(llvm::Module &M);
+  llvm::Function *mkBeginUnique(llvm::Module &M);
+  llvm::Function *mkEndUnique(llvm::Module &M);
+  llvm::Function *mkDie(llvm::Module &M);
+  llvm::Function *mkMove(llvm::Module &M);
+  llvm::Function *mkBorOffset(llvm::Module &M);
+  llvm::Function *mkSetFatPtrSlot(llvm::Module &M);
+  llvm::Function *mkGetFatPtrSlot(llvm::Module &M);
 
 public:
   SeaBuiltinsOp getSeaBuiltinOp(const llvm::CallBase &cb) const;

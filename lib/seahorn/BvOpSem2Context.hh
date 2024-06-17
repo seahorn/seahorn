@@ -26,6 +26,7 @@ enum class MetadataKind {
   WRITE = 1,
   ALLOC = 2,
   CUSTOM0 = 3,
+  CUSTOM1 = 4,
 };
 
 namespace MemoryFeatures {
@@ -768,6 +769,8 @@ public:
   virtual Expr getRawMem(Expr p) = 0;
 
   virtual size_t getNumOfMetadataSlots() = 0;
+
+  virtual Expr getAddressable(PtrTy p) const = 0;
 };
 
 OpSemMemManager *mkRawMemManager(Bv2OpSem &sem, Bv2OpSemContext &ctx,

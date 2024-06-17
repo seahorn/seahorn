@@ -30,7 +30,8 @@ struct TrackingMemoryTuple {
                            (RawMemManager, m_r_metadata),
                            (RawMemManager, m_w_metadata),
                            (RawMemManager, m_a_metadata),
-                           (RawMemManager, m_c0_metadata));
+                           (RawMemManager, m_c0_metadata),
+                           (RawMemManager, m_c1_metadata));
 
   /// \brief A helper function to get number of memory elements in tuple
   static constexpr auto GetTupleSize() {
@@ -95,6 +96,13 @@ public:
                                  TrackingMemoryTuple::GetTupleSize());
       hana::for_each(
           args, [&](auto element) { assert(!strct::isStructVal(element)); });
+#ifndef NDEBUG
+      hana::for_each(args, [&](auto element) {
+        TypeChecker tc;
+        tc.typeOf(element);
+        assert(tc.getErrorExp() == nullptr);
+      });
+#endif
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemValTy, sizeof...(i)>{{std::move(i)...}};
       });
@@ -110,6 +118,13 @@ public:
                                  TrackingMemoryTuple::GetTupleSize());
       hana::for_each(
           args, [&](auto element) { assert(!strct::isStructVal(element)); });
+#ifndef NDEBUG
+      hana::for_each(args, [&](auto element) {
+        TypeChecker tc;
+        tc.typeOf(element);
+        assert(tc.getErrorExp() == nullptr);
+      });
+#endif
       auto a = hana::unpack(args, [](auto... i) {
         return std::array<RawMemValTy, sizeof...(i)>{{i...}};
       });

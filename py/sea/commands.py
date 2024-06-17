@@ -1205,7 +1205,11 @@ class Seahorn(sea.LimitedCmd):
                         help='Eval branch sentinel instrinsic',
                         default=False,
                         action='store_true')
-
+        ap.add_argument('--own-sem',
+                        dest='enable_own_sem',
+                        help='Enable Ownership semantics for BvOpSem2',
+                        default=False,
+                        action='store_true')
         return ap
 
     def run (self, args, extra):
@@ -1228,7 +1232,8 @@ class Seahorn(sea.LimitedCmd):
                 argv.append('--horn-shadow-mem-alloc-is-def')
         if args.crab:
             argv.append ('--horn-crab')
-
+        if args.enable_own_sem:
+            argv.append('--horn-bv2-own-sem')
         if self.enable_boogie:
             argv.append ('--boogie')
             # the translation uses crab to add invariants: disable crab warnings

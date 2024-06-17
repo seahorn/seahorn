@@ -100,6 +100,12 @@ RawMemManagerCore::RawMemManagerCore(Bv2OpSem &sem, Bv2OpSemContext &ctx,
     m_memRepr =
         std::make_unique<OpSemMemArrayRepr>(*this, ctx, MemCpyUnrollCount);
 }
+// TODO: don't hardcode args, instead expose useLambdas, ignoreAlignment
+//       in memmgr api
+RawMemManagerCore::RawMemManagerCore(const RawMemManagerCore &orig)
+    : RawMemManager::RawMemManagerCore(
+          orig.sem(), orig.ctx(), orig.ptrSizeInBytes(), orig.wordSizeInBytes(),
+          true /* useLambdas */, /* ignoreAlignment =*/true) {}
 
 /// \brief Creates a non-deterministic pointer that is aligned
 ///
@@ -834,7 +840,7 @@ OpSemAllocator &RawMemManagerCore::getMAllocator() const {
 }
 bool RawMemManagerCore::ignoreAlignment() const { return m_ignoreAlignment; }
 
-PtrTy RawMemManagerCore::getAddressable(PtrTy p) { return p; }
+PtrTy RawMemManagerCore::getAddressable(PtrTy p) const { return p; }
 
 // An empty destructor is needed because the class uses unique_ptr of
 // forward declared types.

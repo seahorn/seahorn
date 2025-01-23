@@ -1699,6 +1699,23 @@ public:
       Expr res = boolop::lite(isNoOverflow, addRes, maxVal);
       setValue(I, res);
     } break;
+    case Intrinsic::usub_sat: {
+      Type *ty = I.getOperand(0)->getType();
+      Expr op0, op1;
+      GetOpExprs(I, op0, op1);
+      assert(op0 && op1);
+      Expr subRes = m_ctx.alu().doSub(op0, op1, ty->getScalarSizeInBits());
+      Expr isNoUnderflow =
+          m_ctx.alu().IsUsubNoUnderflow(op0, op1, ty->getScalarSizeInBits());
+      assert(subRes && isNoUnderflow);
+      mpz_class zero;
+      for (unsigned i = 0; i < ty->getScalarSizeInBits(); ++i) {
+        zero.clrbit(i);
+      }
+      Expr minVal = m_ctx.alu().num(zero, ty->getScalarSizeInBits());
+      Expr res = boolop::lite(isNoUnderflow, subRes, minVal);
+      setValue(I, res);
+    } break;
     case Intrinsic::ssub_with_overflow: {
       Type *ty = I.getOperand(0)->getType();
       Expr op0;

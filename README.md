@@ -245,8 +245,8 @@ are:
 The easiest way to get started with SeaHorn is via a docker distribution. 
 
 ```shell
-$ docker pull seahorn/seahorn-llvm10:nightly
-$ docker run --rm -it seahorn/seahorn-llvm10:nightly
+$ docker pull seahorn/seahorn-llvm14:nightly
+$ docker run --rm -it seahorn/seahorn-llvm14:nightly
 ```
 
 Start with exploring what the `sea` command can do:

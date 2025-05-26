@@ -1849,16 +1849,16 @@ public:
     case Intrinsic::fshl:
     case Intrinsic::fshr: {
       // fshl, fshr
-      // <ty> @llvm.fshl.<ty>(<ty> %low, <ty> %high, <ty> %shift)
-      // result = ( (%low  << %shift)        // left-shift low
-      //      | (%high >> (width-%shift)) )  // right-shift high to fill in
-      // <ty> @llvm.fshr.<ty>(<ty> %low, <ty> %high, <ty> %shift)
-      // result = ( (%high >> %shift)        // right-shift high
-      //      | (%low << (width − %shift)) ) // left-shift low to fill in
-      Expr low = lookup(*I.getOperand(0));   // low operand
-      Expr high = lookup(*I.getOperand(1));  // high operand
+      // <ty> @llvm.fshl.<ty>(<ty> %high, <ty> %low, <ty> %shift)
+      // result = ( (%high  << %shift)        // left-shift high
+      //      | (%low >> (width-%shift)) )  // right-shift low to fill in
+      // <ty> @llvm.fshr.<ty>(<ty> %high, <ty> %low, <ty> %shift)
+      // result = ( (%low >> %shift)        // right-shift low
+      //      | (%high << (width − %shift)) ) // left-shift high to fill in
+      Expr high = lookup(*I.getOperand(0));  // high operand
+      Expr low = lookup(*I.getOperand(1));   // low operand
       Expr shift = lookup(*I.getOperand(2)); // shift operand
-      if (!low || !high || !shift) {
+      if (!high || !low || !shift) {
         LOG("opsem", WARN << "An operation returned null:" << I);
         setValue(I, Expr());
       } else {
@@ -1870,12 +1870,12 @@ public:
         Expr res;
         if (I.getIntrinsicID() == Intrinsic::fshl) {
           res = m_ctx.alu().doOr(
-              mk<BSHL>(low, shift),
-              mk<BLSHR>(high, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
+              mk<BSHL>(high, shift),
+              mk<BLSHR>(low, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
         } else {
           res = m_ctx.alu().doOr(
-              mk<BLSHR>(high, shift),
-              mk<BSHL>(low, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
+              mk<BLSHR>(low, shift),
+              mk<BSHL>(high, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
         }
         setValue(I, res);
       }

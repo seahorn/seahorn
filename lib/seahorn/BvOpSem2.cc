@@ -1846,6 +1846,40 @@ public:
         setValue(I, res);
       }
     } break;
+    case Intrinsic::fshl:
+    case Intrinsic::fshr: {
+      // fshl, fshr
+      // <ty> @llvm.fshl.<ty>(<ty> %low, <ty> %high, <ty> %shift)
+      // result = ( (%low  << %shift)        // left-shift low
+      //      | (%high >> (width-%shift)) )  // right-shift high to fill in
+      // <ty> @llvm.fshr.<ty>(<ty> %low, <ty> %high, <ty> %shift)
+      // result = ( (%high >> %shift)        // right-shift high
+      //      | (%low << (width − %shift)) ) // left-shift low to fill in
+      Expr low = lookup(*I.getOperand(0));   // low operand
+      Expr high = lookup(*I.getOperand(1));  // high operand
+      Expr shift = lookup(*I.getOperand(2)); // shift operand
+      if (!low || !high || !shift) {
+        LOG("opsem", WARN << "An operation returned null:" << I);
+        setValue(I, Expr());
+      } else {
+        Type *ty = I.getType();
+        unsigned bw = ty->getScalarSizeInBits();
+        Expr bitwidth = m_ctx.alu().num(bw, bw);
+        // round shift based on width
+        shift = m_ctx.alu().doURem(shift, bitwidth, bw);
+        Expr res;
+        if (I.getIntrinsicID() == Intrinsic::fshl) {
+          res = m_ctx.alu().doOr(
+              mk<BSHL>(low, shift),
+              mk<BLSHR>(high, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
+        } else {
+          res = m_ctx.alu().doOr(
+              mk<BLSHR>(high, shift),
+              mk<BSHL>(low, m_ctx.alu().doSub(bitwidth, shift, bw)), bw);
+        }
+        setValue(I, res);
+      }
+    } break;
     default:
       // interpret by non-determinism (and a warning)
       if (!I.getType()->isVoidTy())

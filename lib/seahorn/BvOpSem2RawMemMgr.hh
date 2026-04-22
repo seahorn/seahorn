@@ -42,6 +42,7 @@ public:
   OpSemAllocator &getMAllocator() const;
 
   bool ignoreAlignment() const;
+  bool isAllowPartialWordMemset() const;
 
   struct MemValTyImpl {
     Expr m_v;

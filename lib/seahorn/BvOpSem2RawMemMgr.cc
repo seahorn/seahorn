@@ -34,6 +34,11 @@ static llvm::cl::opt<bool> IgnoreAlignmentOpt(
                    "operations are word aligned"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> AllowPartialWordMemset(
+    "horn-bv2-allow-partial-word-memset",
+    llvm::cl::desc("Support memset tail bytes and unaligned pointers"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ExplicitSp0(
     "horn-explicit-sp0",
     llvm::cl::desc(
@@ -665,10 +670,11 @@ RawMemManagerCore::MemValTy RawMemManagerCore::MemSet(PtrTy ptr, Expr _val,
         ERR << "Unexpected instruction found: " << m_ctx.getCurrentInst()
             << "\n";
       });
-  auto lenValue = memset->getArgOperand(2);
-  auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
-
-  makeMemAligned({simplifiedLength, lenBitWidth});
+  if (!isAllowPartialWordMemset()) {
+    auto lenValue = memset->getArgOperand(2);
+    auto lenBitWidth = lenValue->getType()->getIntegerBitWidth();
+    makeMemAligned({simplifiedLength, lenBitWidth});
+  }
   return m_memRepr->MemSet(ptr, _val, simplifiedLength, mem, wordSizeInBytes(),
                            ptrSort(), align);
 }
@@ -839,6 +845,9 @@ OpSemAllocator &RawMemManagerCore::getMAllocator() const {
   return *m_allocator;
 }
 bool RawMemManagerCore::ignoreAlignment() const { return m_ignoreAlignment; }
+bool RawMemManagerCore::isAllowPartialWordMemset() const {
+  return AllowPartialWordMemset;
+}
 
 PtrTy RawMemManagerCore::getAddressable(PtrTy p) const { return p; }
 

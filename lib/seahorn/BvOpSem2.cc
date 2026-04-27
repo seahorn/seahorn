@@ -1863,6 +1863,8 @@ public:
         setValue(I, Expr());
       } else {
         Type *ty = I.getType();
+        if (ty->isVectorTy())
+          llvm_unreachable("fshl/fshr on vector types are not supported");
         unsigned bw = ty->getScalarSizeInBits();
         Expr bitwidth = m_ctx.alu().num(bw, bw);
         // round shift based on width

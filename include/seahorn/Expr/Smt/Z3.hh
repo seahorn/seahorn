@@ -16,6 +16,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include <boost/bimap.hpp>
 #include <boost/bimap/unordered_set_of.hpp>
@@ -390,7 +391,7 @@ public:
   friend void swap(this_type &src, this_type &dst) {
     // -- only allow swap between models from the same context
     assert(&src.z3 == &dst.z3);
-    swap(src.model, dst.model);
+    std::swap(src.model, dst.model);
   }
 
   Expr eval(Expr e, bool completion = false) {

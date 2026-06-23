@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 ;; Check inline asm of bswap is handled
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 
 ; ModuleID = 'bswap.rolw.inline.asm_unsat.ll'
 source_filename = "../opsem2/bswap/bswap-ntohs-inline-asm_unsat.c"

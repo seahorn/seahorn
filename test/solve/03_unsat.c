@@ -3,7 +3,7 @@
 //             --horn-singleton-aliases=true --devirt-functions --horn-ignore-calloc=false 
 //             --enable-indvar --enable-loop-idiom --horn-make-undef-warning-error=false 
 //             --max-depth=35 --inline "%s"
-// CHECK: ^unsat$
+// CHECK: {{^unsat$}}
 
 // This sometimes gets stuck in the solver on level 34. Disable untill we move to
 // a newer version.

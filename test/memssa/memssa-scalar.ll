@@ -2,18 +2,18 @@
 ; RUN:       -horn-inter-proc -horn-sem-lvl=mem --horn-gsa=false \
 ; RUN:       --horn-step=large --horn-bv2=true --horn-stats \
 ; RUN:       --log="shadow_verbose" --log="shadow_optimizer" \
-; RUN:       "%s" 2>&1 | OutputCheck %s --comment=";"
+; RUN:       "%s" 2>&1 | filecheck %s --comment=";"
 
-; CHECK-L: Module before shadow insertion:
-; CHECK-L: ret i32 42
+; CHECK: Module before shadow insertion:
+; CHECK: ret i32 42
 
-; CHECK-L: MemSSA optimizer: 1 use(s) solved.
+; CHECK: MemSSA optimizer: 1 use(s) solved.
 
-; CHECK-L: Module after shadow insertion:
-; CHECK-L:  %sm = call i32 @shadow.mem.store(i32 0, i32 %sm2, i8* null), !shadow.mem
-; CHECK-L:  %sm1 = call i32 @shadow.mem.store(i32 0, i32 %sm, i8* null), !shadow.mem
-; CHECK-L:  call void @shadow.mem.load(i32 0, i32 %sm, i8* null), !shadow.mem
-; CHECK-L:  ret i32 42
+; CHECK: Module after shadow insertion:
+; CHECK: %sm = call i32 @shadow.mem.store(i32 0, i32 %sm2, i8* null), !shadow.mem
+; CHECK: %sm1 = call i32 @shadow.mem.store(i32 0, i32 %sm, i8* null), !shadow.mem
+; CHECK: call void @shadow.mem.load(i32 0, i32 %sm, i8* null), !shadow.mem
+; CHECK: ret i32 42
 
 ; ModuleID = '/tmp/sea-ArTKhT/memssa-scalar.pp.ms.o.ul.cut.o.bc'
 source_filename = "/media/nvme/projects/seahorn-5/test/memssa/memssa-scalar.c"

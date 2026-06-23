@@ -1,5 +1,5 @@
-//; RUN: %fpfsea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem --add-isalloc-check 2>&1 | OutputCheck %s
-// CHECK: ^sat$
+//; RUN: %fpfsea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem --add-isalloc-check 2>&1 | filecheck %s
+// CHECK: {{^sat$}}
 
 #include "seahorn/seahorn.h"
 #include <stdlib.h>

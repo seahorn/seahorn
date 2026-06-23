@@ -1,5 +1,5 @@
-// RUN: %sea pf -O1 --devirt-functions "%s"  2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea pf -O1 --devirt-functions "%s"  2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

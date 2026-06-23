@@ -1,6 +1,6 @@
-// RUN: %sea --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true "%s" 2>&1 | OutputCheck %s
-// CHECK: ^Error: vacuity failed
-// CHECK: ^unsat$
+// RUN: %sea --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true "%s" 2>&1 | filecheck %s
+// CHECK: {{^Error: vacuity failed}}
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

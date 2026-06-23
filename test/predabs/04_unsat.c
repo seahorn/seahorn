@@ -1,5 +1,5 @@
 // RUN: %sea --mem=-1 -m64 pf --step=large -g --horn-global-constraints=true --track=mem --horn-stats --enable-nondet-init --strip-extern --externalize-addr-taken-functions --horn-singleton-aliases=true --devirt-functions=types --horn-ignore-calloc=false --enable-indvar --enable-loop-idiom --horn-make-undef-warning-error=false --inline "%s" --horn-pred-abs
-// CHECK: ^unsat$
+// CHECK: {{^unsat$}}
 
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 

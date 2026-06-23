@@ -1,4 +1,4 @@
-// RUN: %sea_inc --null --num-blks=2 "%s" 2>&1 | OutputCheck %s
+// RUN: %sea_inc --null --num-blks=2 "%s" 2>&1 | filecheck %s
 // CHECK: INFEASIBLE
 
 // This test can only pass if line 349 in tools/seapp/seapp.cc

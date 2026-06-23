@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'sext.02.ll'
 ;; unsat case for sext: sign extend true will make it neq 0
 source_filename = "../test/bmc/test-bmc-1.false.c"

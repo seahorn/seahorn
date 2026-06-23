@@ -1,6 +1,6 @@
-//; RUN: %sea "%s" 2>&1 | OutputCheck %s
-// CHECK: ^Error: assertion failed
-// CHECK: ^sat$
+//; RUN: %sea "%s" 2>&1 | filecheck %s
+// CHECK: {{^Error: assertion failed}}
+// CHECK: {{^sat$}}
 
 #include "seahorn/seahorn.h"
 

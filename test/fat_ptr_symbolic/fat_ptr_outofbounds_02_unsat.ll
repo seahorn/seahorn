@@ -1,6 +1,6 @@
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.o.bc'
 source_filename = "fat_ptr_outofbounds.02.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

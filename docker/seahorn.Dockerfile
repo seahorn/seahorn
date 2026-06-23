@@ -10,6 +10,10 @@ FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 ENV SEAHORN=/home/usea/seahorn/bin/sea PATH="$PATH:/home/usea/seahorn/bin"
 USER root
 
+# The regression tests use `filecheck` (the maintained pip package) instead of
+# the unmaintained OutputCheck. The pre-built base image may predate this
+# change, so ensure filecheck is available in the test container.
+RUN pip3 install filecheck
 
 # setup default user
 RUN useradd -ms /bin/bash usea && \

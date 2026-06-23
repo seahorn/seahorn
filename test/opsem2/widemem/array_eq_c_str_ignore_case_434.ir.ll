@@ -1,6 +1,6 @@
 ; https://github.com/seahorn/seahorn/issues/434
 ; RUN: %fpfsea "%s" -O3 --inline --enable-loop-idiom --enable-indvar --no-lower-gv-init-struct --externalize-addr-taken-functions --no-kill-vaarg --with-arith-overflow=true --horn-unify-assumes=true --horn-gsa --no-fat-fns=bcmp,memcpy,assert_bytes_match,ensure_linked_list_is_allocated,sea_aws_linked_list_is_valid --dsa=sea-cs-t --devirt-functions=types --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=true --horn-bmc-coi=true --sea-opsem-allocator=static --horn-explicit-sp0=false --horn-bv2-lambdas --horn-bv2-simplify=true --horn-bv2-extra-widemem --bound=10 2>&1 | %oc %s
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = '../test/opsem2/widemem/array_eq_c_str_ignore_case_434.ir.bc'
 source_filename = "llvm-link"
 target datalayout = "e-m:o-p:32:32-Fi8-f64:32:64-v64:32:64-v128:32:128-a:0:32-n32-S32"

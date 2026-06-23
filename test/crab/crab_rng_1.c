@@ -1,5 +1,5 @@
-// RUN: %sea fpf --inline --horn-bv2-crab-rng --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=true --horn-bmc-coi=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea fpf --inline --horn-bv2-crab-rng --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=true --horn-bmc-coi=true --sea-opsem-allocator=static "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include <seahorn/seahorn.h>
 #include <stdio.h>

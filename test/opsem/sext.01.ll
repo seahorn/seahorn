@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ; ModuleID = 'sext.01.ll'
 ;; tests the behaviour of sext (sign extension)
 source_filename = "../test/bmc/test-bmc-1.false.c"

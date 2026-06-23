@@ -3,7 +3,7 @@
 ;; test calloc initializing memory to 0, this unsat case assumes
 ;; a pointed value to be less than 0 while the only actions possible
 ;; are nop or assigning a value greater or equal to 0
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'calloc.02.ll'
 source_filename = "test.calloc.ashr.c"
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"

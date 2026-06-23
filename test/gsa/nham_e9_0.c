@@ -4,8 +4,8 @@
 // RUN:           --enable-indvar --enable-loop-idiom  --symbolize-constant-loop-bounds \
 // RUN:           --unfold-loops-for-dsa --simplify-pointer-loops  --horn-sea-dsa-split \
 // RUN:           --dsa=sea-ci --horn-bv-use-write --bmc=mono --bound=5 \
-// RUN:           --horn-gsa "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN:           --horn-gsa "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 extern void __VERIFIER_assume(int);

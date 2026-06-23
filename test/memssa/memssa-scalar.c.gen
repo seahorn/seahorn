@@ -1,9 +1,9 @@
 // RUN: %sea bpf -m32 -O0 --horn-bv2=true --horn-gsa=true --bmc=mono --bound=10 \
-// RUN:      --horn-stats --keep-shadows=true --inline --log=opsem "%s" 2>&1 | OutputCheck %s
+// RUN:      --horn-stats --keep-shadows=true --inline --log=opsem "%s" 2>&1 | filecheck %s
 
 // RUN: %sea bpf -m32 -O0 --horn-bv2=true --horn-gsa=false --bmc=mono --bound=10 \
-// RUN:      --horn-stats --keep-shadows=true  --inline --log=opsem "%s" 2>&1 | OutputCheck %s
-// CHECK-L: unsat
+// RUN:      --horn-stats --keep-shadows=true  --inline --log=opsem "%s" 2>&1 | filecheck %s
+// CHECK: unsat
 
 extern int nd(void);
 extern void __VERIFIER_error(void) __attribute__((noreturn));

@@ -2,7 +2,7 @@
 
 ; playing with alignment. Two variables are created, 
 ; checks that the third bit differs between them.
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ;; ModuleID = '/var/folders/_j/1_4mrwbs7y16zbvj79vwvhdc0000gn/T/sea-1nJpV2/align.test.pp.ms.bc'
 source_filename = "align.test.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"

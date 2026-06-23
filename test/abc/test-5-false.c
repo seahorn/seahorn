@@ -1,5 +1,5 @@
-// RUN: %sea abc -O0 --abc-encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
-// CHECK: ^sat$
+// RUN: %sea abc -O0 --abc-encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | filecheck %s
+// CHECK: {{^sat$}}
 
 extern int nd();
 

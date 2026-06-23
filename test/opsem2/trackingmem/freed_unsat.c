@@ -1,5 +1,5 @@
-//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 // This test mainly checks that we can write multiple metadata about tracking
 // memory independently of each other.
 #include "seahorn/seahorn.h"

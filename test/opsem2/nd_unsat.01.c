@@ -1,5 +1,5 @@
-//; RUN: %sea "%s" --ignore-def-verifier-fn=false 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+//; RUN: %sea "%s" --ignore-def-verifier-fn=false 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

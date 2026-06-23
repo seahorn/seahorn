@@ -1,7 +1,7 @@
 ; RUN: %seabmc --sea-opsem-allocator=static "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --sea-opsem-allocator=static --horn-bv2-lambdas "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'alloca.01.ll'
 source_filename = "../test/bmc/test-bmc-1.false.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"

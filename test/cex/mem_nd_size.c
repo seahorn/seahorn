@@ -1,7 +1,7 @@
 // RUN: %solve --horn-bmc-engine=mono --horn-bv2-extra-widemem --horn-bv2-lambdas=false --horn-bmc --horn-bv2=true --keep-shadows=true --cex=/tmp/mem_nd_size.ll %s > /dev/null 2>&1
-// RUN: %cex --run -g %s /tmp/mem_nd_size.ll 2>&1 | OutputCheck %s
+// RUN: %cex --run -g %s /tmp/mem_nd_size.ll 2>&1 | filecheck %s
 
-// CHECK: ^__VERIFIER_error was executed$
+// CHECK: {{^__VERIFIER_error was executed$}}
 
 
 #include <stddef.h>

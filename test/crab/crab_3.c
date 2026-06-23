@@ -1,5 +1,5 @@
-// RUN: %sea pf -O0 --crab --max-depth=20 --horn-use-invs=bg "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea pf -O0 --crab --max-depth=20 --horn-use-invs=bg "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 extern int nd(void);
 extern void print(int);

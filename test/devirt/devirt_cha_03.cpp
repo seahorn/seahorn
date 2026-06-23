@@ -1,8 +1,8 @@
 /* Multiple inheritance */
 
-// RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
-// RUN: %sea pf -O3 --devirt-functions-with-cha "%s"  2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea pf -O0 --devirt-functions-with-cha "%s"  2>&1 | filecheck %s
+// RUN: %sea pf -O3 --devirt-functions-with-cha "%s"  2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

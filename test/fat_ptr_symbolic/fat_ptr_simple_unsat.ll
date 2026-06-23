@@ -1,6 +1,6 @@
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'fat_ptr_simple_unsat.ll'
 source_filename = "/home/s2priya/seahorn/xiang-seahorn/seahorn/test/fat_ptr/fat_ptr_outofbounds_simple_01.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

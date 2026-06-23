@@ -1,5 +1,5 @@
 // RUN: sea pf -O0 --dsa=sea-cs --horn-inter-proc-mem --horn-shadow-mem-optimize=false %s
-// CHECK: ^unsat$
+// CHECK: {{^unsat$}}
 
 /* #include <stdint.h> */
 /* #include <stdbool.h> */

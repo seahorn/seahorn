@@ -411,7 +411,7 @@ Testing infrastructure depends on several Python packages. These have their own
 dependencies. If you cannot figure them out, use docker instead.
 
 ```shell
-$ pip install lit OutputCheck networkx pygraphviz
+$ pip install lit filecheck networkx pygraphviz
 ```
 
 ## Coverage 

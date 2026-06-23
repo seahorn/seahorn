@@ -1,5 +1,5 @@
-// RUN: %sea abc -O3 --devirt-functions --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa --abc-escape-ptr --abc-use-deref --abc-disable-underflow "%s" %abc3_definitions 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea abc -O3 --devirt-functions --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa --abc-escape-ptr --abc-use-deref --abc-disable-underflow "%s" %abc3_definitions 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #define N 10
 

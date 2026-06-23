@@ -1,5 +1,5 @@
-// RUN: %sea --add-branch-sentinel --eval-branch-sentinel "%s" 2>&1 | OutputCheck %s
-// CHECK: ^Info: Conditional branch became false
+// RUN: %sea --add-branch-sentinel --eval-branch-sentinel "%s" 2>&1 | filecheck %s
+// CHECK: {{^Info: Conditional branch became false}}
 
 #include <stddef.h>
 

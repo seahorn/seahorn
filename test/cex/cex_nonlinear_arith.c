@@ -1,5 +1,5 @@
-// RUN: %sea exe-cex -O0 --verify --bit-precise "%s" 2>&1 | OutputCheck %s
-// CHECK: ^__VERIFIER_error was executed$
+// RUN: %sea exe-cex -O0 --verify --bit-precise "%s" 2>&1 | filecheck %s
+// CHECK: {{^__VERIFIER_error was executed$}}
 
 /* 
    Example where SeaHorn's back-end solver produces an spurious cex

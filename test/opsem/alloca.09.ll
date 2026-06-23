@@ -1,7 +1,7 @@
 ; RUN: %seabmc --sea-opsem-allocator=static "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --sea-opsem-allocator=static --horn-bv2-lambdas "%s" 2>&1 | %oc %s
 
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ;; dynamic allocation of larger size than handled by static allocator
 ;; will cause unsat independently of what the program is doing
 ; XFAIL: *

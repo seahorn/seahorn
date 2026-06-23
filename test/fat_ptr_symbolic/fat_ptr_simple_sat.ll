@@ -1,6 +1,6 @@
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ; ModuleID = 'fat_ptr_simple_sat.ll'
 source_filename = "fat_ptr_outofbounds_simple_02.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

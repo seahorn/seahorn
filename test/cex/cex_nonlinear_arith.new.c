@@ -1,7 +1,7 @@
 // RUN: %solve --horn-bmc-engine=mono --horn-bv2-lambdas=false --horn-bmc --horn-bv2=true --cex=/tmp/test_cex_nonlinear_arith.ll %s > /dev/null 2>&1
-// RUN: %cex --run -g %s /tmp/test_cex_nonlinear_arith.ll 2>&1 | OutputCheck %s
+// RUN: %cex --run -g %s /tmp/test_cex_nonlinear_arith.ll 2>&1 | filecheck %s
 
-// CHECK: ^__VERIFIER_error was executed$
+// CHECK: {{^__VERIFIER_error was executed$}}
 
 /* 
    XXX: how to reproduce spurious cex?

@@ -1,6 +1,6 @@
 ; RUN: %seabmc --horn-bv2-ptr-size=8 --horn-bv2-word-size=8 "%s" 2>&1 | %oc %s
 
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.o.bc'
 
 ; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.bc'

@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 ;; in each loop, ashr x by 1 and y by 2, assume x to be greater than y, will be unsat
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'ashr.01.ll'
 source_filename = "ashr.01.c"
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"

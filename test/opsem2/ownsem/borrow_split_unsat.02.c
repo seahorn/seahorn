@@ -1,6 +1,6 @@
-//; RUN: %sea "%s" -S --own-sem 2>&1 | OutputCheck %s
-//; RUN: %sea "%s" -S --own-sem --horn-vcgen-use-ite --horn-vcgen-only-dataflow --horn-bmc-coi --horn-gsa  2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+//; RUN: %sea "%s" -S --own-sem 2>&1 | filecheck %s
+//; RUN: %sea "%s" -S --own-sem --horn-vcgen-use-ite --horn-vcgen-only-dataflow --horn-bmc-coi --horn-gsa  2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 #include "seahorn/seahorn.h"
 #include <stdbool.h>
 #include <stddef.h>

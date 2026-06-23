@@ -3,7 +3,7 @@
 ;; attempt to invoke constant floating point values,
 ;; should work after seahorn adds support for floats;
 ;; disabled because llvm_unreachable() doesn't work under release mode
-; CHECK: ^sat$
+; CHECK: {{^sat$}}
 ; XFAIL: *
 ; ModuleID = 'const.float.01.c'
 source_filename = "const.c"

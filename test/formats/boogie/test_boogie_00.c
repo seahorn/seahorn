@@ -1,5 +1,5 @@
-// RUN: %sea boogie "%s" --crab --crab-dom=zones 2>&1 | OutputCheck %s
-// CHECK: ^implementation main
+// RUN: %sea boogie "%s" --crab --crab-dom=zones 2>&1 | filecheck %s
+// CHECK: {{^implementation main}}
 
 // original file: s3_srvr_8_true-unreach-call.cil.c
 // we only check that the boogie program has a main function

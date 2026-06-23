@@ -1,7 +1,7 @@
-// RUN: %sea --assert-on-backedge --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true "%s" 2>&1 | OutputCheck %s
-// CHECK-NOT: ^Error: vacuity failed
-// CHECK: ^Error: assertion failed
-// CHECK: ^unsat$
+// RUN: %sea --assert-on-backedge --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true "%s" 2>&1 | filecheck %s
+// CHECK-NOT: {{^Error: vacuity failed}}
+// CHECK: {{^Error: assertion failed}}
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

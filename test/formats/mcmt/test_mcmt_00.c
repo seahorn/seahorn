@@ -1,5 +1,5 @@
-// RUN: %sea smt --step=flarge --horn-format=mcmt "%s" -o "%s".mcmt; OutputCheck --file-to-check="%s".mcmt "%s"
-// CHECK: define-transition-system 
+// RUN: %sea smt --step=flarge --horn-format=mcmt "%s" -o "%s".mcmt; filecheck --file-to-check="%s".mcmt "%s"
+// CHECK: define-transition-system
 
 // todo: have a better check
 

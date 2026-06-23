@@ -1,5 +1,5 @@
-//; RUN: %sea "%s" -g -S --own-sem 2>&1 | OutputCheck %s
-// CHECK: ^sat$
+//; RUN: %sea "%s" -g -S --own-sem 2>&1 | filecheck %s
+// CHECK: {{^sat$}}
 #include "seahorn/seahorn.h"
 #include <stdbool.h>
 #include <stddef.h>

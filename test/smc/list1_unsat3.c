@@ -1,5 +1,5 @@
-// RUN: %sea smc -O3 --inline --dsa=sea-cs "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea smc -O3 --inline --dsa=sea-cs "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include <stdio.h>
 #include <stdlib.h>

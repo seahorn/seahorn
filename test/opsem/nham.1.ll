@@ -5,7 +5,7 @@
 
 ; ModuleID = 'nham/nham.pp.ms.o.ul.cut.ms.bc'
 ; check for something to make everyone happy
-; CHECK: ^Warning: unhandled instruction:.*
+; CHECK: {{^Warning: unhandled instruction:.*}}
 
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"
 target triple = "i386-apple-macosx10.13.0"

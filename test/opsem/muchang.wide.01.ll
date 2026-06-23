@@ -2,7 +2,7 @@
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ; wide integers
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ;; ModuleID = '/var/folders/_j/1_4mrwbs7y16zbvj79vwvhdc0000gn/T/sea-wVY0a8/t5.pp.ms.o.ul.cut.bc'
 source_filename = "/tmp/t5.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"

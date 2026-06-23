@@ -1,7 +1,7 @@
     ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'fat_ptr_store_load_unsat.ll'
 source_filename = "/tmp/fat_ptr_outofbounds.01.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

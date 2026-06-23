@@ -1,16 +1,16 @@
 // RUN: %sea smt %s --step=small -o %t.sm.smt2
-// RUN: %z3 %t.sm.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.sm.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
 // RUN: %sea smt %s --step=small --inline -o %t.sm.inline.smt2
-// RUN: %z3 %t.sm.inline.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.sm.inline.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
 // RUN: %sea smt %s --step=large -o %t.lg.smt2
-// RUN: %z3 %t.lg.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.lg.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
 // RUN: %sea smt %s --step=large --inline -o %t.lg.inline.smt2
-// RUN: %z3 %t.lg.inline.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.lg.inline.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
-// CHECK: ^sat$
+// CHECK: {{^sat$}}
 
 // Example: Find a compositional array invariant: ite(i == sid, SInv(max, v), GInv(max, v))
 //

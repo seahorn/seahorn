@@ -1,5 +1,5 @@
-//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-bv2-tracking-mem 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

@@ -1,10 +1,10 @@
-// RUN: %sea bpf -O0 --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O0 --horn-bmc-crab=false --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O0 --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab=false --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | filecheck %s
 // -- Disabled because it takes too long
-// %sea bpf -O0 --horn-bmc-crab=false --horn-bmc-muc=quickXplain  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O0 --horn-bmc-crab=true --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O0 --horn-gsa --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// %sea bpf -O0 --horn-bmc-crab=false --horn-bmc-muc=quickXplain  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O0 --horn-bmc-crab=true --horn-bmc-muc=assume  --bmc=path --bound=10  --horn-stats --inline "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O0 --horn-gsa --bmc=mono --bound=10  --horn-stats --inline "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 /** 
  * The number of paths grows exponentially on the number of

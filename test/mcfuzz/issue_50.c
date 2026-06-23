@@ -1,11 +1,11 @@
-// RUN: %sea bpf -m32 -O0 --bmc=mono --horn-bv2=true --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def  "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -m32 -O3 --bmc=mono --horn-bv2=true --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -m32 -O0 --bmc=mono --horn-bv2=true --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def  "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -m32 -O3 --bmc=mono --horn-bv2=true --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | filecheck %s
 
-// RUN: %sea bpf -m64 -O0 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | OutputCheck %s --check-prefix=OLD
-// RUN: %sea bpf -m64 -O3 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | OutputCheck %s --check-prefix=OLD
+// RUN: %sea bpf -m64 -O0 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | filecheck %s --check-prefix=OLD
+// RUN: %sea bpf -m64 -O3 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem --horn-shadow-mem-alloc-is-def "%s" 2>&1 | filecheck %s --check-prefix=OLD
 
-// CHECK-L: unsat
-// OLD-L: sat
+// CHECK: unsat
+// OLD: sat
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/52.
 // With the old bv-opsem we get sat.

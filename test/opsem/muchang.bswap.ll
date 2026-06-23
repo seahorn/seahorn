@@ -2,7 +2,7 @@
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
 ;; Handling bswap intrinsic
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ;; ModuleID = '/tmp/sea-UbOU1E/t6.pp.ms.o.ul.cut.bc'
 source_filename = "/tmp/t6.c"
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"

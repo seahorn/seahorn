@@ -1,5 +1,5 @@
-// RUN: %sea pf "%s"  2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea pf "%s"  2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 extern int unknown1();

@@ -1,5 +1,5 @@
 // RUN: sea pf -O0 --dsa=sea-cs --horn-inter-proc-mem %s
-// CHECK: ^unsat$
+// CHECK: {{^unsat$}}
 
 /*
   This example is similar to mem-vcgen-3.c but here we want to show that if the

@@ -1,5 +1,5 @@
 ; RUN: %seabmc --horn-bv2-ptr-size=8 --horn-bv2-word-size=8 "%s" 2>&1 | %oc %s
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 
 ; ModuleID = '/tmp/fat/bitcode.fat.pp.ms.o.ul.cut.bc'
 source_filename = "fat_ptr_outofbounds.02.c"

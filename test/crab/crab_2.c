@@ -1,6 +1,6 @@
-// RUN: %sea pf -O0  --crab --max-depth=20 --horn-use-invs=inactive "%s" 2>&1 | OutputCheck %s
-// RUN: %sea pf -O0  --crab --crab-dom=int --max-depth=20 --horn-use-invs=always "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unknown$
+// RUN: %sea pf -O0  --crab --max-depth=20 --horn-use-invs=inactive "%s" 2>&1 | filecheck %s
+// RUN: %sea pf -O0  --crab --crab-dom=int --max-depth=20 --horn-use-invs=always "%s" 2>&1 | filecheck %s
+// CHECK: {{^unknown$}}
 
 // with --crab enabled and running with zones as default abstract
 // domain the property can be trivially proven. 

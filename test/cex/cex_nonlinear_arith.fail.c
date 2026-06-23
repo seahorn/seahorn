@@ -1,5 +1,5 @@
-// RUN: %sea exe-cex -O0 --verify "%s" 2>&1 | OutputCheck %s
-// CHECK: ^__VERIFIER_error was not executed$
+// RUN: %sea exe-cex -O0 --verify "%s" 2>&1 | filecheck %s
+// CHECK: {{^__VERIFIER_error was not executed$}}
 
 /* 
    Example where SeaHorn's back-end solver produces an spurious cex

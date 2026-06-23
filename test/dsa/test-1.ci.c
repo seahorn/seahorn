@@ -1,6 +1,6 @@
 // RUN: %sea inspect -O0 %ci_dsa --mem-dot %s --mem-dot-outdir=%T/test-1.ci.c
-// RUN: %cmp-graphs %tests/test-1.ci.c.main.mem.dot %T/test-1.ci.c/main.mem.dot | OutputCheck %s -d
-// CHECK: ^OK$
+// RUN: %cmp-graphs %tests/test-1.ci.c.main.mem.dot %T/test-1.ci.c/main.mem.dot | filecheck %s -d
+// CHECK: {{^OK$}}
 
 extern int nd(void);
 

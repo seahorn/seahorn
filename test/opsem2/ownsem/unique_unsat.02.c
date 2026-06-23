@@ -1,6 +1,6 @@
 //; RUN: %sea "%s" --own-sem --horn-vcgen-use-ite --horn-vcgen-only-dataflow
-//--horn-bmc-coi 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+//--horn-bmc-coi 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 #include "seahorn/seahorn.h"
 #include <stdbool.h>
 #include <stdlib.h>

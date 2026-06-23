@@ -1,6 +1,6 @@
-//; RUN: %sea "%s" --horn-bv2-extra-widemem 2>&1 | OutputCheck %s
-//; RUN: %sea "%s" --horn-bv2-widemem 2>&1 | OutputCheck %s
-// CHECK: ^sat$
+//; RUN: %sea "%s" --horn-bv2-extra-widemem 2>&1 | filecheck %s
+//; RUN: %sea "%s" --horn-bv2-widemem 2>&1 | filecheck %s
+// CHECK: {{^sat$}}
 
 #include <stdlib.h>
 #include <seahorn/seahorn.h>

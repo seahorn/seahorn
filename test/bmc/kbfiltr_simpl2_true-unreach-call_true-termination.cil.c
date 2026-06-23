@@ -1,10 +1,10 @@
-// RUN: %sea bpf -O3 --bmc=mono --bound=5  --horn-stats --inline   "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O3 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=assume --bound=5  --horn-stats --inline   "%s" 2>&1 | OutputCheck %s
+// RUN: %sea bpf -O3 --bmc=mono --bound=5  --horn-stats --inline   "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O3 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=assume --bound=5  --horn-stats --inline   "%s" 2>&1 | filecheck %s
 // -- Disabled because it takes too long
-// %sea bpf -O3 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=quickXplain --bound=5  --horn-stats --inline   "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O3 --horn-bmc-crab=true  --bmc=path --bound=5  --horn-stats --inline   "%s" 2>&1 | OutputCheck %s
-// RUN: %sea bpf -O3 --horn-gsa --bmc=mono --bound=5  --horn-stats --inline   "%s" 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// %sea bpf -O3 --horn-bmc-crab=false  --bmc=path --horn-bmc-muc=quickXplain --bound=5  --horn-stats --inline   "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O3 --horn-bmc-crab=true  --bmc=path --bound=5  --horn-stats --inline   "%s" 2>&1 | filecheck %s
+// RUN: %sea bpf -O3 --horn-gsa --bmc=mono --bound=5  --horn-stats --inline   "%s" 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 

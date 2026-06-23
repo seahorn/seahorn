@@ -1,5 +1,5 @@
-// RUN: %sea abc -O0 --encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea abc -O0 --encoding=%abc_encoding %dsa "%s" %abc3_definitions 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 struct foo {
   int x;

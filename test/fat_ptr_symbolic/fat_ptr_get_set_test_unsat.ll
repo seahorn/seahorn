@@ -1,6 +1,6 @@
 ; RUN: %seabmc_fatptr  "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'fat_ptr_get_set_test_unsat.ll'
 
 source_filename = "/tmp/fat_ptr_outofbounds.01.c"

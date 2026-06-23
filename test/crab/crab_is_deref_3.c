@@ -1,4 +1,4 @@
-// RUN: %sea -O3 fpcf --inline --seapp-crab-lower-is-deref --seapp-crab-dom=zones --seapp-crab-stats=true --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | OutputCheck %s
+// RUN: %sea -O3 fpcf --inline --seapp-crab-lower-is-deref --seapp-crab-dom=zones --seapp-crab-stats=true --dsa=sea-cs-t --bmc=opsem --horn-vcgen-use-ite --horn-vcgen-only-dataflow=false --horn-bmc-coi=false --horn-stats=true --sea-opsem-allocator=static "%s" 2>&1 | filecheck %s
 // CHECK: crab.pp.isderef.solve 4
 
 #include <seahorn/seahorn.h>

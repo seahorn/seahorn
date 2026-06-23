@@ -1,5 +1,5 @@
-// RUN: %sea abc -O3 --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa --abc-escape-ptr "%s" %abc3_definitions 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea abc -O3 --lower-invoke --symbolize-constant-loop-bounds --simplify-pointer-loops --abc-encoding=%abc_encoding %dsa --abc-escape-ptr "%s" %abc3_definitions 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 extern "C" int nd();
 extern "C" void __VERIFIER_assume(int);

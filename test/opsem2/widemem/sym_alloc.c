@@ -1,6 +1,6 @@
-//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-opsem-max-symb-alloc=0 2>&1 | OutputCheck %s
-//; RUN: %sea "%s" --horn-bv2-widemem --horn-opsem-max-symb-alloc=0 2>&1 | OutputCheck %s
-// CHECK: ^sat$
+//; RUN: %sea "%s" --horn-bv2-extra-widemem --horn-opsem-max-symb-alloc=0 2>&1 | filecheck %s
+//; RUN: %sea "%s" --horn-bv2-widemem --horn-opsem-max-symb-alloc=0 2>&1 | filecheck %s
+// CHECK: {{^sat$}}
 
 /**
  * This test should normally be unsat except that we don't give any symbolic memory (--horn-opsem-max-symb-alloc=0) so

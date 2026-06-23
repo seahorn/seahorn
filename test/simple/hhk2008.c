@@ -1,6 +1,6 @@
-// RUN: %sea pf --max-depth=20 "%s" 2>&1 | OutputCheck %s
-// RUN: %sea pf --enable-indvar %s 2>&1 | OutputCheck %s
-// CHECK: ^unsat$
+// RUN: %sea pf --max-depth=20 "%s" 2>&1 | filecheck %s
+// RUN: %sea pf --enable-indvar %s 2>&1 | filecheck %s
+// CHECK: {{^unsat$}}
 
 // Source: Thomas A. Henzinger, Thibaud Hottelier, Laura Kovacs: "Valigator:
 // A verification Tool with Bound and Invariant Generation", LPAR 2008

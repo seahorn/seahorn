@@ -1,7 +1,7 @@
 ; RUN: %seabmc "%s" 2>&1 | %oc %s
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = '/tmp/sea-nX_rmb/mem.pp.ms.bc'
 source_filename = "/tmp/mem.c"
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"

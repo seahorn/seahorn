@@ -26,7 +26,7 @@ RUN \
                        libgmp-dev libmpfr-dev clang-3.8 libiomp-dev \
                        python-dev python-pip python-setuptools
 
-RUN pip install lit OutputCheck
+RUN pip install lit filecheck
 RUN easy_install networkx pygraphviz
 
 # Use gold instead of bfd for much faster linking.

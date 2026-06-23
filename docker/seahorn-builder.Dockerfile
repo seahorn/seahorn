@@ -6,6 +6,10 @@
 ARG BASE_IMAGE=jammy-llvm14
 FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 
+# Tests (also run for coverage in this image) use `filecheck` (the maintained
+# pip package that replaces OutputCheck); the pre-built base may predate this.
+RUN pip3 install filecheck
+
 # Assume that docker-build is ran in the top-level SeaHorn directory
 COPY . /seahorn
 # Re-create the build directory that might have been present in the source tree

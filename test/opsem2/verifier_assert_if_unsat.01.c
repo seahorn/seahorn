@@ -1,7 +1,7 @@
-// RUN: %sea "%s" 2>&1 | OutputCheck %s
-// CHECK-NOT: ^Error: vacuity failed
-// CHECK-NOT: ^Error: assertion failed
-// CHECK: ^unsat$
+// RUN: %sea "%s" 2>&1 | filecheck %s
+// CHECK-NOT: {{^Error: vacuity failed}}
+// CHECK-NOT: {{^Error: assertion failed}}
+// CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
 

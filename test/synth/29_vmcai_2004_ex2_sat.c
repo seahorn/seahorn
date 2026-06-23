@@ -1,10 +1,10 @@
 // RUN: %sea smt %s --step=small --inline -o %t.sm.inline.smt2
-// RUN: %z3 %t.sm.inline.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.sm.inline.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
 // RUN: %sea smt %s --step=large --inline -o %t.lg.inline.smt2
-// RUN: %z3 %t.lg.inline.smt2 fp.spacer.order_children=2 2>&1 | OutputCheck %s
+// RUN: %z3 %t.lg.inline.smt2 fp.spacer.order_children=2 2>&1 | filecheck %s
 //
-// CHECK: ^unsat$
+// CHECK: {{^unsat$}}
 
 // This set of tests is inspired by "Automatic Inference of Class Invariants" by Francesco Logozzo in VMCAI 2014.
 // This test case encodes the StackWithUndo class given by Fig. 2.

@@ -2,7 +2,7 @@
 ; RUN: %seabmc --horn-bv2-lambdas --log=opsem3 "%s" 2>&1 | %oc %s
 ;; testing struct with pointer type fields
 ;; extracting a pointer from struct
-; CHECK: ^unsat$
+; CHECK: {{^unsat$}}
 ; ModuleID = 'test-insert-value'
 source_filename = "/tmp/st.c"
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"

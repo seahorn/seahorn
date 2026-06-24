@@ -5,8 +5,9 @@
 # without any of the build by-products
 #
 
+ARG BUILDPACK_IMAGE=ghcr.io/seahorn/buildpack-deps-seahorn
 ARG BASE_IMAGE=jammy-llvm15
-FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
+FROM ${BUILDPACK_IMAGE}:${BASE_IMAGE}
 ENV SEAHORN=/home/usea/seahorn/bin/sea PATH="$PATH:/home/usea/seahorn/bin"
 USER root
 

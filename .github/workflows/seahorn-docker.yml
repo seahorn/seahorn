@@ -44,7 +44,7 @@ jobs:
       - name: Copy build out to /host
         run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm15 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
       - name: Build seahorn container
-        run: docker build . --file docker/seahorn.Dockerfile --tag seahorn_container
+        run: docker build . --file docker/seahorn.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --tag seahorn_container
       - name: Run opsem tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem "
       - name: Run opsem widemem tests

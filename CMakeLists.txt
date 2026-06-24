@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10.2)
 
 project(SeaHorn)
-set(SeaHorn_VERSION_MAJOR 14)
+set(SeaHorn_VERSION_MAJOR 15)
 set(SeaHorn_VERSION_MINOR 0)
 set (SeaHorn_VERSION_PATCH 0)
 set (SeaHorn_VERSION_TWEAK "rc0")
@@ -76,11 +76,11 @@ if (GIT_FOUND)
     CACHE STRING "clam repo")
   
   add_custom_target (llvm-seahorn-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev14)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev15)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev14)
+    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev15)
   add_custom_target (clam-git
-    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev14)
+    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev15)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
@@ -174,7 +174,11 @@ if (YICES2_FOUND)
   install(FILES ${YICES2_LIBRARY} DESTINATION lib)
 endif()  
 
-find_package (LLVM 14 CONFIG)
+# LLVM 15 (Ubuntu package) exposes zstd::libzstd_shared in its export set.
+# Pull in zstd's imported targets first so find_package(LLVM) can resolve it.
+find_package (zstd QUIET)
+
+find_package (LLVM 15 CONFIG)
 if (NOT LLVM_FOUND)
   ExternalProject_Get_Property (llvm INSTALL_DIR)
   set (LLVM_ROOT ${INSTALL_DIR})

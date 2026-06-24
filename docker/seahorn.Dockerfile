@@ -24,13 +24,13 @@ RUN useradd -ms /bin/bash usea && \
 USER usea
 WORKDIR /home/usea
 
-COPY SeaHorn-14.*.tar.gz /tmp
+COPY SeaHorn-*.tar.gz /tmp
 RUN mkdir -p /home/usea/seahorn && \
-  tar xf /tmp/SeaHorn-14.*.tar.gz -C seahorn --strip-components=1
+  tar xf /tmp/SeaHorn-*.tar.gz -C seahorn --strip-components=1
 
 # cleanup
 USER root
-RUN rm -rf /tmp/SeaHorn-14.*.tar.gz
+RUN rm -rf /tmp/SeaHorn-*.tar.gz
 
 # user and directory for when the container starts interactively
 USER usea

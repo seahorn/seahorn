@@ -862,7 +862,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         side(mk<BULT>(op0, m_largestPtr));
 
         /// addresses must be aligned
-        unsigned sz = I.getAlignment();
+        unsigned sz = I.getAlign().value();
         addAlignConstraint(op0, sz);
       }
 
@@ -936,7 +936,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
           side(mk<BULT>(idx, m_largestPtr));
           /// addresses must be aligned
-          unsigned sz = I.getAlignment();
+          unsigned sz = I.getAlign().value();
           addAlignConstraint(idx, sz);
         }
         side(m_outMem, op::array::store(m_inMem, idx, v));

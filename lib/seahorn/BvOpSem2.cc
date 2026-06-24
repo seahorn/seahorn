@@ -545,12 +545,12 @@ public:
     } else {
       LOG("opsem.load", INFO << I;);
     }
-    setValue(I, executeLoadInst(*I.getPointerOperand(), I.getAlignment(),
+    setValue(I, executeLoadInst(*I.getPointerOperand(), I.getAlign().value(),
                                 I.getType(), m_ctx));
   }
   void visitStoreInst(StoreInst &I) {
     executeStoreInst(*I.getValueOperand(), *I.getPointerOperand(),
-                     I.getAlignment(), m_ctx);
+                     I.getAlign().value(), m_ctx);
   }
 
   void visitGetElementPtrInst(GetElementPtrInst &I) {

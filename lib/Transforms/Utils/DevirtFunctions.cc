@@ -80,15 +80,11 @@ namespace devirt_impl {
 
 AliasSetId typeAliasId(CallBase &CB) {
   assert(isIndirectCall(CB) && "Not an indirect call");
-  PointerType *pTy = dyn_cast<PointerType>(CB.getCalledOperand()->getType());
-  assert(pTy && "Unexpected call not through a pointer");
-  assert(isa<FunctionType>(pTy->getElementType()) &&
-         "The type of called value is not a pointer to a function");
-  return pTy;
+  return CB.getFunctionType();
 }
 
 AliasSetId typeAliasId(const Function &F) {
-  return F.getFunctionType()->getPointerTo();
+  return F.getFunctionType();
 }
 
 } // namespace devirt_impl

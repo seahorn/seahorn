@@ -538,7 +538,10 @@ int main(int argc, char **argv) {
     // -- resolve indirect calls
     if (DevirtualizeFuncs) {
       pm_wrapper.add(seadsa::createRemovePtrToIntPass());
-      pm_wrapper.add(llvm::createWholeProgramDevirtPass(nullptr, nullptr));
+      // NOTE: LLVM 15 removed the legacy createWholeProgramDevirtPass(); the
+      // WholeProgramDevirt pass is new-PM only now. It is a no-op without CFI
+      // type metadata, and SeaHorn's own devirtualization below does the work,
+      // so it is dropped here.
       pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
     }
 

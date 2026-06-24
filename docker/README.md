@@ -15,11 +15,15 @@ docker distribution, go to DockerHub: https://hub.docker.com/u/seahorn
 ## SeaHorn Build Dependencies
 
 This container contains all the third-party dependencies that are required for
-building SeaHorn from sources. To build a container, run the following command
-from the root of SeaHorn source tree:
+building SeaHorn from sources. It is published to the GitHub Container Registry
+(ghcr.io) and is normally rebuilt by the manually-triggered `Buildpack deps`
+GitHub Actions workflow when the base dependencies change (e.g. the clang/llvm
+version). The other build workflows pull it as the base of `seahorn-builder`.
+To build and publish it by hand, run from the root of the SeaHorn source tree:
 
 ```shell
-$ docker build  -t seahorn/buildpack-deps-seahorn:jammy-llvm15 -f docker/buildpack-deps-seahorn.Dockerfile .
+$ docker build  -t ghcr.io/seahorn/buildpack-deps-seahorn:jammy-llvm15 -f docker/buildpack-deps-seahorn.Dockerfile .
+$ docker push ghcr.io/seahorn/buildpack-deps-seahorn:jammy-llvm15
 ```
 
 ## Compiling SeaHorn

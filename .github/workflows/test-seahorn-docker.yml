@@ -16,14 +16,20 @@ jobs:
   test:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    # read access to pull the buildpack-deps base image from GHCR
+    permissions:
+      contents: read
+      packages: read
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Check Out Repo 
+      - name: Check Out Repo
         uses: actions/checkout@v2
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm15
+        run: docker build . --file docker/seahorn-builder.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --tag seahorn/seahorn-builder:jammy-llvm15
       - name: Copy build out to /host
         run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm15 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
       - name: Build seahorn container  

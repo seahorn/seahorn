@@ -14,6 +14,10 @@ on:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    # read access to pull the buildpack-deps base image from GHCR
+    permissions:
+      contents: read
+      packages: read
     env:
       BUILD_TYPE: Coverage
     steps:
@@ -24,8 +28,10 @@ jobs:
       - name: Set dev15 commit SHA
         run: | # set dev15 last commit SHA
           echo "COMMIT_SHA=$(git log -1 --format='%H')" >> $GITHUB_ENV
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --tag seahorn/seahorn-builder:jammy-llvm15 --build-arg BUILD_TYPE=$BUILD_TYPE
+        run: docker build . --file docker/seahorn-builder.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --tag seahorn/seahorn-builder:jammy-llvm15 --build-arg BUILD_TYPE=$BUILD_TYPE
       - name: Collect coverage report
         run:  docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm15 /bin/bash -c "/seahorn/scripts/coverage/docker-run-lcov.sh && mv /seahorn/all.info /host"
       - name: Upload coverage report

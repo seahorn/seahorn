@@ -1,0 +1,36 @@
+# Manually-triggered workflow to (re)build the SeaHorn buildpack-deps base
+# image and publish it to the GitHub Container Registry (ghcr.io).
+#
+# Run this from the Actions tab (workflow_dispatch) when the base build
+# dependencies change (e.g. the clang/llvm version). The CI, Nightly and
+# Coverage workflows consume the published image as the base of
+# seahorn-builder, so this only needs to be run when those deps change, not on
+# every commit.
+name: Buildpack deps
+
+on:
+  workflow_dispatch:
+    inputs:
+      Triggerer:
+        description: 'Triggered by:'
+        required: true
+        default: ''
+
+jobs:
+  buildpack-deps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log manual trigger info
+        run: |
+          echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build buildpack-deps image
+        run: docker build . --file docker/buildpack-deps-seahorn.Dockerfile --tag ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm15
+      - name: Push buildpack-deps image
+        run: docker push ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm15

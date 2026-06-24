@@ -478,7 +478,7 @@ public:
   void visitFCmpInst(FCmpInst &I) { llvm_unreachable(nullptr); }
 
   void visitAllocaInst(AllocaInst &I) {
-    Type *ty = I.getType()->getElementType();
+    Type *ty = I.getAllocatedType();
     unsigned typeSz = (size_t)m_sem.getTD().getTypeAllocSize(ty);
 
     Expr addr;

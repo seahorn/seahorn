@@ -293,7 +293,7 @@ public:
 
   /// \brief Pre-allocate memory for alloca
   void preAlloc(const AllocaInst &inst) {
-    Type *ty = inst.getType()->getElementType();
+    Type *ty = inst.getAllocatedType();
     unsigned typeSz = (size_t)m_sem.getTD().getTypeAllocSize(ty);
 
     if (const Constant *cv = dyn_cast<const Constant>(inst.getOperand(0))) {

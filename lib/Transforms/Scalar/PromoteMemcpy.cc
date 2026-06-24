@@ -9,6 +9,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -24,6 +25,16 @@
 #define PMCPY_DBG_LOG(...) LOG("promote-memcpy.dbg", __VA_ARGS__)
 
 using namespace llvm;
+
+// -- Gate for the PromoteMemcpy transformation. Off by default; verify-c-common
+// -- turns it on via sea.yaml. When on, only the sound (direct GEP) struct-type
+// -- recovery is used.
+static llvm::cl::opt<bool> PromoteMemcpyEnabled(
+    "horn-promote-memcpy",
+    llvm::cl::desc("Lower constant-length whole-struct memcpy into field-wise "
+                   "loads/stores (struct type recovered only from a GEP on the "
+                   "same pointer; sound)"),
+    llvm::cl::init(false));
 
 namespace {
 class PromoteMemcpy : public FunctionPass {
@@ -50,77 +61,106 @@ private:
   AssumptionCache *m_AC = nullptr;
 
   bool simplifyMemCpy(MemCpyInst *MCpy);
+  // -- Recover the aggregate (struct) type copied by a memcpy of `Size` bytes.
+  // -- Under LLVM opaque pointers the pointee type is no longer available from
+  // -- the pointer type, so it is recovered from GEPs in the same function.
+  StructType *recoverStructType(Value *SrcPtr, Value *DstPtr, uint64_t Size,
+                                Function &F);
+  // -- Emit a field-wise copy of aggregate type `Ty` from `Src` to `Dst`.
+  void emitFieldwiseCopy(IRBuilder<> &Builder, Type *Ty, Value *Src, Value *Dst,
+                         const Twine &SrcName);
 };
 
 char PromoteMemcpy::ID = 0;
 
+StructType *PromoteMemcpy::recoverStructType(Value *SrcPtr, Value *DstPtr,
+                                             uint64_t Size, Function &F) {
+  // -- Legacy typed pointers: the pointee type is available directly.
+  for (Value *P : {SrcPtr, DstPtr}) {
+    auto *PtrTy = cast<PointerType>(P->getType());
+    if (!PtrTy->isOpaque()) {
+      if (auto *ST =
+              dyn_cast<StructType>(PtrTy->getNonOpaquePointerElementType()))
+        if (m_DL->getTypeStoreSize(ST) == Size)
+          return ST;
+    }
+  }
+
+  // -- Opaque pointers: the pointee type is gone. Recover it ONLY from a GEP
+  // -- that indexes the very pointer copied by the memcpy, with a struct whose
+  // -- store size matches the length. This is sound: the IR itself uses that
+  // -- pointer as this struct type. Matching merely by size (a different struct
+  // -- of equal width, or one reached through a shared stack slot) would be
+  // -- unsound and is intentionally not attempted -- if no such GEP exists we
+  // -- bail and let the operational semantics handle the raw memcpy.
+  for (auto &I : llvm::instructions(F)) {
+    auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+    if (!GEP)
+      continue;
+    auto *ST = dyn_cast<StructType>(GEP->getSourceElementType());
+    if (!ST || m_DL->getTypeStoreSize(ST) != Size)
+      continue;
+    Value *Base = GEP->getPointerOperand();
+    if (Base == SrcPtr || Base == DstPtr)
+      return ST;
+  }
+  return nullptr;
+}
+
+void PromoteMemcpy::emitFieldwiseCopy(IRBuilder<> &Builder, Type *Ty,
+                                      Value *Src, Value *Dst,
+                                      const Twine &SrcName) {
+  auto *ST = dyn_cast<StructType>(Ty);
+  if (!ST) {
+    auto *NewLoad = Builder.CreateLoad(Ty, Src, SrcName + ".pmcpy");
+    auto *NewStore = Builder.CreateStore(NewLoad, Dst);
+    PMCPY_DBG_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());
+                  errs() << "\n\t"; NewStore->print(errs()); errs() << "\n");
+    return;
+  }
+
+  auto *I32Ty = IntegerType::getInt32Ty(*m_Ctx);
+  auto *Zero = ConstantInt::get(I32Ty, 0);
+  for (unsigned i = 0, e = ST->getNumElements(); i != e; ++i) {
+    auto *Idx = ConstantInt::get(I32Ty, i);
+    auto *SrcGEP =
+        Builder.CreateInBoundsGEP(ST, Src, {Zero, Idx}, "src.gep.pmcpy");
+    auto *DstGEP =
+        Builder.CreateInBoundsGEP(ST, Dst, {Zero, Idx}, "buffer.gep.pmcpy");
+    emitFieldwiseCopy(Builder, ST->getElementType(i), SrcGEP, DstGEP, SrcName);
+  }
+}
+
 bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   assert(MI);
-#if 0
-
-  auto DstAlign = getKnownAlignment(MI->getDest(), *m_DL, MI, m_AC, m_DT);
-  auto SrcAlign = getKnownAlignment(MI->getSource(), *m_DL, MI, m_AC, m_DT);
-
-  // -- alignment on memcpy should be trusted, alignment on arguments is not important
-  // -- at most should check that alignment of src and dst is the same
-  if (MI->getSourceAlignment() != SrcAlign) {
-    PMCPY_LOG(WARN << "unhandled SOURCE alignment. Skipping memcpy: " << *MI;);
-    return false;
-  }
-  else if (MI->getDestAlignment() != DstAlign) {
-    PMCPY_LOG(WARN << "unhandled DEST alignment. Skipping memcpy: " << *MI;);
-    return false;
-  }
-#endif
 
   // skip non-constant length memcpy()
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getLength());
-  if (!MemOpLength) {
+  if (!MemOpLength)
     return false;
-  }
 
-  // Source and destination pointer types are always "i8*" for intrinsic.  See
-  // if the size is something we can handle with a single primitive load/store.
-  // A single load+store correctly handles overlapping memory in the memmove
-  // case.
   uint64_t Size = MemOpLength->getLimitedValue();
   if (Size == 0) {
     PMCPY_LOG(WARN << "unexpected 0 length memcpy: " << *MI;);
     return false;
   }
+
   auto *SrcPtr = MI->getSource();
   auto *DstPtr = MI->getDest();
 
   unsigned SrcAddrSp = cast<PointerType>(SrcPtr->getType())->getAddressSpace();
   unsigned DstAddrSp = cast<PointerType>(DstPtr->getType())->getAddressSpace();
-
   if (SrcAddrSp != DstAddrSp) {
-    llvm_unreachable("unexpected");
+    PMCPY_LOG(WARN << "memcpy across address spaces: " << *MI;);
     return false;
   }
 
-  auto *SrcPtrTy = cast<PointerType>(SrcPtr->getType());
-  auto *DstPtrTy = cast<PointerType>(DstPtr->getType());
-
-  if (SrcPtrTy != DstPtrTy) {
-    PMCPY_LOG(WARN << "memcpy between different types: " << *MI;);
-    return false;
-  }
-
-  if (!SrcPtrTy->getPointerElementType()->isFirstClassType()) {
-    PMCPY_LOG(WARN << "Not a first class type! " << *MI;);
-    return false;
-  }
-
-  PMCPY_DBG_LOG(errs() << "\nSrc:\t"; SrcPtr->print(errs());
-                SrcPtrTy->print(errs() << "\t"); errs() << "\nDst:\t";
-                DstPtr->print(errs()); DstPtrTy->print(errs() << "\t");
-                errs() << "\n"; errs().flush());
-
-  auto *BufferTy = dyn_cast<StructType>(SrcPtrTy->getPointerElementType());
-  // require src to be a struct
+  // -- Determine the aggregate type being copied. Under opaque pointers this is
+  // -- recovered from surrounding GEPs rather than the pointer type.
+  StructType *BufferTy =
+      recoverStructType(SrcPtr, DstPtr, Size, *MI->getFunction());
   if (!BufferTy) {
-    PMCPY_LOG(WARN << "memcpy on non-struct types: " << *MI;);
+    PMCPY_LOG(WARN << "could not recover struct type for memcpy: " << *MI;);
     return false;
   }
   // require constant length argument equal to struct size
@@ -129,61 +169,25 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
     return false;
   }
 
-  IRBuilder<> Builder(MI);
-  auto *I64Ty = IntegerType::getInt64Ty(*m_Ctx);
-  auto *NullInt = Constant::getNullValue(I64Ty);
-  auto *I32Ty = IntegerType::getInt32Ty(*m_Ctx);
+  PMCPY_DBG_LOG(errs() << "\nLowering memcpy of "; BufferTy->print(errs());
+                errs() << "\n\tSrc:\t"; SrcPtr->print(errs());
+                errs() << "\n\tDst:\t"; DstPtr->print(errs()); errs() << "\n";
+                errs().flush());
 
-  // Perform field-wise copy. Note that this doesn't recurse and only explores
-  // the immediately visible fields.
-  //
-  // The transformation we do here looks roughly like this:
-  //   memcpy(Dst, Source, sizeof(BufferTy))
+  // Perform field-wise copy, recursing into nested structs:
+  //   memcpy(Dst, Src, sizeof(BufferTy))
   //    ||
   //    V
   // for each field_id in fields(BufferTy):
   //   *GEP(Dst, field_id) = *GEP(Src, field_id)
-  //
-
-  using Transfer = std::pair<Value *, Value *>;
-  SmallVector<Transfer, 4> ToLower = {std::make_pair(SrcPtr, DstPtr)};
-  while (!ToLower.empty()) {
-    Value *TrSrc, *TrDst;
-    std::tie(TrSrc, TrDst) = ToLower.pop_back_val();
-    auto *Ty = TrSrc->getType();
-    assert(Ty == TrDst->getType());
-
-    if (!Ty->isStructTy()) {
-      assert(TrSrc->getType()->isPointerTy());
-      auto *TrSrcPtr = cast<PointerType>(TrSrc->getType());
-      auto *LoadedTy = TrSrcPtr->getPointerElementType();
-      auto *NewLoad = Builder.CreateLoad(LoadedTy, TrSrc, SrcPtr->getName() + ".pmcpy");
-      auto *NewStore = Builder.CreateStore(NewLoad, TrDst);
-
-      PMCPY_DBG_LOG(errs() << "New load-store:\n\t"; NewLoad->print(errs());
-                    errs() << "\n\t"; NewStore->print(errs()); errs() << "\n");
-      continue;
-    }
-
-    SmallVector<Transfer, 8> TmpBuff;
-    for (unsigned i = 0, e = Ty->getStructNumElements(); i != e; ++i) {
-      auto *Idx = Constant::getIntegerValue(I32Ty, APInt(32, i));
-      auto *SrcGEP = Builder.CreateInBoundsGEP(nullptr, SrcPtr, {NullInt, Idx},
-                                               "src.gep.pmcpy");
-      auto *DstGEP = Builder.CreateInBoundsGEP(nullptr, DstPtr, {NullInt, Idx},
-                                               "buffer.gep.pmcpy");
-      TmpBuff.push_back({SrcGEP, DstGEP});
-    }
-
-    for (auto &P : llvm::reverse(TmpBuff))
-      ToLower.push_back(P);
-
-    PMCPY_DBG_LOG(errs() << "\tSecond level\n");
-  }
+  IRBuilder<> Builder(MI);
+  emitFieldwiseCopy(Builder, BufferTy, SrcPtr, DstPtr, SrcPtr->getName());
   return true;
 }
 
 bool PromoteMemcpy::runOnFunction(Function &F) {
+  if (!PromoteMemcpyEnabled)
+    return false;
   if (F.empty())
     return false;
 

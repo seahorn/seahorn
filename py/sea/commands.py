@@ -383,6 +383,9 @@ class Seapp(sea.LimitedCmd):
                           default=True, help='Replace all undef values with non-determinism')
         add_bool_argument(ap, 'replace-loops-with-nd-funcs', dest='replace_loops_with_nd_funcs',
                           default=False, help='Replace all loops effects with a function that returns non-deterministic outputs')
+        add_bool_argument(ap, 'horn-promote-memcpy', dest='horn_promote_memcpy',
+                          default=False,
+                          help='Lower constant-length whole-struct memcpy into field-wise loads/stores')
 
         add_in_out_args (ap)
         _add_S_arg (ap)
@@ -495,6 +498,10 @@ class Seapp(sea.LimitedCmd):
                 argv.append('--horn-replace-loops-with-nd-funcs=true')
             else:
                 argv.append('--horn-replace-loops-with-nd-funcs=false')
+            if args.horn_promote_memcpy:
+                argv.append('--horn-promote-memcpy=true')
+            else:
+                argv.append('--horn-promote-memcpy=false')
 
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
@@ -1163,6 +1170,11 @@ class Seahorn(sea.LimitedCmd):
                          metavar='STR', help='Log level for sea-dsa')
         ap.add_argument ('--crab-log', dest='crab_log', default=None,
                          metavar='STR', help='Log level for crab')
+        # -- pp-stage (seapp) flag. Recognized here only so it is consumed and
+        # -- NOT forwarded to the seahorn binary, which does not define it.
+        add_bool_argument(ap, 'horn-promote-memcpy', dest='horn_promote_memcpy',
+                          default=False,
+                          help='(pp stage) lower whole-struct memcpy to field-wise stores')
         ap.add_argument ('--oll', dest='asm_out_file', default=None,
                          help='LLVM assembly output file')
         ap.add_argument ('--step',

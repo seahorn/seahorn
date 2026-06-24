@@ -83,9 +83,7 @@ AliasSetId typeAliasId(CallBase &CB) {
   return CB.getFunctionType();
 }
 
-AliasSetId typeAliasId(const Function &F) {
-  return F.getFunctionType();
-}
+AliasSetId typeAliasId(const Function &F) { return F.getFunctionType(); }
 
 } // namespace devirt_impl
 

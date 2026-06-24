@@ -2,10 +2,10 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "seadsa/ShadowMem.hh"
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
-#include "seadsa/ShadowMem.hh"
 
 #include "seahorn/Support/IteratorExtras.hh"
 #include "seahorn/Support/SeaDebug.h"

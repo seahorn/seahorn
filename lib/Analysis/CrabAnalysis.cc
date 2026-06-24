@@ -1,3 +1,6 @@
+#include "seahorn/config.h"
+
+#ifdef HAVE_CLAM
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -119,3 +122,4 @@ clam::InterGlobalClam &CrabAnalysis::getCrab() {
 }
 
 } // namespace seahorn
+#endif // HAVE_CLAM

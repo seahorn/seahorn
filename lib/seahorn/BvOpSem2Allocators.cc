@@ -11,7 +11,10 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "seahorn/config.h"
+#ifdef HAVE_CLAM
 #include "seahorn/clam_Clam.hh"
+#endif
 
 namespace seahorn {
 namespace details {
@@ -304,22 +307,25 @@ public:
       preAlloc(inst, memSz, true);
     } else {
       // -- allocate max allowed for dynamically sized allocations
-      // -- use inferred upper bound if crab analysis is performed
       auto operand_inst = dyn_cast<llvm::Instruction>(inst.getOperand(0));
-      auto rangeValCrab = m_sem.getCrabInstRng(*operand_inst);
       auto rangeValLVI = m_sem.getLVIInstRng(*operand_inst);
-      uint64_t ub_crab = rangeValCrab.getUpper().getLimitedValue();
-      if (rangeValCrab.isFullSet() || rangeValCrab.isEmptySet()) {
-        // not useful range inferred by crab
-        ub_crab = m_maxSymbAllocSz; // take max allocation size as default
-      }
       uint64_t ub_lvi = rangeValLVI.getUpper().getLimitedValue();
       if (rangeValLVI.isFullSet() || rangeValLVI.isEmptySet()) {
         // not useful range inferred by LVI
         ub_lvi = m_maxSymbAllocSz; // take max allocation size as default
       }
+      uint64_t ub_inferred = ub_lvi;
+#ifdef HAVE_CLAM
+      // -- use inferred upper bound if crab analysis is performed
+      auto rangeValCrab = m_sem.getCrabInstRng(*operand_inst);
+      uint64_t ub_crab = rangeValCrab.getUpper().getLimitedValue();
+      if (rangeValCrab.isFullSet() || rangeValCrab.isEmptySet()) {
+        // not useful range inferred by crab
+        ub_crab = m_maxSymbAllocSz; // take max allocation size as default
+      }
       // Choose the precise result
-      uint64_t ub_inferred = ub_crab <= ub_lvi ? ub_crab : ub_lvi;
+      ub_inferred = ub_crab <= ub_lvi ? ub_crab : ub_lvi;
+#endif // HAVE_CLAM
       // if size is unknown, use the maximum allowed size for allocation
       // otherwise, choose the most precise value inferred by crab / LVI
       LOG("opsem-rng", MSG << "Allocation size for " << *operand_inst

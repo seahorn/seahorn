@@ -1,3 +1,18 @@
+#include "seahorn/config.h"
+
+#ifndef HAVE_CLAM
+/// Stub implementation when Clam/Crab is not compiled in.
+#include "seahorn/Passes.hh"
+#include "llvm/Support/ErrorHandling.h"
+
+namespace seahorn {
+llvm::Pass *createCrabLowerIsDerefPass() {
+  llvm::report_fatal_error(
+      "CrabLowerIsDeref pass requires building SeaHorn with Clam support");
+}
+} // namespace seahorn
+#else
+/// Real implementation starts here
 #include "seahorn/Analysis/CrabAnalysis.hh"
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/Passes.hh"
@@ -143,3 +158,4 @@ Value *CrabLowerIsDeref::crabLowerIsDereferenceable(CallBase *IsDerefCall) {
 llvm::Pass *seahorn::createCrabLowerIsDerefPass() {
   return new CrabLowerIsDeref();
 }
+#endif // HAVE_CLAM

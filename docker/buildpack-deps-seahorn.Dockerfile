@@ -25,7 +25,7 @@ RUN apt-get update && \
       sudo \
       graphviz libgraphviz-dev python3-pygraphviz \
       lcov gcovr rsync \
-      clang-14 lldb-14 lld-14 clang-format-14 && \
+      clang-15 lldb-15 lld-15 clang-format-15 && \
   pip3 install lit filecheck && \
   pip3 install networkx && \
   mkdir seahorn

@@ -5,7 +5,7 @@
 # without any of the build by-products
 #
 
-ARG BASE_IMAGE=jammy-llvm14
+ARG BASE_IMAGE=jammy-llvm15
 FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
 ENV SEAHORN=/home/usea/seahorn/bin/sea PATH="$PATH:/home/usea/seahorn/bin"
 USER root

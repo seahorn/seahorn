@@ -6,7 +6,7 @@ run SeaHorn. These are mostly used by CI.
 To get a docker distribution of this version of SeaHorn do:
 
 ```shell
-$ docker pull seahorn/seahorn-llvm14:nightly
+$ docker pull seahorn/seahorn-llvm15:nightly
 ```
 
 The instructions in this file are for developers only. If you are looking for a
@@ -19,7 +19,7 @@ building SeaHorn from sources. To build a container, run the following command
 from the root of SeaHorn source tree:
 
 ```shell
-$ docker build  -t seahorn/buildpack-deps-seahorn:jammy-llvm14 -f docker/buildpack-deps-seahorn.Dockerfile .
+$ docker build  -t seahorn/buildpack-deps-seahorn:jammy-llvm15 -f docker/buildpack-deps-seahorn.Dockerfile .
 ```
 
 ## Compiling SeaHorn
@@ -28,8 +28,8 @@ This container builds a distribution package of the current version of SeaHorn.
 Run the following command from the *ROOT* of SeaHorn source tree:
 
 ```shell
-$ docker build  -t seahorn/seahorn-builder:jammy-llvm14 -f docker/seahorn-builder.Dockerfile .
-$ docker run -v $(pwd):/host --rm -it seahorn/seahorn-builder:jammy-llvm14 /bin/sh -c "cp build/*.tar.gz /host/"
+$ docker build  -t seahorn/seahorn-builder:jammy-llvm15 -f docker/seahorn-builder.Dockerfile .
+$ docker run -v $(pwd):/host --rm -it seahorn/seahorn-builder:jammy-llvm15 /bin/sh -c "cp build/*.tar.gz /host/"
 ```
 
 ## Distribution Container 
@@ -42,8 +42,8 @@ To build, run the following command in SeaHorn root. The command expects that
 the distribution package is in the current directory
 
 ```shell
-$ docker build  -t seahorn/seahorn-llvm14:latest -f docker/seahorn.Dockerfile .
-$ docker run --rm -it seahorn/seahorn-llvm14:latest 
+$ docker build  -t seahorn/seahorn-llvm15:latest -f docker/seahorn.Dockerfile .
+$ docker run --rm -it seahorn/seahorn-llvm15:latest 
 ```
 
 ## Pushing a Container to DockerHub 

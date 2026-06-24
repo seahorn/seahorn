@@ -53,8 +53,13 @@ public:
         }
 
         if (!nv) {
-          auto ai = new AllocaInst(v->getType()->getPointerElementType(),
-                                   addrSpace, CI.getOperand(0), "malloc", &I);
+          // malloc()/operator new() return a pointer to bytes (legacy `i8*`),
+          // so the promoted alloca allocates `CI.getOperand(0)` bytes of i8.
+          // Using i8 directly avoids Type::getPointerElementType(), which
+          // aborts on LLVM opaque pointers.
+          auto *i8Ty = Type::getInt8Ty(F.getContext());
+          auto ai = new AllocaInst(i8Ty, addrSpace, CI.getOperand(0), "malloc",
+                                   &I);
           // -- set alignment based on stack, not alignment of the type
           ai->setAlignment(F.getParent()->getDataLayout().getStackAlignment());
           nv = ai;

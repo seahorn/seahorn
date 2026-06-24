@@ -30,12 +30,15 @@
 
 #include "BvOpSem2Context.hh"
 
+#ifdef HAVE_CLAM
 #include "clam/ClamQueryAPI.hh"
 #include "clam/SeaDsaHeapAbstraction.hh"
 #include "crab/domains/abstract_domain_params.hpp"
 #include "seahorn/clam_CfgBuilder.hh"
 #include "seahorn/clam_Clam.hh"
+#endif
 
+#include "seadsa/Graph.hh"
 #include "seadsa/ShadowMem.hh"
 
 #include <fstream>
@@ -48,7 +51,9 @@ using gep_type_iterator = generic_gep_type_iterator<>;
 
 namespace seahorn {
 extern bool isUnifiedAssume(const Instruction &CI);
+#ifdef HAVE_CLAM
 extern clam::CrabDomain::Type CrabDom;
+#endif
 namespace details {
 enum class VacCheckOptions { NONE, ANTE, ALL };
 }
@@ -928,6 +933,7 @@ public:
     Expr byteSz = lookup(*CB.getOperand(1));
     Expr res;
     bool crabSolved = false;
+#ifdef HAVE_CLAM
     if (UseCrabLowerIsDeref || UseCrabCheckIsDeref) {
       // if crab is used, infer the result of sea.is_deref
       auto derefInfoFromCrab = m_sem.getCrabInstRng(CB);
@@ -954,6 +960,7 @@ public:
                 << " Line=" << Line << " col=" << Col;);
       }
     }
+#endif // HAVE_CLAM
     if (!crabSolved) {
       res = m_ctx.mem().isDereferenceable(ptr, byteSz);
     }
@@ -2642,10 +2649,12 @@ public:
 
   void visitModule(Module &M) {
     LOG("opsem.module", errs() << M << "\n";);
+#ifdef HAVE_CLAM
     if (UseCrabInferRng || UseCrabLowerIsDeref || UseCrabCheckIsDeref) {
       m_sem.initCrabAnalysis(M);
       m_sem.runCrabAnalysis();
     }
+#endif
 
     m_ctx.onModuleEntry(M);
 
@@ -3763,6 +3772,7 @@ Optional<APInt> Bv2OpSem::vec(Type *vecTy,
   return res;
 }
 
+#ifdef HAVE_CLAM
 void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
   // Get seadsa -- pointer analysis
   auto &dsa_pass = m_pass.getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
@@ -3817,6 +3827,7 @@ void Bv2OpSem::runCrabAnalysis() {
   m_crab_rng_solver->analyze(aparams, assumptions);
   Stats::stop("opsem.crab");
 }
+#endif // HAVE_CLAM
 
 void Bv2OpSem::runLVIAnalysis(const Function &F) {
   if (m_lvi_map) {
@@ -3830,12 +3841,14 @@ void Bv2OpSem::runLVIAnalysis(const Function &F) {
   }
 }
 
+#ifdef HAVE_CLAM
 const llvm::ConstantRange Bv2OpSem::getCrabInstRng(const llvm::Instruction &I) {
   unsigned IntWidth = I.getType()->getIntegerBitWidth();
   if (!m_crab_rng_solver)
     return llvm::ConstantRange::getFull(IntWidth);
   return m_crab_rng_solver->range(I);
 }
+#endif // HAVE_CLAM
 
 const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
   unsigned IntWidth = getDataLayout().getTypeSizeInBits(I.getType());

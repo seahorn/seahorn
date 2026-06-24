@@ -101,5 +101,7 @@ inline bool isShadowMem(const Value &V, const Value **out) {
   assert(0);
   return false;
 }
+
 } // namespace shadow_dsa
 } // namespace seahorn
+

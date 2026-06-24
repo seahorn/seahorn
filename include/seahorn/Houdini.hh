@@ -1,6 +1,8 @@
 #ifndef HOUDINI__HH_
 #define HOUDINI__HH_
 
+#include <list>
+
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "seahorn/HornClauseDB.hh"

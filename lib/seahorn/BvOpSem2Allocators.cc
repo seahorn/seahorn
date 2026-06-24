@@ -1,6 +1,7 @@
 #include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
 
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"

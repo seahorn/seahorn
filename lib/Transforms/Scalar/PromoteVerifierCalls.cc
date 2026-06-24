@@ -8,6 +8,7 @@
 #include "llvm/IR/InstIterator.h"
 
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "boost/range.hpp"
 #include "llvm/Support/raw_ostream.h"

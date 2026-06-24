@@ -397,13 +397,19 @@ else()
   return()
 endif()
 
-if (IS_DIRECTORY ${CMAKE_SOURCE_DIR}/clam AND
+# Clam/Crab is not yet ported to LLVM 15; allow building SeaHorn without it.
+# When OFF, the clam subdirectory is not added (no `crab` target) and HAVE_CLAM
+# stays undefined, so all clam/crab code is compiled out (see HAVE_CLAM guards).
+option(WITH_CLAM "Build with Clam/Crab support" ON)
+if (WITH_CLAM AND IS_DIRECTORY ${CMAKE_SOURCE_DIR}/clam AND
     EXISTS ${CMAKE_SOURCE_DIR}/clam/CMakeLists.txt)
   add_subdirectory(${CMAKE_SOURCE_DIR}/clam)
   set(HAVE_CLAM TRUE)
   include_directories (BEFORE ${CLAM_INCLUDE_DIRS})
-else()
+elseif (WITH_CLAM)
   message (WARNING "No Clam found in ${CMAKE_SOURCE_DIR}/clam. Run\n\tcmake --build . --target extra && cmake ${CMAKE_SOURCE_DIR}")
+else()
+  message (STATUS "Clam/Crab support disabled (WITH_CLAM=OFF)")
 endif()
 
 # If enabled then devirtualization uses old code that replaces

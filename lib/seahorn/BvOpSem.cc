@@ -1180,11 +1180,14 @@ Expr BvOpSem::symb(const Value &I) {
   if (isShadowMem(I, &scalar)) {
     if (scalar) {
       assert(scalar->getType()->isPointerTy());
-      Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
+      assert(isa<GlobalVariable>(scalar));
+      // -- A unique scalar is a single-cell global variable (see sea-dsa
+      // -- ShadowMem::getUniqueScalar); recover its type opaque-pointer safely.
+      const Type *eTy = cast<GlobalVariable>(scalar)->getValueType();
       // -- create a constant with the name v[scalar]
       return bv::bvConst(
           op::array::select(v, mkTerm<const Value *>(scalar, m_efac)),
-          sizeInBits(eTy));
+          sizeInBits(*eTy));
     }
 
     if (m_trackLvl >= MEM) {

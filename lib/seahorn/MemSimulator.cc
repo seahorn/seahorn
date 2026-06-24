@@ -312,7 +312,7 @@ struct MemSimVisitor : public InstVisitor<MemSimVisitor> {
   void visitGlobalVariable(const GlobalVariable &GV) {
 
     uint64_t sz;
-    sz = storeSz(cast<PointerType>(GV.getType())->getElementType());
+    sz = storeSz(GV.getValueType());
 
     LOG("memsim", errs() << "  ALLOCATION: " << sz << "\n";);
     // -- compute size of global based on size

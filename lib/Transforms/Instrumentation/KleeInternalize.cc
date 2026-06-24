@@ -130,9 +130,7 @@ class KleeInternalize : public ModulePass {
       CallInst *mksym = Builder.CreateCall(
           m_kleeMkSymbolicFn,
           {Builder.CreateBitCast(v, Builder.getInt8PtrTy()), sz,
-           Builder.CreateConstGEP2_32(
-               cast<PointerType>(fname->getType())->getElementType(), fname, 0,
-               0)});
+           Builder.CreateConstGEP2_32(fname->getValueType(), fname, 0, 0)});
 
       (void)mksym;
       Value *retValue = Builder.CreateLoad(v->getAllocatedType(), v);
@@ -153,8 +151,7 @@ class KleeInternalize : public ModulePass {
       // are considered constant.
       if (GV->hasInitializer())
         continue;
-      GV->setInitializer(
-          Constant::getNullValue(GV->getType()->getElementType()));
+      GV->setInitializer(Constant::getNullValue(GV->getValueType()));
       LOG("verbose", errs() << "making " << GV->getName() << " non-extern\n";);
     }
   }
@@ -275,9 +272,7 @@ public:
                Builder.CreateGlobalStringPtr("__builtin.c"),
                Builder.getInt32(0),
                Builder.CreateConstGEP2_32(
-                   cast<PointerType>(fname->getType()->getScalarType())
-                       ->getElementType(),
-                   fname, 0, 0)});
+                   cast<GlobalVariable>(fname)->getValueType(), fname, 0, 0)});
         }
 
         if (ninst) {

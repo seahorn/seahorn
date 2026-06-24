@@ -1,10 +1,13 @@
 # SeaHorn builder image that builds binary SeaHorn release package
 # Primarily used by the CI
 # Arguments:
+#  - BUILDPACK_IMAGE: registry/owner of the buildpack-deps base image
+#                     (published to GHCR by the buildpack-deps workflow)
 #  - BASE-IMAGE: jammy-llvm15
 #  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
+ARG BUILDPACK_IMAGE=ghcr.io/seahorn/buildpack-deps-seahorn
 ARG BASE_IMAGE=jammy-llvm15
-FROM seahorn/buildpack-deps-seahorn:$BASE_IMAGE
+FROM ${BUILDPACK_IMAGE}:${BASE_IMAGE}
 
 # Tests (also run for coverage in this image) use `filecheck` (the maintained
 # pip package that replaces OutputCheck); the pre-built base may predate this.

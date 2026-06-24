@@ -1,8 +1,8 @@
 #pragma once
 
-#include "seahorn/config.h"
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/OperationalSemantics.hh"
+#include "seahorn/config.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/IR/DataLayout.h"
@@ -189,7 +189,5 @@ public:
   void runLVIAnalysis(const llvm::Function &F);
   /// \brief Get the range of an instruction by LVI
   const llvm::ConstantRange getLVIInstRng(llvm::Instruction &I);
-
 };
 } // namespace seahorn
-

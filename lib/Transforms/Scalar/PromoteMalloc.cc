@@ -58,8 +58,8 @@ public:
           // Using i8 directly avoids Type::getPointerElementType(), which
           // aborts on LLVM opaque pointers.
           auto *i8Ty = Type::getInt8Ty(F.getContext());
-          auto ai = new AllocaInst(i8Ty, addrSpace, CI.getOperand(0), "malloc",
-                                   &I);
+          auto ai =
+              new AllocaInst(i8Ty, addrSpace, CI.getOperand(0), "malloc", &I);
           // -- set alignment based on stack, not alignment of the type
           ai->setAlignment(F.getParent()->getDataLayout().getStackAlignment());
           nv = ai;

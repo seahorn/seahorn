@@ -4,8 +4,8 @@
 #include "BvOpSem2RawMemMgr.hh"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/ConstantRange.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
 
@@ -3087,8 +3087,9 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
   if (isShadowMem(inst, &scalar)) {
     // if memory is single cell, allocate regular register
     if (scalar) {
-      // Check that scalar is a pointer and specifically a global variable. 
-      // This is because we only support single-cell memory for global variables.
+      // Check that scalar is a pointer and specifically a global variable.
+      // This is because we only support single-cell memory for global
+      // variables.
       assert(scalar->getType()->isPointerTy());
       assert(isa<GlobalVariable>(scalar));
       const Type *eTy = cast<GlobalVariable>(scalar)->getValueType();
@@ -3868,7 +3869,6 @@ const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
   }
   return llvm::ConstantRange::getFull(IntWidth);
 }
-
 
 } // namespace seahorn
 

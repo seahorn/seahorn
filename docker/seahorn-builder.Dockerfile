@@ -34,9 +34,9 @@ RUN cmake .. -GNinja \
   -DCMAKE_C_COMPILER=clang-15 \
   -DSEA_ENABLE_LLD=ON \
   -DCPACK_GENERATOR="TGZ" \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+  -DWITH_CLAM=OFF && \
   cmake --build . --target extra  && cmake .. && \
-  cmake --build . --target crab  && cmake .. && \
   cmake --build . --target install && \
   cmake --build . --target units_z3 && \
   cmake --build . --target units_yices2 && \

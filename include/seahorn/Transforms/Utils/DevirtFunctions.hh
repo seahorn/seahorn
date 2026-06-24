@@ -12,6 +12,7 @@
 namespace llvm {
 class Module;
 class Function;
+class FunctionType;
 class PointerType;
 class CallGraph;
 class CallBase;
@@ -24,7 +25,7 @@ class CompleteCallGraphAnalysis;
 namespace seahorn {
 
 namespace devirt_impl {
-using AliasSetId = const llvm::PointerType *;
+using AliasSetId = const llvm::FunctionType *;
 
 /// returns an id of an alias set to which this function belongs
 /// requires that CS is an indirect call through a function pointer

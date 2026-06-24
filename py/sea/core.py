@@ -206,7 +206,14 @@ class AgregateCmd (CliCmd):
         # https://stackoverflow.com/questions/22990977/why-does-this-argparse-code-behave-differently-between-python-2-and-3
         sb = argp.add_subparsers(dest='parser')
         sb.required = True
+        # De-duplicate commands sharing a name (e.g. the 'smc' stage and the
+        # 'smc' alias). Python < 3.11 let add_parser() silently overwrite a
+        # duplicate name (last one wins); 3.11+ raises ArgumentError instead.
+        # Keep the last command registered for each name to preserve behaviour.
+        deduped = {}
         for c in self.cmds:
+            deduped[c.name] = c
+        for c in deduped.values():
             sp = sb.add_parser(c.name, help=c.help, add_help=False)
             sp = c.mk_arg_parser(sp)
             sp.set_defaults(func = c.run)

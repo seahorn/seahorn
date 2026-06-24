@@ -6,7 +6,7 @@ run SeaHorn. These are mostly used by CI.
 To get a docker distribution of this version of SeaHorn do:
 
 ```shell
-$ docker pull seahorn/seahorn-llvm15:nightly
+$ docker pull ghcr.io/seahorn/seahorn-llvm15:nightly
 ```
 
 The instructions in this file are for developers only. If you are looking for a

@@ -21,6 +21,10 @@ jobs:
   test:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    # GITHUB_TOKEN needs packages:write to push images to GHCR (ghcr.io)
+    permissions:
+      contents: read
+      packages: write
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -53,11 +57,11 @@ jobs:
       # WARNING! Your password will be stored unencrypted in /home/runner/.docker/config.json.
       # There does not seem to be an easy way around it though using docker actions may mitigate
       # it.
-      - name: Login to DockerHub Registry
+      - name: Login to GitHub Container Registry
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only login if nightly or manual run
-        run: echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: tag and push seahorn (nightly/manual)
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}  # only push if nightly or manual run
         run: |
-          docker tag seahorn_container seahorn/seahorn-llvm15:nightly
-          docker push seahorn/seahorn-llvm15:nightly
+          docker tag seahorn_container ghcr.io/${{ github.repository_owner }}/seahorn-llvm15:nightly
+          docker push ghcr.io/${{ github.repository_owner }}/seahorn-llvm15:nightly

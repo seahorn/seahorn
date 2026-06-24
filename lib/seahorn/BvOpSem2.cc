@@ -3087,17 +3087,22 @@ Expr Bv2OpSemContext::mkRegister(const llvm::Instruction &inst) {
   if (isShadowMem(inst, &scalar)) {
     // if memory is single cell, allocate regular register
     if (scalar) {
+      // Check that scalar is a pointer and specifically a global variable. 
+      // This is because we only support single-cell memory for global variables.
       assert(scalar->getType()->isPointerTy());
-      Type &eTy = *cast<PointerType>(scalar->getType())->getElementType();
+      assert(isa<GlobalVariable>(scalar));
+      const Type *eTy = cast<GlobalVariable>(scalar)->getValueType();
+      Expr name = op::array::select(v, mkTerm<const Value *>(scalar, efac()));
       // -- create a constant with the name v[scalar]
-      if (eTy.isPointerTy()) {
-        reg = bind::mkConst(
-            op::array::select(v, mkTerm<const Value *>(scalar, efac())),
-            mem().ptrSort());
+      if (eTy && !eTy->isPointerTy()) {
+        reg = bind::mkConst(name, alu().intTy(m_sem.sizeInBits(*eTy)));
       } else {
-        reg = bind::mkConst(
-            op::array::select(v, mkTerm<const Value *>(scalar, efac())),
-            alu().intTy(m_sem.sizeInBits(eTy)));
+        // -- pointer-typed scalar, or type could not be recovered from sea-dsa:
+        // -- default to a pointer-valued register.
+        if (!eTy)
+          LOG("opsem", WARN << "could not recover unique scalar type for "
+                            << *scalar << "; defaulting to pointer register";);
+        reg = bind::mkConst(name, mem().ptrSort());
       }
     }
 

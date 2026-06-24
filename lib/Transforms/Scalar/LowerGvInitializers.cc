@@ -188,7 +188,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
       if (!AddressTaken && !GS.HasMultipleAccessingFunctions &&
           GS.AccessingFunction && GS.AccessingFunction->getName() == "main" &&
           allNonInstructionUsersCanBeMadeInstructions(gv)) {
-        Type *ElemTy = gv->getType()->getElementType();
+        Type *ElemTy = gv->getValueType();
         AllocaInst *Alloca =
             Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
         Builder.CreateAlignedStore(gv->getInitializer(), Alloca,
@@ -205,7 +205,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
     PointerType *ty = dyn_cast<PointerType>(gv->getType());
     if (!ty)
       continue;
-    Type *ety = ty->getElementType();
+    Type *ety = gv->getValueType();
 
     // Only deal with scalars and simple structs for now.
     // TODO: Support other kinds of initializers.

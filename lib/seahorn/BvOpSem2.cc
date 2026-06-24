@@ -4,6 +4,7 @@
 #include "BvOpSem2RawMemMgr.hh"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugLoc.h"
@@ -3849,6 +3850,7 @@ const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
   }
   return llvm::ConstantRange::getFull(IntWidth);
 }
+
 
 } // namespace seahorn
 

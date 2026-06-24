@@ -5,6 +5,7 @@
 #include "seahorn/BvOpSem.hh"
 #include "seahorn/Support/CFG.hh"
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
+#include "seadsa/ShadowMem.hh"
 
 #include "seahorn/Support/IteratorExtras.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -1282,4 +1283,5 @@ void BvOpSem::execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
     }
   }
 }
+
 } // namespace seahorn

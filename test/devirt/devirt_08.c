@@ -1,3 +1,8 @@
+// Under LLVM-15 opaque pointers sea-dsa does not resolve a function
+// pointer stored in a struct field and reached via a returned struct pointer,
+// so the call stays indirect and BMC reports sat.
+// Blocked on sea-dsa bug: https://github.com/seahorn/sea-dsa/issues/176
+// XFAIL: *
 // RUN: %sea pf -O0 --devirt-functions=sea-dsa --devirt-functions-allow-indirect-calls "%s"  2>&1 | filecheck %s
 // CHECK: {{^unsat$}}
 

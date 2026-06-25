@@ -643,16 +643,20 @@ bool mayBeVirtualCall(const CallBase &CB) {
     return false;
   }
 
-  const FunctionType *CB_type = dyn_cast<FunctionType>(
-      CB.getCalledOperand()->getType()->getPointerElementType());
+  // Opaque pointers (LLVM 15): the callee function type comes from the call
+  // itself. The 'this' class (struct) type is only recoverable for typed
+  // pointers, so the struct-based check is guarded and simply skipped under
+  // opaque pointers (CHA then cannot identify the call as virtual).
+  const FunctionType *CB_type = CB.getFunctionType();
   if (!CB_type) {
     return false;
   }
   // Assume the first argument of CB is this, otherwise we bail out ...
   const Value *this_ = CB.getOperand(0);
-  if (this_->getType()->isPointerTy()) {
-    if (const StructType *this_type =
-            dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
+  if (this_->getType()->isPointerTy() &&
+      !this_->getType()->isOpaquePointerTy()) {
+    if (const StructType *this_type = dyn_cast<StructType>(
+            this_->getType()->getNonOpaquePointerElementType())) {
       return true;
     }
   }
@@ -672,16 +676,20 @@ bool ClassHierarchyAnalysis_Impl::resolveVirtualCall(const CallBase &CB,
     return false;
   }
 
-  const FunctionType *CB_type = dyn_cast<FunctionType>(
-      CB.getCalledOperand()->getType()->getPointerElementType());
+  // Opaque pointers (LLVM 15): the callee function type comes from the call
+  // itself; the 'this' class (struct) type needed for resolution below is only
+  // recoverable for typed pointers, so under opaque pointers the call is left
+  // unresolved. TODO(llvm15): rework CHA to use vtable structure instead.
+  const FunctionType *CB_type = CB.getFunctionType();
   if (!CB_type) {
     return false;
   }
   // Assume the first argument of CS is this, otherwise we bail out ...
   const Value *this_ = CB.getOperand(0);
-  if (this_->getType()->isPointerTy()) {
-    if (const StructType *this_type =
-            dyn_cast<StructType>(this_->getType()->getPointerElementType())) {
+  if (this_->getType()->isPointerTy() &&
+      !this_->getType()->isOpaquePointerTy()) {
+    if (const StructType *this_type = dyn_cast<StructType>(
+            this_->getType()->getNonOpaquePointerElementType())) {
 
       m_num_potential_virtual_calls++;
 

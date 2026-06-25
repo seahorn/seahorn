@@ -571,8 +571,9 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
     Origin.Offset = 0;
   }
 
-  auto *Ty = LI ? LI->getType()
-                : SI->getPointerOperand()->getType()->getPointerElementType();
+  // For a store the accessed type is the type of the stored value (the store
+  // pointer is opaque under LLVM 15, so its pointee type is unavailable).
+  auto *Ty = LI ? LI->getType() : SI->getValueOperand()->getType();
   assert(Ty);
 
   const auto Bits = m_DL->getTypeSizeInBits(Ty);
@@ -619,16 +620,19 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
       auto *BarrierPtrTy = Check.Barrier->getType();
       auto *AllocPtrTy = AS->getType();
       if (BarrierPtrTy->isPointerTy() && AllocPtrTy->isPointerTy()) {
-        // auto *BarrierTy = BarrierPtrTy->getPointerElementType();
-        auto *AllocTy = AllocPtrTy->getPointerElementType();
-
         // Temporary hack for CASS. Disabled for now.
+        // NOTE: getPointerElementType() is kept but moved inside the disabled
+        // branch so it is never executed -- it aborts on LLVM-15 opaque
+        // pointers (the pointee type is unavailable).
         if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-          if (false && Arg->getName() == "this")
+          if (false && Arg->getName() == "this") {
+            // auto *BarrierTy = BarrierPtrTy->getPointerElementType();
+            auto *AllocTy = AllocPtrTy->getPointerElementType();
             if (AllocTy->isStructTy() &&
                 (AllocTy->getStructName().endswith("::string") ||
                  AllocTy->getStructName().endswith("::vector3")))
               Interesting = false;
+          }
 
         //        // Heap alloc tends to return i8* instead of precise type.
         //        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {

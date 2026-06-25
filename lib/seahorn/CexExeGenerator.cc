@@ -220,15 +220,18 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
     name = Twine("__seahorn_get_value_").concat(RSO.str()).str();
   } else if (RT->isPointerTy() ||
              RT->getTypeID() == llvm::ArrayType::ArrayTyID) {
-    Type *elmTy = (RT->isPointerTy()) ? RT->getPointerElementType()
-                                      : RT->getArrayElementType();
+    // Under LLVM-15 opaque pointers the pointee type (and its size) is
+    // unavailable, so for a pointer return type we report size 0 (the same
+    // fallback used for unsized types below). Arrays still expose their
+    // element.
+    Type *elmTy = RT->isPointerTy() ? nullptr : RT->getArrayElementType();
 
     name = "__seahorn_get_value_ptr";
     ArgTypes.push_back(Type::getInt32Ty(m_context));
 
     // If we can tell how big the return type is, tell the
     // callback function.  Otherwise pass zero.
-    if (elmTy->isSized())
+    if (elmTy && elmTy->isSized())
       Args.push_back(ConstantInt::get(Type::getInt32Ty(m_context),
                                       m_dl.getTypeStoreSizeInBits(elmTy)));
     else

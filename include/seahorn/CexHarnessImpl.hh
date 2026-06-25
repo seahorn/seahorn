@@ -346,7 +346,8 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
                RT->isVoidTy() /* memhavoc */) {
       Type *elmTy = nullptr;
       if (RT->isPointerTy())
-        elmTy = RT->getPointerElementType();
+        // Opaque pointer: pointee type/size unavailable -> report size 0 below.
+        elmTy = nullptr;
       else if (RT->isVoidTy())
         elmTy =
             Type::getVoidTy(TheContext); // not interested in ebits for memhavoc
@@ -358,7 +359,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
 
       // If we can tell how big the return type is, tell the
       // callback function.  Otherwise pass zero.
-      if (elmTy->isSized())
+      if (elmTy && elmTy->isSized())
         Args.push_back(ConstantInt::get(Type::getInt32Ty(TheContext),
                                         dl.getTypeStoreSizeInBits(elmTy)));
       else

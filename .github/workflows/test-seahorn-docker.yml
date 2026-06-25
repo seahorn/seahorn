@@ -52,7 +52,14 @@ jobs:
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D cex_bmc_opts=--horn-bmc-cexgen test/cex"
       - name: Run devirtualization tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/devirt"
-      - name: Run Crab tests
-        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/crab"
-      - name: Run BMC(opsem) tests
-        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/bmc"
+      # Crab tests are disabled: clam/crab is not yet ported to LLVM 15, so the
+      # build uses WITH_CLAM=OFF and crab functionality is compiled out. Re-add
+      # this step once clam is ported.
+      # - name: Run Crab tests
+      #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/crab"
+      # BMC tests are disabled: each test also exercises the path-based BMC
+      # engine (--bmc=path), which is clam-gated (PathBmc.cc is a stub without
+      # HAVE_CLAM). Mono-BMC is still covered via the opsem/opsem2 steps. Re-add
+      # once clam is ported to LLVM 15.
+      # - name: Run BMC(opsem) tests
+      #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/bmc"

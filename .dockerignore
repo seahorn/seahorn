@@ -4,3 +4,10 @@
 /build10
 /debug10
 /release10
+/build-dev15
+# ccache directory and third-party clones produced by the CI `docker run`
+# build in the mounted workspace; keep them out of the docker build context.
+/.ccache
+/sea-dsa
+/llvm-seahorn
+/clam

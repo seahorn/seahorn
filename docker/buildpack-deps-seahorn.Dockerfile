@@ -17,6 +17,7 @@ RUN apt-get update && \
   apt-get install -yqq cmake cmake-data unzip \
       zlib1g-dev \
       ninja-build libgraphviz-dev \
+      ccache \
       libgmp-dev libmpfr-dev \
       libboost1.74-dev \
       python3-pip \

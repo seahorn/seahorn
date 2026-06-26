@@ -28,11 +28,31 @@ jobs:
         uses: actions/checkout@v2
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Build seahorn builder
-        run: docker build . --file docker/seahorn-builder.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --tag seahorn/seahorn-builder:jammy-llvm15
-      - name: Copy build out to /host
-        run: docker run -v $(pwd):/host seahorn/seahorn-builder:jammy-llvm15 /bin/sh -c "cp build/SeaHorn*.tar.gz /host/"
-      - name: Build seahorn container  
+      # Persist the ccache directory across runs so only changed translation
+      # units recompile. PR builds restore the dev15 cache via restore-keys.
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-llvm15-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-llvm15-${{ github.ref_name }}-
+            ccache-llvm15-dev15-
+            ccache-llvm15-
+      - name: Build SeaHorn (ccache-backed)
+        run: |
+          docker run --rm \
+            -v "$(pwd)":/seahorn \
+            -v "$(pwd)/.ccache":/ccache \
+            -e CCACHE_DIR=/ccache \
+            -e BUILD_TYPE=RelWithDebInfo \
+            ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm15 \
+            bash /seahorn/docker/build_seahorn.sh
+          cp build/SeaHorn*.tar.gz .
+          # ccache files are written by root in the container; make them
+          # readable to the runner user so actions/cache can pack them.
+          sudo chown -R "$(id -u):$(id -g)" .ccache
+      - name: Build seahorn container
         run: docker build . --file docker/seahorn.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --tag seahorn_container
       - name: Run opsem tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem "

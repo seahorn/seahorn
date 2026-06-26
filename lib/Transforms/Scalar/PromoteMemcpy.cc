@@ -134,6 +134,10 @@ void PromoteMemcpy::emitFieldwiseCopy(IRBuilder<> &Builder, Type *Ty,
 bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   assert(MI);
 
+  // skip volatile memcpy to preserve semantics
+  if (MI->isVolatile())
+    return false;
+
   // skip non-constant length memcpy()
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getLength());
   if (!MemOpLength)

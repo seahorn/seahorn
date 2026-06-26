@@ -73,6 +73,10 @@ bool PromoteMemcpy::simplifyMemCpy(MemCpyInst *MI) {
   }
 #endif
 
+  // skip volatile memcpy to preserve semantics
+  if (MI->isVolatile())
+    return false;
+
   // skip non-constant length memcpy()
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getLength());
   if (!MemOpLength) {

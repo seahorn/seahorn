@@ -28,6 +28,8 @@ jobs:
           echo "Triggered manually by: ${{ github.event.inputs.Triggerer }}"
       - name: Check Out Repo
         uses: actions/checkout@v2
+        with:
+          ref: dev15
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build buildpack-deps image

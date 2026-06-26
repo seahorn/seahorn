@@ -12,5 +12,5 @@ jobs:
           fetch-depth: 0
       - uses: wagoid/commitlint-github-action@v1.6.0
         with:
-          configFile: './.commitlintrc.yml'
+          configFile: './.commitlintrc.cjs'
           helpURL: 'https://github.com/seahorn/seahorn/blob/master/CONTRIBUTING.md'

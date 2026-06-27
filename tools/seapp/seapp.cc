@@ -742,7 +742,7 @@ int main(int argc, char **argv) {
     } else {
       // mark memory allocator/deallocators to be inlined
       if (InlineAllocFn)
-        pm_wrapper.add(seahorn::createMarkInternalAllocOrDeallocInlinePass());
+        pm_wrapper.addModulePass(seahorn::MarkInternalAllocOrDeallocInlinePass());
       // mark constructors to be inlined
       if (InlineConstructFn)
         pm_wrapper.add(

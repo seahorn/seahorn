@@ -162,4 +162,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class MarkInternalAllocOrDeallocInlinePass : public llvm::PassInfoMixin<MarkInternalAllocOrDeallocInlinePass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

@@ -16,4 +16,30 @@ public:
                               llvm::FunctionAnalysisManager &FAM);
 };
 
+class PromoteMallocPass : public llvm::PassInfoMixin<PromoteMallocPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+};
+
+class PromoteBoolLoadsPass : public llvm::PassInfoMixin<PromoteBoolLoadsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+};
+
+class LowerArithWithOverflowIntrinsicsPass
+    : public llvm::PassInfoMixin<LowerArithWithOverflowIntrinsicsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+};
+
+class CanReadUndefPass : public llvm::PassInfoMixin<CanReadUndefPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &);
+};
+
+class MarkFnEntryPass : public llvm::PassInfoMixin<MarkFnEntryPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

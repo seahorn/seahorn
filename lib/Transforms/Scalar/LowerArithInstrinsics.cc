@@ -114,3 +114,12 @@ namespace seahorn
 
 static llvm::RegisterPass<LowerArithIntrinsics> 
 X ("lower-arith-overflow-intrinsics", "Lower arithmetic with overflow intrinsics");
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerArithWithOverflowIntrinsicsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  return LowerArithIntrinsics().runOnFunction(F) ? llvm::PreservedAnalyses::none()
+                                     : llvm::PreservedAnalyses::all();
+}

@@ -97,3 +97,12 @@ Pass *createPromoteMallocPass() { return new PromoteMalloc(); }
 
 static llvm::RegisterPass<PromoteMalloc>
     X("promote-malloc", "Promote top-level malloc calls to alloca");
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::PromoteMallocPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  return PromoteMalloc().runOnFunction(F) ? llvm::PreservedAnalyses::none()
+                                     : llvm::PreservedAnalyses::all();
+}

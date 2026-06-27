@@ -543,7 +543,7 @@ int main(int argc, char **argv) {
     if (PeelLoops > 0)
       pm_wrapper.add(seahorn::createLoopPeelerPass(PeelLoops));
     if (CutLoops) {
-      pm_wrapper.add(seahorn::createBackEdgeCutterPass());
+      pm_wrapper.addFunctionPass(seahorn::BackEdgeCutterPass());
       // -- disabled. back-edge-cutter should be more robust
       // pm_wrapper.add(seahorn::createCutLoopsPass());
     }
@@ -560,12 +560,12 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createNullCheckPass());
   } else if (FatBoundsCheck) {
     initializeFatBufferBoundsCheckPass(Registry);
-    pm_wrapper.add(seahorn::createFatBufferBoundsCheckPass());
+    pm_wrapper.addFunctionPass(seahorn::FatBufferBoundsCheckPass());
   } else if (LowerIsDeref) {
-    pm_wrapper.add(seahorn::createLowerIsDerefPass());
+    pm_wrapper.addFunctionPass(seahorn::LowerIsDerefPass());
   } else if (AddBranchSentinelOpt) {
     initializeAddBranchSentinelPassPass(Registry);
-    pm_wrapper.add(seahorn::createAddBranchSentinelPassPass());
+    pm_wrapper.addFunctionPass(seahorn::BranchSentinelPass());
   } else if (ExternalizeFns) {
     // -- Externalize some user-selected functions
     pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
@@ -578,7 +578,7 @@ int main(int argc, char **argv) {
     // -- attempt to lower any left sea.is_dereferenceable()
     // First pass is attempted by using LLVM Memory Builtins to compute
     // the requested size of access <= object size.
-    pm_wrapper.add(seahorn::createLowerIsDerefPass());
+    pm_wrapper.addFunctionPass(seahorn::LowerIsDerefPass());
     // Second pass is using Crab Analysis to compute size and offset
     // invariants for each pointer.
     // Note that, another prerequisite: Sea-DSA analysis is run inside
@@ -709,7 +709,7 @@ int main(int argc, char **argv) {
 
     if (SimplifyPointerLoops) {
       // --- simplify loops that iterate over pointers
-      pm_wrapper.add(seahorn::createSimplifyPointerLoopsPass());
+      pm_wrapper.addFunctionPass(seahorn::SimplifyPointerLoopsPass());
     }
 
     // XXX: AG: Should not be part of standard pipeline

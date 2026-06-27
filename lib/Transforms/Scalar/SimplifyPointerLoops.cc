@@ -340,19 +340,24 @@ public:
   bool runOnFunction(Function &F) override {
     if (F.empty())
       return false;
+    return runImpl(F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
+                   getAnalysis<ScalarEvolutionWrapperPass>().getSE(),
+                   getAnalysis<LoopInfoWrapperPass>().getLoopInfo());
+  }
 
-    m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+  bool runImpl(Function &F, const TargetLibraryInfo &TLI, ScalarEvolution &SE,
+               LoopInfo &LI) {
+    m_tli = &TLI;
     m_dl = &F.getParent()->getDataLayout();
-    m_se = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-    LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    m_se = &SE;
 
-    for (auto L : boost::make_iterator_range(LI->begin(), LI->end())) {
+    for (auto L : boost::make_iterator_range(LI.begin(), LI.end())) {
       getPointerInductionVariables(L);
     }
 
     IRBuilder<> B(F.getContext());
     bool Change = false;
-    for (auto L : boost::make_iterator_range(LI->begin(), LI->end())) {
+    for (auto L : boost::make_iterator_range(LI.begin(), LI.end())) {
       Change |= convertDisEqToIneqWithSlack(L, B);
     }
     return Change;
@@ -380,3 +385,16 @@ Pass *createSimplifyPointerLoopsPass() { return new SimplifyPointerLoops(); }
 static llvm::RegisterPass<SimplifyPointerLoops>
     X("simplify-pointer-loops",
       "Simplify loops with pointer induction variables");
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::SimplifyPointerLoopsPass::run(llvm::Function &F,
+                                       llvm::FunctionAnalysisManager &FAM) {
+  bool changed = SimplifyPointerLoops().runImpl(
+      F, FAM.getResult<llvm::TargetLibraryAnalysis>(F),
+      FAM.getResult<llvm::ScalarEvolutionAnalysis>(F),
+      FAM.getResult<llvm::LoopAnalysis>(F));
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}

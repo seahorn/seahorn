@@ -93,6 +93,7 @@ struct FatBufferBoundsCheck : public FunctionPass {
   FatBufferBoundsCheck() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F, const TargetLibraryInfo &tli, seahorn::SeaBuiltinsInfo &sbi);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -411,6 +412,10 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
 }
 
 bool FatBufferBoundsCheck::runOnFunction(Function &F) {
+  return runImpl(F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
+                 getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI());
+}
+bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli, seahorn::SeaBuiltinsInfo &sbi) {
   if (std::find(std::begin(NoInstrumentFunctionNames),
                 std::end(NoInstrumentFunctionNames),
                 F.getName()) != std::end(NoInstrumentFunctionNames)) {
@@ -422,8 +427,8 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   auto &C = F.getContext();
 
   const auto &DL = M->getDataLayout();
-  TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-  SBI = &getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+  TLI = &tli;
+  SBI = &sbi;
 
   ErrorBB = nullptr;
   BuilderTy TheBuilder(F.getContext(), TargetFolder(DL));
@@ -579,3 +584,12 @@ using namespace seahorn;
 using namespace llvm;
 INITIALIZE_PASS(FatBufferBoundsCheck, "fat-buffer-bounds-instrument",
                 "Bounds checking based on extended pointer", false, false)
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::FatBufferBoundsCheckPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+  seahorn::SeaBuiltinsInfo sbi;
+  bool changed = FatBufferBoundsCheck().runImpl(F, FAM.getResult<llvm::TargetLibraryAnalysis>(F), sbi);
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

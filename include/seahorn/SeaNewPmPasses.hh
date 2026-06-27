@@ -107,4 +107,29 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
 };
 
+class SimplifyPointerLoopsPass : public llvm::PassInfoMixin<SimplifyPointerLoopsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
+class BranchSentinelPass : public llvm::PassInfoMixin<BranchSentinelPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
+class BackEdgeCutterPass : public llvm::PassInfoMixin<BackEdgeCutterPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
+class LowerIsDerefPass : public llvm::PassInfoMixin<LowerIsDerefPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
+class FatBufferBoundsCheckPass : public llvm::PassInfoMixin<FatBufferBoundsCheckPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
 } // namespace seahorn

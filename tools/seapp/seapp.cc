@@ -530,8 +530,7 @@ int main(int argc, char **argv) {
     assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.add(llvm::createLowerSwitchPass());
     pm_wrapper.addModulePass(seahorn::PromoteVerifierCallsPass());
-    pm_wrapper.add(seahorn::createCanFailPass());
-    pm_wrapper.add(seahorn::createMixedSemanticsPass());
+    pm_wrapper.addModulePass(seahorn::MixedSemanticsPass());
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
   } else if (CutLoops || PeelLoops > 0) {

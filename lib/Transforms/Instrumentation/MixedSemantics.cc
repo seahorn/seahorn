@@ -95,9 +95,13 @@ bool MixedSemantics::runOnModule(Module &M) {
 
   removeUnreachableBlocks(*main);
 
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  SeaBuiltinsInfo SBI;
 
-  CanFail &CF = getAnalysis<CanFail>();
+  CanFail CF;
+  {
+    llvm::CallGraph cg(M);
+    CF.runImpl(M, cg);
+  }
   if (!CF.canFail(main)) {
     LOG("mixed-sem", errs() << "main() cannot fail\n";);
     // -- this benefits the legacy front-end.
@@ -279,3 +283,11 @@ Pass *createMixedSemanticsPass() { return new MixedSemantics(); }
 
 static llvm::RegisterPass<seahorn::MixedSemantics>
     X("mixed-semantics", "Transform into mixed semantics");
+
+// --- new pass manager wrapper (local CanFail + stateless SBI) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::MixedSemanticsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return MixedSemantics().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                         : llvm::PreservedAnalyses::all();
+}

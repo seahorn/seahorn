@@ -63,6 +63,7 @@
 
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
 
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
@@ -364,6 +365,11 @@ class SeaPassManagerWrapper {
       PB.registerFunctionAnalyses(FAM);
       PB.registerLoopAnalyses(LAM);
       PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+      // -- Register sea-dsa's new-PM analyses so consumers can request them via
+      // -- MAM.getResult<>; the MAM computes each once per module and caches it.
+      MAM.registerPass([] { return seadsa::AllocWrapInfoAnalysis(); });
+      MAM.registerPass([] { return seadsa::DsaLibFuncInfoAnalysis(); });
+      MAM.registerPass([] { return seadsa::DsaInfoAnalysis(); });
       mpm->run(m, MAM);
     });
   }

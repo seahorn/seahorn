@@ -81,7 +81,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   if (auto *sea_printf = M.getFunction("sea_printf")) {
     sea_printf->deleteBody();
   }
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  SeaBuiltinsInfo SBI;
   using SBIOp = SeaBuiltinsOp;
   m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);
   Function *assumeNotFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME_NOT, M);
@@ -150,7 +150,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
   LLVMUsed->setSection("llvm.metadata");
 
   // XXX Not sure how useful this is, consider removing
-  CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  CallGraphWrapperPass *cgwp = nullptr;
   if (CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr) {
     cg->getOrInsertFunction(m_assumeFn);
     cg->getOrInsertFunction(assumeNotFn);
@@ -166,7 +166,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
 }
 
 bool PromoteVerifierCalls::runOnFunction(Function &F) {
-  CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  CallGraphWrapperPass *cgwp = nullptr;
   CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
   SmallVector<Instruction *, 16> toKill;
@@ -401,3 +401,11 @@ Pass *createPromoteVerifierCallsPass() { return new PromoteVerifierCalls(); }
 
 static llvm::RegisterPass<seahorn::PromoteVerifierCalls>
     X("promote-verifier", "Promote all verifier related function");
+
+// --- new pass manager wrapper (SeaBuiltinsInfo is stateless; CG dropped) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::PromoteVerifierCallsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return PromoteVerifierCalls().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+}

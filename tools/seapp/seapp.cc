@@ -527,7 +527,7 @@ int main(int argc, char **argv) {
     // -- apply mixed semantics
     assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.add(llvm::createLowerSwitchPass());
-    pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
+    pm_wrapper.addModulePass(seahorn::PromoteVerifierCallsPass());
     pm_wrapper.add(seahorn::createCanFailPass());
     pm_wrapper.add(seahorn::createMixedSemanticsPass());
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
@@ -594,7 +594,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addModulePass(seahorn::DummyMainFunctionPass());
 
     // -- promote verifier specific functions to special names
-    pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
+    pm_wrapper.addModulePass(seahorn::PromoteVerifierCallsPass());
 
     // -- promote top-level mallocs to alloca
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
@@ -727,7 +727,7 @@ int main(int argc, char **argv) {
     // AG: Used for inconsistency analysis
     // XXX Should be moved out of standard pp pipeline
     if (LowerAssert) {
-      pm_wrapper.add(seahorn::createLowerAssertPass());
+      pm_wrapper.addModulePass(seahorn::LowerAssertPass());
       // LowerAssert might generate some dead code
       pm_wrapper.add(llvm::createDeadCodeEliminationPass());
       // Superseded by DCE in LLVM12

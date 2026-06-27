@@ -152,4 +152,14 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class LowerAssertPass : public llvm::PassInfoMixin<LowerAssertPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class PromoteVerifierCallsPass : public llvm::PassInfoMixin<PromoteVerifierCallsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

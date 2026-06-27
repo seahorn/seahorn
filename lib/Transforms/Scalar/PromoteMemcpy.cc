@@ -44,6 +44,7 @@ public:
   PromoteMemcpy() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F, DominatorTree &DT, AssumptionCache &AC);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -190,12 +191,17 @@ bool PromoteMemcpy::runOnFunction(Function &F) {
     return false;
   if (F.empty())
     return false;
+  return runImpl(F, getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
+                 getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F));
+}
 
-  m_DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+bool PromoteMemcpy::runImpl(Function &F, DominatorTree &DT,
+                            AssumptionCache &AC) {
+  m_DT = &DT;
   m_M = F.getParent();
   m_Ctx = &m_M->getContext();
   m_DL = &m_M->getDataLayout();
-  m_AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
+  m_AC = &AC;
 
   bool Changed = false;
   SmallVector<MemCpyInst *, 8> ToDeleteQueue;
@@ -247,3 +253,15 @@ llvm::FunctionPass *createPromoteMemcpyPass() { return new PromoteMemcpy(); }
 
 static llvm::RegisterPass<PromoteMemcpy>
     X("promote-memcpy", "Promote memcpy to field-wise stores");
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::PromoteMemcpyPass::run(llvm::Function &F,
+                               llvm::FunctionAnalysisManager &FAM) {
+  bool changed = PromoteMemcpy().runImpl(
+      F, FAM.getResult<llvm::DominatorTreeAnalysis>(F),
+      FAM.getResult<llvm::AssumptionAnalysis>(F));
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}

@@ -132,4 +132,24 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
 };
 
+class EnumVerifierCallsPass : public llvm::PassInfoMixin<EnumVerifierCallsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class NullCheckPass : public llvm::PassInfoMixin<NullCheckPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class LowerLibCxxAbiFunctionsPass : public llvm::PassInfoMixin<LowerLibCxxAbiFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class SliceFunctionsPass : public llvm::PassInfoMixin<SliceFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

@@ -131,7 +131,7 @@ namespace seahorn {
      }
 
     // void printFunctionsInfo (Module& M) {
-    //   CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    //   CallGraphWrapperPass *cgwp = nullptr;
     //   CallGraph *CG = cgwp ? &cgwp->getCallGraph() : nullptr;
 
     //   if (CG) {
@@ -202,3 +202,11 @@ namespace seahorn {
   }
 
 } // end namespace
+
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::SliceFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return SliceFunctions().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+}

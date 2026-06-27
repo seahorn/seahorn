@@ -30,7 +30,7 @@ public:
         M.getOrInsertFunction("seahorn.error", Type::getVoidTy(M.getContext()),
                               Type::getInt32Ty(M.getContext()));
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr) {
       cg->getOrInsertFunction(cast<Function>(m_errorFn.getCallee()));
     }
@@ -48,7 +48,7 @@ public:
 
     IRBuilder<> Builder(F.getContext());
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
     std::vector<CallInst *> Worklist;
@@ -100,3 +100,11 @@ llvm::Pass *createEnumVerifierCallsPass() { return new EnumVerifierCalls(); }
 static RegisterPass<EnumVerifierCalls>
     X("enum-verifier-calls",
       "Assign unique identifiers to each call to verifier.error");
+
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::EnumVerifierCallsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return EnumVerifierCalls().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+}

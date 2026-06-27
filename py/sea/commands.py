@@ -932,10 +932,13 @@ class Seaopt(sea.LimitedCmd):
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
 
+        # dev16 seaopt's curated new-PM pipeline (buildSeaPipeline) does not run
+        # indvars / loop-idiom and dropped the --seaopt-enable-indvar /
+        # --seaopt-enable-loop-idiom toggles, so there is nothing to disable here.
         if not args.enable_indvar:
-            argv.append ('--seaopt-enable-indvar=false')
+            pass  # was: --seaopt-enable-indvar=false (flag removed in dev16)
         if not args.enable_loop_idiom:
-            argv.append ('--seaopt-enable-loop-idiom=false')
+            pass  # was: --seaopt-enable-loop-idiom=false (flag removed in dev16)
         # if not args.enable_nondet_init:
         #     argv.append ('--enable-nondet-init=false')
         if args.inline_threshold is not None:

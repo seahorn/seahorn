@@ -251,3 +251,12 @@ Pass *createLowerGvInitializersPass() { return new LowerGvInitializers(); }
 
 static llvm::RegisterPass<seahorn::LowerGvInitializers>
     X("lower-gv-init", "Lower initialization of global variables");
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerGvInitializersPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return LowerGvInitializers().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

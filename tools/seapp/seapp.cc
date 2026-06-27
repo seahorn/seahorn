@@ -530,7 +530,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
     pm_wrapper.add(seahorn::createCanFailPass());
     pm_wrapper.add(seahorn::createMixedSemanticsPass());
-    pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+    pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
   } else if (CutLoops || PeelLoops > 0) {
     // -- cut loops to turn a program into loop-free program
@@ -556,7 +556,7 @@ int main(int argc, char **argv) {
   }
   // null deref check. WIP. Not used.
   else if (NullChecks) {
-    pm_wrapper.add(seahorn::createLowerCstExprPass());
+    pm_wrapper.addModulePass(seahorn::LowerConstantExprsPass());
     pm_wrapper.add(seahorn::createNullCheckPass());
   } else if (FatBoundsCheck) {
     initializeFatBufferBoundsCheckPass(Registry);
@@ -571,10 +571,10 @@ int main(int argc, char **argv) {
     pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
   } else if (CrabLowerIsDeref) {
     // -- prerequisite 1 : Lower constant expressions to instructions
-    pm_wrapper.add(seahorn::createLowerCstExprPass());
+    pm_wrapper.addModulePass(seahorn::LowerConstantExprsPass());
     pm_wrapper.add(llvm::createDeadCodeEliminationPass());
     // -- prerequisite 2 : Run Name Values Pass
-    pm_wrapper.add(seahorn::createNameValuesPass());
+    pm_wrapper.addModulePass(seahorn::NameValuesPass());
     // -- attempt to lower any left sea.is_dereferenceable()
     // First pass is attempted by using LLVM Memory Builtins to compute
     // the requested size of access <= object size.
@@ -647,7 +647,7 @@ int main(int argc, char **argv) {
 
     // -- explicitly initialize globals in the beginning of main()
     if (LowerGlobalInitializers)
-      pm_wrapper.add(seahorn::createLowerGvInitializersPass());
+      pm_wrapper.addModulePass(seahorn::LowerGvInitializersPass());
 
     // -- SSA
     pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
@@ -687,7 +687,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createDeadCodeEliminationPass());
     // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
-    pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+    pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
 
     if (!KeepArithOverflow)
       // lower arithmetic with overflow intrinsics
@@ -733,7 +733,7 @@ int main(int argc, char **argv) {
       // Superseded by DCE in LLVM12
       // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
-    pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+    pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
 
     // -- request seaopt to inline all functions
     if (InlineAll) {
@@ -755,7 +755,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(
           llvm::createGlobalDCEPass()); // kill unused internal global
       pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
-      pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+      pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
 
       // -- Promote memcpy to loads-and-stores for easier alias analysis.
       // -- inline can help with alignment which will help this pass
@@ -780,7 +780,7 @@ int main(int argc, char **argv) {
     if (EnumVerifierCalls)
       pm_wrapper.add(seahorn::createEnumVerifierCallsPass());
 
-    pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
+    pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
@@ -794,7 +794,7 @@ int main(int argc, char **argv) {
   }
 
   if (NameValues)
-    pm_wrapper.add(seahorn::createNameValuesPass());
+    pm_wrapper.addModulePass(seahorn::NameValuesPass());
 
   if (InstNamer)
     pm_wrapper.add(llvm::createInstructionNamerPass());

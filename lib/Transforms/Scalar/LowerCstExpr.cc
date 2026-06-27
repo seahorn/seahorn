@@ -232,3 +232,12 @@ Pass *createLowerCstExprPass() { return new LowerCstExprPass(); }
 
 static llvm::RegisterPass<seahorn::LowerCstExprPass>
     XX("lower-cst-expr", "Lower constant expressions to instructions");
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerConstantExprsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return LowerCstExprPass().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

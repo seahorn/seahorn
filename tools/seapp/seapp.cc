@@ -45,6 +45,8 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
+#include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
+#include "llvm/Transforms/Scalar/LoopPassManager.h"
 
 #include "llvm/IR/Verifier.h"
 
@@ -515,7 +517,6 @@ int main(int argc, char **argv) {
   assert(dl && "Could not find Data Layout for the module");
 
   pm_wrapper.addModulePass(llvm_seahorn::SeaAnnotation2MetadataPass());
-  pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
   if (ReplaceLoopsWithNDFuncs) {
     pm_wrapper.addModulePass(llvm::SeaLoopExtractorPass());
   }
@@ -551,7 +552,7 @@ int main(int argc, char **argv) {
     assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
     pm_wrapper.addFunctionPass(llvm::LoopSimplifyPass());
-    pm_wrapper.add(llvm::createLoopSimplifyCFGPass());
+    pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(llvm::LoopSimplifyCFGPass()));
     pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));
     pm_wrapper.addFunctionPass(llvm::LCSSAPass());
     if (PeelLoops > 0)

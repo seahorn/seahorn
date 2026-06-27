@@ -64,3 +64,12 @@ char MarkInternalInline::ID = 0;
 Pass *createMarkInternalInlinePass() { return new MarkInternalInline(); }
 
 } // namespace seahorn
+
+
+// --- new pass manager wrappers ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::MarkInternalInlinePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return MarkInternalInline().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

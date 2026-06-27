@@ -509,14 +509,14 @@ int main(int argc, char **argv) {
 
   if (RenameNondet)
     // -- ren-nondet utility pass
-    pm_wrapper.add(seahorn::createRenameNondetPass());
+    pm_wrapper.addModulePass(seahorn::RenameNondetPass());
   else if (StripShadowMem)
     // -- strips shadows. Useful for debugging
     pm_wrapper.addModulePass(seadsa::StripShadowMemNewPmPass());
   else if (KleeInternalize)
     // -- internalize external definitions to make klee happy
     // -- useful for preparing seahorn bitcode to be used with KLEE
-    pm_wrapper.add(seahorn::createKleeInternalizePass());
+    pm_wrapper.addModulePass(seahorn::KleeInternalizePass());
   else if (WrapMem)
     // -- wraps memory instructions with a custom function
     // -- not actively used. part of cex replaying
@@ -524,7 +524,7 @@ int main(int argc, char **argv) {
   else if (OnlyStripExtern) {
     // -- remove useless declarations
     pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
-    pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
+    pm_wrapper.addModulePass(seahorn::StripUselessDeclarationsPass());
   } else if (MixedSem) {
     // -- apply mixed semantics
     assert(LowerSwitch && "Lower switch must be enabled");
@@ -609,7 +609,7 @@ int main(int argc, char **argv) {
       pm_wrapper.addModulePass(seahorn::KillVarArgFnPass());
 
     if (StripExtern)
-      pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
+      pm_wrapper.addModulePass(seahorn::StripUselessDeclarationsPass());
 
     // -- mark entry points of all functions
     pm_wrapper.addModulePass(seahorn::MarkFnEntryPass());

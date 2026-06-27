@@ -1,3 +1,4 @@
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -52,15 +53,20 @@ struct MarkInternalAllocOrDeallocInline : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
+    return runImpl(M, [this](Function &F) -> const TargetLibraryInfo & {
+      return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    });
+  }
+
+  bool runImpl(Module &M,
+               function_ref<const TargetLibraryInfo &(Function &)> getTLI) {
     if (M.empty())
       return false;
 
     bool Change = false;
-    // Mark any function that calls a function that (de)allocates
-    // memory.
-   for (Function &F : M) 
+    for (Function &F : M)
       if (!F.isDeclaration() && F.hasLocalLinkage()) {
-        auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+        auto &tli = getTLI(F);
         Change |= markIfAllocationFn(F, &tli);
       }
     return Change;
@@ -126,3 +132,18 @@ Pass *createMarkInternalConstructOrDestructInlinePass() {
 }
 
 } // namespace seahorn
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::MarkInternalAllocOrDeallocInlinePass::run(llvm::Module &M,
+                                                   llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = MarkInternalAllocOrDeallocInline().runImpl(
+      M, [&](llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+        return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+      });
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}

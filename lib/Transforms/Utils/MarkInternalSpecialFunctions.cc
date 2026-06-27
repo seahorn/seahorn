@@ -147,3 +147,11 @@ seahorn::MarkInternalAllocOrDeallocInlinePass::run(llvm::Module &M,
   return changed ? llvm::PreservedAnalyses::none()
                  : llvm::PreservedAnalyses::all();
 }
+
+llvm::PreservedAnalyses
+seahorn::MarkInternalConstructOrDestructInlinePass::run(
+    llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return MarkInternalConstructOrDestructInline().runOnModule(M)
+             ? llvm::PreservedAnalyses::none()
+             : llvm::PreservedAnalyses::all();
+}

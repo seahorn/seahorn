@@ -37,6 +37,9 @@
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/IPO/GlobalOpt.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
@@ -657,7 +660,7 @@ int main(int argc, char **argv) {
       pm_wrapper.addModulePass(seahorn::ExternalizeAddressTakenFunctionsPass());
 
     // kill internal unused code
-    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
 
     // -- global optimizations
     pm_wrapper.addModulePass(llvm::GlobalOptPass());
@@ -762,15 +765,15 @@ int main(int argc, char **argv) {
         pm_wrapper.addModulePass(seahorn::MarkInternalAllocOrDeallocInlinePass());
       // mark constructors to be inlined
       if (InlineConstructFn)
-        pm_wrapper.add(
-            seahorn::createMarkInternalConstructOrDestructInlinePass());
+        pm_wrapper.addModulePass(
+            seahorn::MarkInternalConstructOrDestructInlinePass());
     }
 
     // run inliner pass
     if (InlineAll || InlineAllocFn || InlineConstructFn) {
       pm_wrapper.addModulePass(llvm::AlwaysInlinerPass());
-      pm_wrapper.add(
-          llvm::createGlobalDCEPass()); // kill unused internal global
+      pm_wrapper.addModulePass(
+          llvm::GlobalDCEPass()); // kill unused internal global
       pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
       pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
 
@@ -785,7 +788,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addFunctionPass(llvm::DCEPass());
     // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
-    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
     pm_wrapper.addFunctionPass(llvm::UnifyFunctionExitNodesPass());
 
     // -- moves loop initialization up
@@ -799,7 +802,7 @@ int main(int argc, char **argv) {
 
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
-    pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
 
     // -- Enable function slicing
     // AG: NOT USED. Not part of std pipeline
@@ -826,9 +829,9 @@ int main(int argc, char **argv) {
 
   if (!OutputFilename.empty()) {
     if (OutputAssembly)
-      pm_wrapper.add(createPrintModulePass(output->os()));
+      pm_wrapper.addModulePass(llvm::PrintModulePass(output->os()));
     else
-      pm_wrapper.add(createBitcodeWriterPass(output->os()));
+      pm_wrapper.addModulePass(llvm::BitcodeWriterPass(output->os()));
   }
 
   pm_wrapper.run(*module.get());

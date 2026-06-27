@@ -217,4 +217,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class MarkInternalConstructOrDestructInlinePass : public llvm::PassInfoMixin<MarkInternalConstructOrDestructInlinePass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

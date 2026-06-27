@@ -187,4 +187,14 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class DevirtFunctionsPass : public llvm::PassInfoMixin<DevirtFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class CrabLowerIsDerefPass : public llvm::PassInfoMixin<CrabLowerIsDerefPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

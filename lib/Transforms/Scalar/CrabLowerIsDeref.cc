@@ -73,7 +73,11 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   const llvm::DataLayout &dl = M.getDataLayout();
   // Dependent passes as local instances (new-PM friendly; no getAnalysis).
   llvm::TargetLibraryInfoWrapperPass tliPass{llvm::Triple(M.getTargetTriple())};
-  seadsa::AllocWrapInfo allocInfo(&tliPass);
+  seadsa::TargetLibraryInfoGetter getTLI =
+      [&tliPass](const llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+    return tliPass.getTLI(F);
+  };
+  seadsa::AllocWrapInfo allocInfo(getTLI);
   allocInfo.initialize(M, nullptr);
   seadsa::DsaLibFuncInfo dsaLibFuncInfo;
   dsaLibFuncInfo.initialize(M);
@@ -82,7 +86,7 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
 
   // Get seadsa -- pointer analysis
   seadsa::ContextSensitiveGlobalAnalysis dsa(
-      dl, tliPass, allocInfo, dsaLibFuncInfo, cg, setFactory,
+      dl, getTLI, allocInfo, dsaLibFuncInfo, cg, setFactory,
       true /* always store summary graphs*/);
   // Run dsa analysis on current module
   dsa.runOnModule(M);
@@ -163,6 +167,7 @@ llvm::Pass *seahorn::createCrabLowerIsDerefPass() {
 #include "seahorn/SeaNewPmPasses.hh"
 #ifdef HAVE_CLAM
 #include "llvm/ADT/Triple.h"
+#include "seadsa/TargetLibraryInfoGetter.hh"
 llvm::PreservedAnalyses
 seahorn::CrabLowerIsDerefPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return CrabLowerIsDeref().runOnModule(M) ? llvm::PreservedAnalyses::none()

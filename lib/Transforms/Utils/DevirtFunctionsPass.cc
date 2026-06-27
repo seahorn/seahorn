@@ -86,13 +86,17 @@ public:
       LOG("devirt",
           errs() << "Devirtualizing indirect calls using sea-dsa+types ...\n";);
       auto &dl = M.getDataLayout();
-      seadsa::AllocWrapInfo allocInfo(&tli);
+      seadsa::TargetLibraryInfoGetter getTLI =
+          [&tli](const llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+        return tli.getTLI(F);
+      };
+      seadsa::AllocWrapInfo allocInfo(getTLI);
       seadsa::DsaLibFuncInfo dsaLibFuncInfo;
       allocInfo.initialize(M, nullptr);
       dsaLibFuncInfo.initialize(M);
 
-      seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, dsaLibFuncInfo,
-                                             cg, true);
+      seadsa::CompleteCallGraphAnalysis ccga(dl, getTLI, allocInfo,
+                                             dsaLibFuncInfo, cg, true);
       ccga.runOnModule(M);
       LOG("devirt-dsa-cg", ccga.printStats(M, errs()));
       CSR.reset(new CallSiteResolverByDsa(M, ccga));

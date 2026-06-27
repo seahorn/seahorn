@@ -523,7 +523,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addModulePass(seahorn::WrapMemPass());
   else if (OnlyStripExtern) {
     // -- remove useless declarations
-    pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
+    pm_wrapper.addModulePass(seahorn::DevirtFunctionsPass());
     pm_wrapper.addModulePass(seahorn::StripUselessDeclarationsPass());
   } else if (MixedSem) {
     // -- apply mixed semantics
@@ -585,7 +585,7 @@ int main(int argc, char **argv) {
     // invariants for each pointer.
     // Note that, another prerequisite: Sea-DSA analysis is run inside
     // the below LLVM pass.
-    pm_wrapper.add(seahorn::createCrabLowerIsDerefPass());
+    pm_wrapper.addModulePass(seahorn::CrabLowerIsDerefPass());
   }
   // default pre-processing pipeline
   else {
@@ -634,7 +634,7 @@ int main(int argc, char **argv) {
       // WholeProgramDevirt pass is new-PM only now. It is a no-op without CFI
       // type metadata, and SeaHorn's own devirtualization below does the work,
       // so it is dropped here.
-      pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
+      pm_wrapper.addModulePass(seahorn::DevirtFunctionsPass());
     }
 
     // -- externalize uses of address-taken functions

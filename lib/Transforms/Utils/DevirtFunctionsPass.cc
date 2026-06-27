@@ -55,9 +55,12 @@ public:
 
   DevirtualizeFunctionsPass() : ModulePass(ID) {}
 
-  virtual bool runOnModule(Module &M) override  {
-    // -- Get the call graph to update
-    CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  virtual bool runOnModule(Module &M) override {
+    return runImpl(M, getAnalysis<CallGraphWrapperPass>().getCallGraph(),
+                   getAnalysis<TargetLibraryInfoWrapperPass>());
+  }
+  bool runImpl(Module &M, llvm::CallGraph &cg,
+               llvm::TargetLibraryInfoWrapperPass &tli) {
     DevirtualizeFunctions DF(&cg, AllowIndirectCalls);
     bool res = false;
 
@@ -83,10 +86,9 @@ public:
       LOG("devirt",
           errs() << "Devirtualizing indirect calls using sea-dsa+types ...\n";);
       auto &dl = M.getDataLayout();
-      auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
-      auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
-      auto &dsaLibFuncInfo = getAnalysis<seadsa::DsaLibFuncInfo>();
-      allocInfo.initialize(M, this);
+      seadsa::AllocWrapInfo allocInfo(&tli);
+      seadsa::DsaLibFuncInfo dsaLibFuncInfo;
+      allocInfo.initialize(M, nullptr);
       dsaLibFuncInfo.initialize(M);
 
       seadsa::CompleteCallGraphAnalysis ccga(dl, tli, allocInfo, dsaLibFuncInfo,
@@ -130,3 +132,14 @@ Pass *createDevirtualizeFunctionsPass() {
 // Pass registration
 static llvm::RegisterPass<seahorn::DevirtualizeFunctionsPass>
     XX("devirt-functions", "Devirtualize indirect function calls");
+
+// --- new pass manager wrapper (local CallGraph + TLI wrapper + sea-dsa info) ---
+#include "seahorn/SeaNewPmPasses.hh"
+#include "llvm/ADT/Triple.h"
+llvm::PreservedAnalyses
+seahorn::DevirtFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  llvm::TargetLibraryInfoWrapperPass tliWP{llvm::Triple(M.getTargetTriple())};
+  llvm::CallGraph cg(M);
+  bool changed = DevirtualizeFunctionsPass().runImpl(M, cg, tliWP);
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

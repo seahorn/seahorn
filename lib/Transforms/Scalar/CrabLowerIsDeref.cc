@@ -71,14 +71,13 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
                           << "Start Running Crab lowering is_deref checks\n";);
   CrabAnalysis crab = CrabAnalysis();
   const llvm::DataLayout &dl = M.getDataLayout();
-  // Get dependent LLVM Passes
-  auto &allocInfo = getAnalysis<seadsa::AllocWrapInfo>();
-  allocInfo.initialize(M, this);
-  auto &dsaLibFuncInfo = getAnalysis<seadsa::DsaLibFuncInfo>();
+  // Dependent passes as local instances (new-PM friendly; no getAnalysis).
+  llvm::TargetLibraryInfoWrapperPass tliPass{llvm::Triple(M.getTargetTriple())};
+  seadsa::AllocWrapInfo allocInfo(&tliPass);
+  allocInfo.initialize(M, nullptr);
+  seadsa::DsaLibFuncInfo dsaLibFuncInfo;
   dsaLibFuncInfo.initialize(M);
-  auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-  // Get target library info pass
-  auto &tliPass = getAnalysis<TargetLibraryInfoWrapperPass>();
+  llvm::CallGraph cg(M);
   seadsa::Graph::SetFactory setFactory;
 
   // Get seadsa -- pointer analysis
@@ -91,7 +90,7 @@ bool CrabLowerIsDeref::runOnModule(Module &M) {
   // Sea-DSA is the most common use.
   crab.runCrabAnalysisOnModule(M, dsa, tliPass);
   m_crab_ptr = &crab.getCrab();
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  seahorn::SeaBuiltinsInfo SBI;
 
   bool Changed = false;
 
@@ -159,3 +158,21 @@ llvm::Pass *seahorn::createCrabLowerIsDerefPass() {
   return new CrabLowerIsDeref();
 }
 #endif // HAVE_CLAM
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+#ifdef HAVE_CLAM
+#include "llvm/ADT/Triple.h"
+llvm::PreservedAnalyses
+seahorn::CrabLowerIsDerefPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return CrabLowerIsDeref().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                           : llvm::PreservedAnalyses::all();
+}
+#else
+#include "llvm/Support/ErrorHandling.h"
+llvm::PreservedAnalyses
+seahorn::CrabLowerIsDerefPass::run(llvm::Module &, llvm::ModuleAnalysisManager &) {
+  llvm::report_fatal_error(
+      "CrabLowerIsDeref pass requires building SeaHorn with Clam support");
+}
+#endif

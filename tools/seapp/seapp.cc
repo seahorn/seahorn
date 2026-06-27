@@ -16,6 +16,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+#include <functional>
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/LinkAllPasses.h"
@@ -40,6 +43,12 @@
 
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
+// Runs the new-PM SeaInstCombine; defined in SeaInstCombineRunner.cpp so this TU
+// never pulls llvm's InstCombine.h (which shares SeaInstCombine.h's include
+// guard and would otherwise shadow it).
+namespace seapp {
+void runSeaInstCombine(llvm::Module &m);
+}
 #endif
 
 #include "seadsa/InitializePasses.hh"
@@ -301,28 +310,62 @@ std::string getFileName(const std::string &str) {
 }
 
 namespace {
-/// Simple wrapper around llvm::legacy::PassManager for easier debugging.
+/// Hybrid pass driver for the new-pass-manager migration.
+///
+/// SeaHorn's preprocessing passes are (for now) still legacy passes, so they
+/// are collected into batches and each batch is run through a single
+/// llvm::legacy::PassManager (which preserves legacy analysis sharing within a
+/// batch). New-PM passes (e.g. SeaInstCombine) run natively between batches.
+/// As SeaHorn passes are ported to the new PM they move out of the legacy
+/// batches; once all are ported the legacy bridge can be dropped.
 class SeaPassManagerWrapper {
-  llvm::legacy::PassManager m_PM;
+  std::vector<llvm::Pass *> m_batch;
+  std::vector<std::function<void(llvm::Module &)>> m_steps;
   int m_verifierInstanceID = 0;
+
+  void flushBatch() {
+    if (m_batch.empty())
+      return;
+    std::vector<llvm::Pass *> passes;
+    passes.swap(m_batch);
+    m_steps.push_back([passes](llvm::Module &m) {
+      llvm::legacy::PassManager pm;
+      for (llvm::Pass *p : passes)
+        pm.add(p);
+      pm.run(m);
+    });
+  }
 
 public:
   SeaPassManagerWrapper() {
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
-                                                "Initial Verifier Pass"));
+      m_batch.push_back(seahorn::createDebugVerifierPass(
+          ++m_verifierInstanceID, "Initial Verifier Pass"));
   }
+
   void add(llvm::Pass *pass) {
-    m_PM.add(pass);
-
+    m_batch.push_back(pass);
     if (VerifyAfterAll)
-      m_PM.add(seahorn::createDebugVerifierPass(++m_verifierInstanceID,
-                                                pass->getPassName()));
+      m_batch.push_back(seahorn::createDebugVerifierPass(
+          ++m_verifierInstanceID, pass->getPassName()));
   }
 
-  void run(llvm::Module &m) { m_PM.run(m); }
+  // Run SeaHorn's InstCombine: the new-PM SeaInstCombine (Avoid* knobs) when
+  // llvm-seahorn is available, otherwise stock LLVM InstCombine.
+  void addInstCombine() {
+#ifdef HAVE_LLVM_SEAHORN
+    flushBatch();
+    m_steps.push_back(seapp::runSeaInstCombine);
+#else
+    add(llvm::createInstructionCombiningPass());
+#endif
+  }
 
-  llvm::legacy::PassManager &getPassManager() { return m_PM; }
+  void run(llvm::Module &m) {
+    flushBatch();
+    for (auto &step : m_steps)
+      step(m);
+  }
 };
 } // namespace
 
@@ -570,7 +613,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createPromoteMemcpyPass());
 
     // -- cleanup after SSA
-    pm_wrapper.add(seahorn::createInstCombine());
+    pm_wrapper.addInstCombine();
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     // -- break aggregates
@@ -585,7 +628,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createNondetInitPass());
 
     // -- cleanup after break aggregates
-    pm_wrapper.add(seahorn::createInstCombine());
+    pm_wrapper.addInstCombine();
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     // eliminate unused calls to verifier.nondet() functions
@@ -606,7 +649,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createLowerLibCxxAbiFunctionsPass());
 
     // cleanup after lowering
-    pm_wrapper.add(seahorn::createInstCombine());
+    pm_wrapper.addInstCombine();
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     if (UnfoldLoopsForDsa) {

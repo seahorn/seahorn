@@ -53,6 +53,7 @@
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
 #include "seahorn/SeaNewPmPasses.hh"
+#include "seahorn/SeaNewPmLoopPasses.hh"
 
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
@@ -556,7 +557,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));
     pm_wrapper.addFunctionPass(llvm::LCSSAPass());
     if (PeelLoops > 0)
-      pm_wrapper.add(seahorn::createLoopPeelerPass(PeelLoops));
+      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(seahorn::LoopPeelerNewPass(PeelLoops)));
     if (CutLoops) {
       pm_wrapper.addFunctionPass(seahorn::BackEdgeCutterPass());
       // -- disabled. back-edge-cutter should be more robust
@@ -719,7 +720,7 @@ int main(int argc, char **argv) {
 #ifdef HAVE_LLVM_SEAHORN
       pm_wrapper.addFunctionPass(llvm_seahorn::SeaFakeLatchExitPass());
 #endif
-      pm_wrapper.add(seahorn::createUnfoldLoopForDsaPass());
+      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(seahorn::UnfoldLoopForDsaNewPass()));
     }
 
     if (SimplifyPointerLoops) {

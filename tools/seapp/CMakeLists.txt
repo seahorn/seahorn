@@ -12,10 +12,12 @@ set (USED_LIBS
   ${GMP_LIB}
   ${RT_LIB})
 
-set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core 
+set(LLVM_LINK_COMPONENTS irreader bitwriter ipo scalaropts instrumentation core
   # XXX not clear why these last two are required
-  codegen objcarcopts)
-add_llvm_executable(seapp DISABLE_LLVM_LINK_LLVM_DYLIB seapp.cc)
+  codegen objcarcopts
+  # passes provides PassBuilder, used to run the new-PM SeaInstCombine
+  passes)
+add_llvm_executable(seapp DISABLE_LLVM_LINK_LLVM_DYLIB seapp.cc SeaInstCombineRunner.cpp)
 target_link_libraries (seapp PRIVATE ${USED_LIBS})
 llvm_config (seapp ${LLVM_LINK_COMPONENTS})
 install(TARGETS seapp RUNTIME DESTINATION bin)

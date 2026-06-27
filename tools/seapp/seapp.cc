@@ -62,6 +62,7 @@
 #include "llvm_seahorn/Transforms/Scalar.h"
 #include "llvm_seahorn/Transforms/Scalar/SeaFakeLatchExit.h"
 #include "llvm_seahorn/Transforms/IPO/SeaLoopExtractor.h"
+#include "llvm_seahorn/Transforms/Scalar/SeaLoopRotate.h"
 // Runs the new-PM SeaInstCombine; defined in SeaInstCombineRunner.cpp so this TU
 // never pulls llvm's InstCombine.h (which shares SeaInstCombine.h's include
 // guard and would otherwise shadow it).
@@ -554,7 +555,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
     pm_wrapper.addFunctionPass(llvm::LoopSimplifyPass());
     pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(llvm::LoopSimplifyCFGPass()));
-    pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));
+    pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(llvm_seahorn::SeaLoopRotatePass()));
     pm_wrapper.addFunctionPass(llvm::LCSSAPass());
     if (PeelLoops > 0)
       pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(seahorn::LoopPeelerNewPass(PeelLoops)));

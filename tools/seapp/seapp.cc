@@ -48,6 +48,9 @@
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
+#ifndef HAVE_LLVM_SEAHORN
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#endif
 #include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 
@@ -333,34 +336,16 @@ std::string getFileName(const std::string &str) {
 }
 
 namespace {
-/// Hybrid pass driver for the new-pass-manager migration.
+/// New-pass-manager driver for seapp.
 ///
-/// Passes accumulate into two kinds of batches that run in order:
-///  - legacy SeaHorn passes run through one llvm::legacy::PassManager per batch
-///    (preserving in-batch legacy analysis sharing);
-///  - new-PM passes accumulate into a llvm::ModulePassManager batch.
-/// Adding a pass of the other kind flushes the current batch, so program order
-/// is preserved. As SeaHorn passes are ported to the new PM they move from the
-/// legacy side (add) to the native side (addModulePass / addFunctionPass);
-/// once all are ported the legacy bridge can be dropped.
+/// Passes accumulate into a llvm::ModulePassManager (module passes directly,
+/// function passes via createModuleToFunctionPassAdaptor). SeaHorn's
+/// SeaInstCombine runs as its own flushed step so it executes in program order
+/// with everything else. The whole seapp pipeline runs on the new PM; there is
+/// no legacy PassManager bridge.
 class SeaPassManagerWrapper {
-  std::vector<llvm::Pass *> m_legacy;
   std::unique_ptr<llvm::ModulePassManager> m_native;
   std::vector<std::function<void(llvm::Module &)>> m_steps;
-  int m_verifierInstanceID = 0;
-
-  void flushLegacy() {
-    if (m_legacy.empty())
-      return;
-    std::vector<llvm::Pass *> passes;
-    passes.swap(m_legacy);
-    m_steps.push_back([passes](llvm::Module &m) {
-      llvm::legacy::PassManager pm;
-      for (llvm::Pass *p : passes)
-        pm.add(p);
-      pm.run(m);
-    });
-  }
 
   void flushNative() {
     if (!m_native)
@@ -384,53 +369,46 @@ class SeaPassManagerWrapper {
   }
 
   llvm::ModulePassManager &native() {
-    flushLegacy();
     if (!m_native)
       m_native = std::make_unique<llvm::ModulePassManager>();
     return *m_native;
   }
 
-public:
-  SeaPassManagerWrapper() {
+  // -- Debug aid (--verify-after-all): verify the module after each pass.
+  void maybeVerify() {
     if (VerifyAfterAll)
-      m_legacy.push_back(seahorn::createDebugVerifierPass(
-          ++m_verifierInstanceID, "Initial Verifier Pass"));
+      native().addPass(llvm::VerifierPass());
   }
 
-  // Add a legacy pass (runs via the legacy bridge).
-  void add(llvm::Pass *pass) {
-    flushNative();
-    m_legacy.push_back(pass);
-    if (VerifyAfterAll)
-      m_legacy.push_back(seahorn::createDebugVerifierPass(
-          ++m_verifierInstanceID, pass->getPassName()));
-  }
+public:
+  SeaPassManagerWrapper() { maybeVerify(); }
 
   // Add a native new-PM module pass.
   template <typename PassT> void addModulePass(PassT &&pass) {
     native().addPass(std::forward<PassT>(pass));
+    maybeVerify();
   }
 
   // Add a native new-PM function pass (adapted into the module pipeline).
   template <typename PassT> void addFunctionPass(PassT &&pass) {
     native().addPass(
         llvm::createModuleToFunctionPassAdaptor(std::forward<PassT>(pass)));
+    maybeVerify();
   }
 
   // Run SeaHorn's InstCombine: the new-PM SeaInstCombine (Avoid* knobs) when
   // llvm-seahorn is available, otherwise stock LLVM InstCombine.
   void addInstCombine() {
 #ifdef HAVE_LLVM_SEAHORN
-    flushLegacy();
     flushNative();
     m_steps.push_back(seapp::runSeaInstCombine);
+    maybeVerify();
 #else
-    add(llvm::createInstructionCombiningPass());
+    addFunctionPass(llvm::InstCombinePass());
 #endif
   }
 
   void run(llvm::Module &m) {
-    flushLegacy();
     flushNative();
     for (auto &step : m_steps)
       step(m);

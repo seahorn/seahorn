@@ -1,3 +1,4 @@
+#include "llvm/ADT/STLExtras.h"
 #include "seadsa/DsaAnalysis.hh"
 #include "llvm/ADT/Triple.h"
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
@@ -288,6 +289,10 @@ public:
         *llvm::PassRegistry::getPassRegistry());
   }
   virtual bool runOnModule(llvm::Module &M) override;
+  bool runImpl(llvm::Module &M, seadsa::DsaInfo &dsa,
+               llvm::function_ref<const llvm::TargetLibraryInfo &(
+                   const llvm::Function &)>
+                   getTLI);
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   virtual llvm::StringRef getPassName() const override { return "SimpleMemoryCheck"; }
 
@@ -980,6 +985,16 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
 }
 
 bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
+  // Legacy entry: obtain sea-dsa + TLI from the legacy pass manager.
+  return runImpl(M, getAnalysis<seadsa::DsaInfoPass>().getDsaInfo(),
+                 [this](const Function &F) -> const TargetLibraryInfo & {
+                   return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+                 });
+}
+
+bool SimpleMemoryCheck::runImpl(
+    Module &M, seadsa::DsaInfo &dsa,
+    function_ref<const TargetLibraryInfo &(const Function &)> getTLI) {
   if (M.begin() == M.end())
     return false;
 
@@ -994,9 +1009,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_TLI = nullptr;
   m_DL = &M.getDataLayout();
 
-  llvm::TargetLibraryInfoWrapperPass tliWP{llvm::Triple(M.getTargetTriple())};
-  seadsa::LocalDsaInfo localDsa(M, tliWP);
-  m_SDSA = std::make_unique<SeaDsa>(localDsa.getDsaInfo());
+  m_SDSA = std::make_unique<SeaDsa>(dsa);
   m_PTA = m_SDSA.get();
 
   SMC_LOG(errs() << " ========== SMC (" << (seadsa::FieldType::IsNotTypeAware() ? "Not" : "")
@@ -1042,7 +1055,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         F.getName().startswith("verifier."))
       continue;
 
-    m_TLI = &tliWP.getTLI(F);
+    m_TLI = &getTLI(F);
     for (auto &BB : F) {
       for (auto &V : BB) {
         auto *I = dyn_cast<Instruction>(&V);
@@ -1365,11 +1378,21 @@ INITIALIZE_PASS_END(SimpleMemoryCheck, "smc",
 // static llvm::RegisterPass<SimpleMemoryCheck>
 //     Y("smc", "Insert array buffer checks using simple encoding");
 
-// --- new pass manager wrapper (local TLI wrapper + self-contained sea-dsa) ---
+// --- new pass manager wrapper: consume the cached sea-dsa DsaInfoAnalysis ---
 #include "seahorn/SeaNewPmPasses.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
 llvm::PreservedAnalyses
 seahorn::SimpleMemoryCheckPass::run(llvm::Module &M,
-                                    llvm::ModuleAnalysisManager &) {
-  return SimpleMemoryCheck().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                            : llvm::PreservedAnalyses::all();
+                                    llvm::ModuleAnalysisManager &MAM) {
+  seadsa::DsaInfo &dsa = MAM.getResult<seadsa::DsaInfoAnalysis>(M).getDsaInfo();
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = SimpleMemoryCheck().runImpl(
+      M, dsa,
+      [&](const llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+        return FAM.getResult<llvm::TargetLibraryAnalysis>(
+            const_cast<llvm::Function &>(F));
+      });
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

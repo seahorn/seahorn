@@ -42,4 +42,44 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &);
 };
 
+class NondetInitPass : public llvm::PassInfoMixin<NondetInitPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class DeadNondetElimPass : public llvm::PassInfoMixin<DeadNondetElimPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
+class DummyMainFunctionPass : public llvm::PassInfoMixin<DummyMainFunctionPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class ExternalizeFunctionsPass : public llvm::PassInfoMixin<ExternalizeFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class ExternalizeAddressTakenFunctionsPass : public llvm::PassInfoMixin<ExternalizeAddressTakenFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class KillVarArgFnPass : public llvm::PassInfoMixin<KillVarArgFnPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class MarkInternalInlinePass : public llvm::PassInfoMixin<MarkInternalInlinePass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class WrapMemPass : public llvm::PassInfoMixin<WrapMemPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

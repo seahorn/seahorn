@@ -131,3 +131,12 @@ Pass *createWrapMemPass() { return new WrapMem(); }
 
 static RegisterPass<WrapMem>
     X("wrap-mem-pass", "Wrap external memory accesses with custom functions");
+
+
+// --- new pass manager wrappers ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::WrapMemPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return WrapMem().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

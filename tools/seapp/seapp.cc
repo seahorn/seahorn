@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
   else if (WrapMem)
     // -- wraps memory instructions with a custom function
     // -- not actively used. part of cex replaying
-    pm_wrapper.add(seahorn::createWrapMemPass());
+    pm_wrapper.addModulePass(seahorn::WrapMemPass());
   else if (OnlyStripExtern) {
     // -- remove useless declarations
     pm_wrapper.add(seahorn::createDevirtualizeFunctionsPass());
@@ -568,7 +568,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createAddBranchSentinelPassPass());
   } else if (ExternalizeFns) {
     // -- Externalize some user-selected functions
-    pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
+    pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
   } else if (CrabLowerIsDeref) {
     // -- prerequisite 1 : Lower constant expressions to instructions
     pm_wrapper.add(seahorn::createLowerCstExprPass());
@@ -588,10 +588,10 @@ int main(int argc, char **argv) {
   // default pre-processing pipeline
   else {
     // -- Externalize some user-selected functions
-    pm_wrapper.add(seahorn::createExternalizeFunctionsPass());
+    pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
 
     // -- Replace main function by entry point.
-    pm_wrapper.add(seahorn::createDummyMainFunctionPass());
+    pm_wrapper.addModulePass(seahorn::DummyMainFunctionPass());
 
     // -- promote verifier specific functions to special names
     pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
@@ -604,7 +604,7 @@ int main(int argc, char **argv) {
       pm_wrapper.addFunctionPass(seahorn::PromoteBoolLoadsPass());
 
     if (KillVaArg)
-      pm_wrapper.add(seahorn::createKillVarArgFnPass());
+      pm_wrapper.addModulePass(seahorn::KillVarArgFnPass());
 
     if (StripExtern)
       pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
@@ -637,7 +637,7 @@ int main(int argc, char **argv) {
 
     // -- externalize uses of address-taken functions
     if (ExternalizeAddrTakenFuncs)
-      pm_wrapper.add(seahorn::createExternalizeAddressTakenFunctionsPass());
+      pm_wrapper.addModulePass(seahorn::ExternalizeAddressTakenFunctionsPass());
 
     // kill internal unused code
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
@@ -654,7 +654,7 @@ int main(int argc, char **argv) {
 
     if (NondetInit)
       // -- Turn undef into nondet
-      pm_wrapper.add(seahorn::createNondetInitPass());
+      pm_wrapper.addModulePass(seahorn::NondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
     pm_wrapper.add(seahorn::createPromoteMemcpyPass());
@@ -672,14 +672,14 @@ int main(int argc, char **argv) {
     if (NondetInit)
       // -- Turn undef into nondet (undef are created by SROA when it calls
       //     mem2reg)
-      pm_wrapper.add(seahorn::createNondetInitPass());
+      pm_wrapper.addModulePass(seahorn::NondetInitPass());
 
     // -- cleanup after break aggregates
     pm_wrapper.addInstCombine();
     pm_wrapper.add(llvm::createCFGSimplificationPass());
 
     // eliminate unused calls to verifier.nondet() functions
-    pm_wrapper.add(seahorn::createDeadNondetElimPass());
+    pm_wrapper.addFunctionPass(seahorn::DeadNondetElimPass());
 
     if (LowerSwitch)
       pm_wrapper.add(llvm::createLowerSwitchPass());
@@ -738,7 +738,7 @@ int main(int argc, char **argv) {
     // -- request seaopt to inline all functions
     if (InlineAll) {
       pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
-      pm_wrapper.add(seahorn::createMarkInternalInlinePass());
+      pm_wrapper.addModulePass(seahorn::MarkInternalInlinePass());
     } else {
       // mark memory allocator/deallocators to be inlined
       if (InlineAllocFn)

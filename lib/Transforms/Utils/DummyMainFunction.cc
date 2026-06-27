@@ -168,3 +168,12 @@ char DummyMainFunction::ID = 0;
 Pass *createDummyMainFunctionPass() { return new DummyMainFunction(); }
 
 } // namespace seahorn
+
+
+// --- new pass manager wrappers ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::DummyMainFunctionPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return DummyMainFunction().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

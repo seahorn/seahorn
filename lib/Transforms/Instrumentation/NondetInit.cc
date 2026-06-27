@@ -185,3 +185,17 @@ static RegisterPass<seahorn::NondetInit> X("nondet-init",
 
 static RegisterPass<seahorn::KillUnusedNondet> Y("kill-nondet",
                                                  "Remove unused nondet calls.");
+
+
+// --- new pass manager wrappers ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::NondetInitPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return NondetInit().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}
+llvm::PreservedAnalyses
+seahorn::DeadNondetElimPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  return KillUnusedNondet().runOnFunction(F) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

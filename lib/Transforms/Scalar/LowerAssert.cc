@@ -64,7 +64,7 @@ bool isAssertionHandler(Function *F) {
 
 bool LowerAssert::runOnModule(Module &M) {
 
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  SeaBuiltinsInfo SBI;
 
   assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, M);
   bool Changed = false;
@@ -160,11 +160,11 @@ void LowerAssert::LowerFailCall(CallInst *CI, CallGraph *cg, Function *assumeFn,
 }
 
 bool LowerAssert::runOnFunction(Function &F) {
-  CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  CallGraphWrapperPass *cgwp = nullptr;
   CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
   IRBuilder<> B(F.getContext());
 
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  SeaBuiltinsInfo SBI;
   std::vector<CallInst *> Worklist;
   for (auto &BB : F) {
     for (auto &I : BB) {
@@ -225,3 +225,11 @@ char LowerAssert::ID = 0;
 Pass *createLowerAssertPass() { return new LowerAssert(); }
 
 } // namespace seahorn
+
+// --- new pass manager wrapper (SeaBuiltinsInfo is stateless; CG dropped) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerAssertPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return LowerAssert().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+}

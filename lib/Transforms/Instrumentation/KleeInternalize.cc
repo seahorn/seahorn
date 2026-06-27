@@ -7,6 +7,7 @@ Released under a modified BSD license, please see license.txt for full
 terms.
 */
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -44,6 +45,7 @@ class KleeInternalize : public ModulePass {
 
   const DataLayout *m_dl;
   TargetLibraryInfo *m_tli;
+  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)> m_getTLI;
   IntegerType *m_intptrTy;
 
   FunctionCallee m_assertFailFn;
@@ -72,7 +74,7 @@ class KleeInternalize : public ModulePass {
     m_externalNames.insert("klee_assume");
     m_externalNames.insert("klee_make_symbolic");
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     if (CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr) {
       cg->getOrInsertFunction(dyn_cast<Function>(m_assertFailFn.getCallee()));
       cg->getOrInsertFunction(dyn_cast<Function>(m_kleeAssumeFn.getCallee()));
@@ -89,7 +91,7 @@ class KleeInternalize : public ModulePass {
 
     if (!m_tli)
       if (auto *Fn = dyn_cast<Function>(&GV))
-        m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(*Fn);
+        m_tli = &m_getTLI(*Fn);
 
     // -- known library function
     LibFunc F;
@@ -222,6 +224,13 @@ public:
   }
 
   bool runOnModule(Module &M) override {
+    return runImpl(M, [this](const Function &F) -> TargetLibraryInfo & {
+      return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    });
+  }
+  bool runImpl(Module &M,
+               function_ref<TargetLibraryInfo &(const Function &)> getTLI) {
+    m_getTLI = getTLI;
     declareKleeFunctions(M);
     internalizeVariables(M);
 
@@ -300,3 +309,14 @@ Pass *createKleeInternalizePass() { return new KleeInternalize(); }
 
 static llvm::RegisterPass<KleeInternalize>
     Y("klee-internalize-pass", "Internalize external definitions for Klee");
+
+// --- new pass manager wrapper (CG dropped) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::KleeInternalizePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = KleeInternalize().runImpl(M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
+    return FAM.getResult<llvm::TargetLibraryAnalysis>(const_cast<llvm::Function &>(F));
+  });
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

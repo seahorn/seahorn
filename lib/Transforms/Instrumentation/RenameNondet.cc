@@ -16,6 +16,7 @@ terms.
 DM-0002198
 */
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -36,6 +37,7 @@ namespace {
 class RenameNondet : public ModulePass {
   std::set<std::string> m_externalNames;
   TargetLibraryInfo *m_tli;
+  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)> m_getTLI;
   StringMap<int> m_functionId;
   Module *m_module;
   SmallSet<Function *, 32> m_killFn;
@@ -48,7 +50,7 @@ class RenameNondet : public ModulePass {
 
     if (!m_tli)
       if (auto *Fn = dyn_cast<Function>(&GV))
-        m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(*Fn);
+        m_tli = &m_getTLI(*Fn);
 
     // -- known library function
     LibFunc F;
@@ -100,6 +102,13 @@ public:
   }
 
   bool runOnModule(Module &M) override {
+    return runImpl(M, [this](const Function &F) -> TargetLibraryInfo & {
+      return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    });
+  }
+  bool runImpl(Module &M,
+               function_ref<TargetLibraryInfo &(const Function &)> getTLI) {
+    m_getTLI = getTLI;
     m_module = &M;
 
     for (Function &F : M)
@@ -158,3 +167,14 @@ Pass *createRenameNondetPass() { return new RenameNondet(); }
 static llvm::RegisterPass<RenameNondet>
     Y("rename-nondet-pass",
       "Assign a unique name to each non-determinism per call.");
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::RenameNondetPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = RenameNondet().runImpl(M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
+    return FAM.getResult<llvm::TargetLibraryAnalysis>(const_cast<llvm::Function &>(F));
+  });
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

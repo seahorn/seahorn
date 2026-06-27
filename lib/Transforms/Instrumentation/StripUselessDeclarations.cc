@@ -7,6 +7,7 @@ Released under a modified BSD license, please see license.txt for full
 terms.
 */
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -29,6 +30,7 @@ namespace
   {
     unsigned m_count;
     TargetLibraryInfo *m_tli;
+    llvm::function_ref<llvm::TargetLibraryInfo &(llvm::Function &)> m_getTLI;
 
   public:
     static char ID;
@@ -61,7 +63,7 @@ namespace
 
         if (KeepLibFn) {
             if (!m_tli)
-                m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI(F);
+                m_tli = &m_getTLI(F);
 
             // known library function
             LibFunc libfn;
@@ -73,6 +75,14 @@ namespace
     }
     bool runOnModule (Module &M) override
     {
+      return runImpl(M, [this](llvm::Function &F) -> llvm::TargetLibraryInfo & {
+        return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+      });
+    }
+    bool runImpl(llvm::Module &M,
+                 llvm::function_ref<llvm::TargetLibraryInfo &(llvm::Function &)> getTLI)
+    {
+      m_getTLI = getTLI;
       for (auto &F : M)
       {
         if (F.isDeclaration ())
@@ -211,3 +221,14 @@ namespace seahorn
 
 static llvm::RegisterPass<StripUselessDeclarations> X ("strip-useless-decls",
                                                        "Replace declarations by nondet");
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::StripUselessDeclarationsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = StripUselessDeclarations().runImpl(M, [&](llvm::Function &F) -> llvm::TargetLibraryInfo & {
+    return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+  });
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

@@ -172,4 +172,19 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
 };
 
+class RenameNondetPass : public llvm::PassInfoMixin<RenameNondetPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class KleeInternalizePass : public llvm::PassInfoMixin<KleeInternalizePass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class StripUselessDeclarationsPass : public llvm::PassInfoMixin<StripUselessDeclarationsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

@@ -82,4 +82,24 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class NameValuesPass : public llvm::PassInfoMixin<NameValuesPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class LowerGvInitializersPass : public llvm::PassInfoMixin<LowerGvInitializersPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class LowerConstantExprsPass : public llvm::PassInfoMixin<LowerConstantExprsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class SeaRemoveUnreachableBlocksPass : public llvm::PassInfoMixin<SeaRemoveUnreachableBlocksPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
 } // namespace seahorn

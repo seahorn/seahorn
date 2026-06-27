@@ -110,3 +110,12 @@ bool NameValues::runOnFunction(Function &F) {
 
 static llvm::RegisterPass<seahorn::NameValues> X("name-values",
                                              "Names all unnamed values");
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::NameValuesPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return NameValues().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

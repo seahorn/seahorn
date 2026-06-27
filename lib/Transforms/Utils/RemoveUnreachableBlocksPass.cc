@@ -26,3 +26,12 @@ namespace seahorn {
     Pass* createRemoveUnreachableBlocksPass()
     {return new RemoveUnreachableBlocksPass();}
 }
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::SeaRemoveUnreachableBlocksPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  return RemoveUnreachableBlocksPass().runOnFunction(F) ? llvm::PreservedAnalyses::none()
+                            : llvm::PreservedAnalyses::all();
+}

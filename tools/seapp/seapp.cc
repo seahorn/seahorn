@@ -531,7 +531,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createCanFailPass());
     pm_wrapper.add(seahorn::createMixedSemanticsPass());
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
-    pm_wrapper.add(seahorn::createPromoteMallocPass());
+    pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
   } else if (CutLoops || PeelLoops > 0) {
     // -- cut loops to turn a program into loop-free program
     assert(LowerSwitch && "Lower switch must be enabled");
@@ -597,11 +597,11 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createPromoteVerifierCallsPass());
 
     // -- promote top-level mallocs to alloca
-    pm_wrapper.add(seahorn::createPromoteMallocPass());
+    pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
 
     // -- turn loads from _Bool from truc to sgt
     if (PromoteBoolLoads)
-      pm_wrapper.add(seahorn::createPromoteBoolLoadsPass());
+      pm_wrapper.addFunctionPass(seahorn::PromoteBoolLoadsPass());
 
     if (KillVaArg)
       pm_wrapper.add(seahorn::createKillVarArgFnPass());
@@ -610,7 +610,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createStripUselessDeclarationsPass());
 
     // -- mark entry points of all functions
-    pm_wrapper.add(seahorn::createMarkFnEntryPass());
+    pm_wrapper.addModulePass(seahorn::MarkFnEntryPass());
 
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {
@@ -691,7 +691,7 @@ int main(int argc, char **argv) {
 
     if (!KeepArithOverflow)
       // lower arithmetic with overflow intrinsics
-      pm_wrapper.add(seahorn::createLowerArithWithOverflowIntrinsicsPass());
+      pm_wrapper.addFunctionPass(seahorn::LowerArithWithOverflowIntrinsicsPass());
     // lower libc++abi functions
     pm_wrapper.add(seahorn::createLowerLibCxxAbiFunctionsPass());
 
@@ -754,7 +754,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(llvm::createAlwaysInlinerLegacyPass());
       pm_wrapper.add(
           llvm::createGlobalDCEPass()); // kill unused internal global
-      pm_wrapper.add(seahorn::createPromoteMallocPass());
+      pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
       pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
 
       // -- Promote memcpy to loads-and-stores for easier alias analysis.
@@ -781,7 +781,7 @@ int main(int argc, char **argv) {
       pm_wrapper.add(seahorn::createEnumVerifierCallsPass());
 
     pm_wrapper.add(seahorn::createRemoveUnreachableBlocksPass());
-    pm_wrapper.add(seahorn::createPromoteMallocPass());
+    pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
     // -- Enable function slicing
@@ -803,7 +803,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createStripDeadDebugInfoPass());
 
   // --- verify if an undefined value can be read
-  pm_wrapper.add(seahorn::createCanReadUndefPass());
+  pm_wrapper.addModulePass(seahorn::CanReadUndefPass());
   // --- verify if bitcode is well-formed
   pm_wrapper.add(llvm::createVerifierPass());
 

@@ -146,3 +146,12 @@ llvm::Pass *createCanReadUndefPass() { return new CanReadUndef(); }
 
 static RegisterPass<seahorn::CanReadUndef>
     X("read-undef", "Verify if an undefined value can be read", false, false);
+
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::CanReadUndefPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return CanReadUndef().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                     : llvm::PreservedAnalyses::all();
+}

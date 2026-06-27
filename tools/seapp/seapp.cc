@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
     pm_wrapper.add(seahorn::createRenameNondetPass());
   else if (StripShadowMem)
     // -- strips shadows. Useful for debugging
-    pm_wrapper.add(seahorn::createStripShadowMemPass());
+    pm_wrapper.addModulePass(seadsa::StripShadowMemNewPmPass());
   else if (KleeInternalize)
     // -- internalize external definitions to make klee happy
     // -- useful for preparing seahorn bitcode to be used with KLEE
@@ -627,7 +627,7 @@ int main(int argc, char **argv) {
 
     // -- resolve indirect calls
     if (DevirtualizeFuncs) {
-      pm_wrapper.add(seadsa::createRemovePtrToIntPass());
+      pm_wrapper.addFunctionPass(seadsa::RemovePtrToIntPass());
       // NOTE: LLVM 15 removed the legacy createWholeProgramDevirtPass(); the
       // WholeProgramDevirt pass is new-PM only now. It is a no-op without CFI
       // type metadata, and SeaHorn's own devirtualization below does the work,

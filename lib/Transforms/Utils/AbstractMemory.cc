@@ -1,3 +1,4 @@
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -451,6 +452,7 @@ public:
 private:
   TargetLibraryInfo *m_tli;
   CallGraph *m_cg;
+  llvm::function_ref<llvm::LoopInfo &(llvm::Function &)> m_getLI;
   std::vector<FunctionCallee> m_ndfn;
   DenseMap<const Type *, FunctionCallee> m_extfn;
   std::unordered_set<const Value *> m_seen;
@@ -473,7 +475,7 @@ public:
     if (F.isDeclaration() || F.empty())
       return false;
 
-    LoopInfo *li = &getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
+    LoopInfo *li = &m_getLI(F);
     InstSet LoopConds;
     for (Loop *L : boost::make_iterator_range(li->begin(), li->end())) {
       extractLoopConditions(L, LoopConds);
@@ -508,12 +510,25 @@ public:
   }
 
   bool runOnModule(Module &M) override {
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
-    m_cg = cgwp ? &cgwp->getCallGraph() : nullptr;
+    return runImpl(
+        M,
+        [this](Function &F) -> TargetLibraryInfo & {
+          return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+        },
+        [this](Function &F) -> LoopInfo & {
+          return getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
+        });
+  }
+
+  bool runImpl(Module &M,
+               function_ref<TargetLibraryInfo &(Function &)> getTLI,
+               function_ref<LoopInfo &(Function &)> getLI) {
+    m_cg = nullptr;
+    m_getLI = getLI;
 
     bool Change = false;
     for (auto &F : M) {
-      m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+      m_tli = &getTLI(F);
       Change |= runOnFunction(F);
     }
 
@@ -581,3 +596,19 @@ char AbstractMemory::ID = 0;
 Pass *createAbstractMemoryPass() { return new AbstractMemory(); }
 
 } // namespace seahorn
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::AbstractMemoryPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = AbstractMemory().runImpl(
+      M,
+      [&](llvm::Function &F) -> llvm::TargetLibraryInfo & {
+        return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+      },
+      [&](llvm::Function &F) -> llvm::LoopInfo & {
+        return FAM.getResult<llvm::LoopAnalysis>(F);
+      });
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

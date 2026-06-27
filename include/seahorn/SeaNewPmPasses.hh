@@ -202,4 +202,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class AbstractMemoryPass : public llvm::PassInfoMixin<AbstractMemoryPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

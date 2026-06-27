@@ -717,7 +717,7 @@ int main(int argc, char **argv) {
     if (AbstractMemory) {
       // -- abstract memory load/stores pointer operands with
       // -- non-deterministic values
-      pm_wrapper.add(seahorn::createAbstractMemoryPass());
+      pm_wrapper.addModulePass(seahorn::AbstractMemoryPass());
       // -- abstract memory pass generates a lot of dead load/store
       // -- instructions
       pm_wrapper.add(llvm::createDeadCodeEliminationPass());

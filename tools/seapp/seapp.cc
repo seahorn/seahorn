@@ -817,7 +817,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addFunctionPass(llvm::InstructionNamerPass());
 
   if (StripDebug)
-    pm_wrapper.add(llvm::createStripDeadDebugInfoPass());
+    pm_wrapper.addModulePass(seahorn::SeaStripDeadDebugInfoPass());
 
   // --- verify if an undefined value can be read
   pm_wrapper.addModulePass(seahorn::CanReadUndefPass());

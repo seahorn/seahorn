@@ -207,4 +207,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class SeaStripDeadDebugInfoPass : public llvm::PassInfoMixin<SeaStripDeadDebugInfoPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

@@ -38,6 +38,7 @@ struct BackedgeCutter : public FunctionPass {
 
   BackedgeCutter() : FunctionPass(ID) {}
   bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI);
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<SeaBuiltinsInfoWrapperPass>();
     // preserve nothing
@@ -140,7 +141,9 @@ static bool cutBackEdge(BasicBlock *src, BasicBlock *dst, Function &F,
 }
 
 bool BackedgeCutter::runOnFunction(Function &F) {
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  return runImpl(F, getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI());
+}
+bool BackedgeCutter::runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI) {
   llvm::SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 256>
       BackEdges;
   llvm::FindFunctionBackedges(F, BackEdges);
@@ -165,3 +168,12 @@ bool BackedgeCutter::runOnFunction(Function &F) {
 }
 
 llvm::Pass *seahorn::createBackEdgeCutterPass() { return new BackedgeCutter(); }
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::BackEdgeCutterPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  seahorn::SeaBuiltinsInfo sbi;
+  bool changed = BackedgeCutter().runImpl(F, sbi);
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

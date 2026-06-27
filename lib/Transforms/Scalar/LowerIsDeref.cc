@@ -30,6 +30,7 @@ struct LowerIsDeref : public FunctionPass {
   LowerIsDeref() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI, const TargetLibraryInfo &TLI);
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<SeaBuiltinsInfoWrapperPass>();
     AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -41,8 +42,10 @@ char LowerIsDeref::ID = 0;
 } // namespace
 
 bool LowerIsDeref::runOnFunction(Function &F) {
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
-  auto &TLI = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+  return runImpl(F, getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI(),
+                 getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F));
+}
+bool LowerIsDeref::runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI, const TargetLibraryInfo &TLI) {
   auto &DL = F.getParent()->getDataLayout();
 
   bool Changed = false;
@@ -106,3 +109,12 @@ Value *seahorn::lowerIsDereferenceable(CallBase *IsDerefCall,
 }
 
 llvm::Pass *seahorn::createLowerIsDerefPass() { return new LowerIsDeref(); }
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerIsDerefPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+  seahorn::SeaBuiltinsInfo sbi;
+  bool changed = LowerIsDeref().runImpl(F, sbi, FAM.getResult<llvm::TargetLibraryAnalysis>(F));
+  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+}

@@ -501,7 +501,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
-  pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
+  pm_wrapper.addModulePass(llvm_seahorn::SeaAnnotation2MetadataPass());
   pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
   if (ReplaceLoopsWithNDFuncs) {
     pm_wrapper.addModulePass(llvm::SeaLoopExtractorPass());
@@ -738,7 +738,7 @@ int main(int argc, char **argv) {
 
     // -- request seaopt to inline all functions
     if (InlineAll) {
-      pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
+      pm_wrapper.addModulePass(llvm_seahorn::SeaAnnotation2MetadataPass());
       pm_wrapper.addModulePass(seahorn::MarkInternalInlinePass());
     } else {
       // mark memory allocator/deallocators to be inlined

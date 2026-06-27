@@ -1,6 +1,7 @@
 add_llvm_library (SeaTransformsScalar DISABLE_LLVM_LINK_LLVM_DYLIB
   LoopUnhoist.cc
   LowerCstExpr.cc
+  LowerThreadLocalAddress.cc
   LowerGvInitializers.cc
   LowerArithInstrinsics.cc
   LowerLibCxxAbiFunctions.cc

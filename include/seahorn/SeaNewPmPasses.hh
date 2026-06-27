@@ -222,4 +222,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class LowerThreadLocalAddressPass : public llvm::PassInfoMixin<LowerThreadLocalAddressPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
 } // namespace seahorn

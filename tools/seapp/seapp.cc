@@ -505,6 +505,10 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
+  // -- LLVM 16: lower llvm.threadlocal.address to the underlying global
+  //    (single-threaded opsem) so thread-local reads are not nondet.
+  pm_wrapper.addFunctionPass(seahorn::LowerThreadLocalAddressPass());
+
   pm_wrapper.addModulePass(llvm_seahorn::SeaAnnotation2MetadataPass());
   if (ReplaceLoopsWithNDFuncs) {
     pm_wrapper.addModulePass(llvm::SeaLoopExtractorPass());

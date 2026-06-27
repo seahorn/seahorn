@@ -25,7 +25,9 @@ set(LLVM_LINK_COMPONENTS
   ObjCARCOpts)
 add_llvm_executable(seahorn DISABLE_LLVM_LINK_LLVM_DYLIB seahorn.cpp)
 target_link_libraries (seahorn PRIVATE ${USED_LIBS})
-#llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
+# Append LLVM component libs AFTER the SeaHorn libs so static-archive resolution
+# pulls e.g. IntrinsicLowering (CodeGen) referenced from libseahorn (BvOpSem2).
+llvm_config (seahorn ${LLVM_LINK_COMPONENTS})
 install(TARGETS seahorn RUNTIME DESTINATION bin)
 
 if (SEAHORN_STATIC_EXE)

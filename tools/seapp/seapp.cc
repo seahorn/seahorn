@@ -657,7 +657,7 @@ int main(int argc, char **argv) {
       pm_wrapper.addModulePass(seahorn::NondetInitPass());
 
     // -- Promote memcpy to loads-and-stores for easier alias analysis.
-    pm_wrapper.add(seahorn::createPromoteMemcpyPass());
+    pm_wrapper.addFunctionPass(seahorn::PromoteMemcpyPass());
 
     // -- cleanup after SSA
     pm_wrapper.addInstCombine();
@@ -759,7 +759,7 @@ int main(int argc, char **argv) {
 
       // -- Promote memcpy to loads-and-stores for easier alias analysis.
       // -- inline can help with alignment which will help this pass
-      pm_wrapper.add(seahorn::createPromoteMemcpyPass());
+      pm_wrapper.addFunctionPass(seahorn::PromoteMemcpyPass());
     }
 
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING

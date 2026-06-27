@@ -102,4 +102,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
 };
 
+class PromoteMemcpyPass : public llvm::PassInfoMixin<PromoteMemcpyPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
 } // namespace seahorn

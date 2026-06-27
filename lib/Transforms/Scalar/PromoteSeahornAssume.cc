@@ -8,6 +8,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "seahorn/Support/SeaDebug.h"
+#include "seahorn/SeaNewPmPasses.hh"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -29,61 +30,64 @@ static bool hasAssumeUsers(Value &v) {
   return false;
 }
 
+// Shared core: promote verifier.assume(.not) calls to llvm.assume intrinsics.
+static bool promoteSeahornAssume(Function &F) {
+  if (F.empty())
+    return false;
+
+  bool Changed = false;
+
+  LLVMContext &ctx = F.getContext();
+  IRBuilder<> Builder(ctx);
+
+  for (auto &I : instructions(F)) {
+    if (!isa<CallInst>(&I))
+      continue;
+    // XXX this is a noop, since if this succeeds I is not a CallInst
+    Value *v = I.stripPointerCasts();
+    assert(isa<CallInst>(v));
+    auto &CI = cast<CallInst>(*v);
+    const Function *fn = CI.getCalledFunction();
+    if (!fn && CI.getCalledOperand())
+      fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
+
+    if (fn && (fn->getName().equals("verifier.assume") ||
+               fn->getName().equals("verifier.assume.not"))) {
+      Value *arg = CI.getOperand(0);
+      // already used in llvm.assume. skip it.
+      if (hasAssumeUsers(*arg))
+        continue;
+
+      /* insert after verifier.assume, otherwise, verifier assume
+         might get simplified away */
+      Builder.SetInsertPoint(I.getParent(), ++BasicBlock::iterator(I));
+      /** keep both llvm assume and verifier.assume to make sure
+          that LLVM does not touch our assumptions.
+          Might revisit this in the future.
+      */
+      if (fn->getName().equals("verifier.assume.not"))
+        arg = Builder.CreateNot(arg);
+      CallInst *c = Builder.CreateAssumption(arg);
+      /*
+         mark this assumption so that we know who inserted it
+         use c->getMetadata(seahorn) to test.
+      */
+      c->setMetadata(F.getParent()->getMDKindID("seahorn"),
+                     MDNode::get(ctx, std::nullopt));
+      Changed = true;
+    }
+  }
+
+  return Changed;
+}
+
 class PromoteSeahornAssume : public FunctionPass {
 public:
   static char ID;
 
   PromoteSeahornAssume() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) override {
-    if (F.empty())
-      return false;
-
-    bool Changed = false;
-
-    LLVMContext &ctx = F.getContext();
-    IRBuilder<> Builder(ctx);
-
-    for (auto &I : instructions(F)) {
-      if (!isa<CallInst>(&I))
-        continue;
-      // XXX this is a noop, since if this succeeds I is not a CallInst
-      Value *v = I.stripPointerCasts();
-      assert(isa<CallInst>(v));
-      auto &CI = cast<CallInst>(*v);
-      const Function *fn = CI.getCalledFunction();
-      if (!fn && CI.getCalledOperand())
-        fn = dyn_cast<const Function>(CI.getCalledOperand()->stripPointerCasts());
-
-      if (fn && (fn->getName().equals("verifier.assume") ||
-                 fn->getName().equals("verifier.assume.not"))) {
-        Value *arg = CI.getOperand(0);
-        // already used in llvm.assume. skip it.
-        if (hasAssumeUsers(*arg))
-          continue;
-
-        /* insert after verifier.assume, otherwise, verifier assume
-           might get simplified away */
-        Builder.SetInsertPoint(I.getParent(), ++BasicBlock::iterator(I));
-        /** keep both llvm assume and verifier.assume to make sure
-            that LLVM does not touch our assumptions.
-            Might revisit this in the future.
-        */
-        if (fn->getName().equals("verifier.assume.not"))
-          arg = Builder.CreateNot(arg);
-        CallInst *c = Builder.CreateAssumption(arg);
-        /*
-           mark this assumption so that we know who inserted it
-           use c->getMetadata(seahorn) to test.
-        */
-        c->setMetadata(F.getParent()->getMDKindID("seahorn"),
-                       MDNode::get(ctx, std::nullopt));
-        Changed = true;
-      }
-    }
-
-    return Changed;
-  }
+  bool runOnFunction(Function &F) override { return promoteSeahornAssume(F); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override { AU.setPreservesAll(); }
   virtual StringRef getPassName() const override {
@@ -103,3 +107,10 @@ FunctionPass *createPromoteSeahornAssumePass() {
 static llvm::RegisterPass<PromoteSeahornAssume>
     X("promote-seahorn-assume",
       "Promote seahorn assume to llvm assume intrinsic");
+
+llvm::PreservedAnalyses
+seahorn::PromoteSeahornAssumePass::run(llvm::Function &F,
+                                       llvm::FunctionAnalysisManager &) {
+  return promoteSeahornAssume(F) ? llvm::PreservedAnalyses::none()
+                                 : llvm::PreservedAnalyses::all();
+}

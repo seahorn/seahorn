@@ -37,6 +37,7 @@
 
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
@@ -312,22 +313,25 @@ std::string getFileName(const std::string &str) {
 namespace {
 /// Hybrid pass driver for the new-pass-manager migration.
 ///
-/// SeaHorn's preprocessing passes are (for now) still legacy passes, so they
-/// are collected into batches and each batch is run through a single
-/// llvm::legacy::PassManager (which preserves legacy analysis sharing within a
-/// batch). New-PM passes (e.g. SeaInstCombine) run natively between batches.
-/// As SeaHorn passes are ported to the new PM they move out of the legacy
-/// batches; once all are ported the legacy bridge can be dropped.
+/// Passes accumulate into two kinds of batches that run in order:
+///  - legacy SeaHorn passes run through one llvm::legacy::PassManager per batch
+///    (preserving in-batch legacy analysis sharing);
+///  - new-PM passes accumulate into a llvm::ModulePassManager batch.
+/// Adding a pass of the other kind flushes the current batch, so program order
+/// is preserved. As SeaHorn passes are ported to the new PM they move from the
+/// legacy side (add) to the native side (addModulePass / addFunctionPass);
+/// once all are ported the legacy bridge can be dropped.
 class SeaPassManagerWrapper {
-  std::vector<llvm::Pass *> m_batch;
+  std::vector<llvm::Pass *> m_legacy;
+  std::unique_ptr<llvm::ModulePassManager> m_native;
   std::vector<std::function<void(llvm::Module &)>> m_steps;
   int m_verifierInstanceID = 0;
 
-  void flushBatch() {
-    if (m_batch.empty())
+  void flushLegacy() {
+    if (m_legacy.empty())
       return;
     std::vector<llvm::Pass *> passes;
-    passes.swap(m_batch);
+    passes.swap(m_legacy);
     m_steps.push_back([passes](llvm::Module &m) {
       llvm::legacy::PassManager pm;
       for (llvm::Pass *p : passes)
@@ -336,25 +340,67 @@ class SeaPassManagerWrapper {
     });
   }
 
+  void flushNative() {
+    if (!m_native)
+      return;
+    std::shared_ptr<llvm::ModulePassManager> mpm = std::move(m_native);
+    m_native.reset();
+    m_steps.push_back([mpm](llvm::Module &m) {
+      using namespace llvm;
+      PassBuilder PB;
+      LoopAnalysisManager LAM;
+      FunctionAnalysisManager FAM;
+      CGSCCAnalysisManager CGAM;
+      ModuleAnalysisManager MAM;
+      PB.registerModuleAnalyses(MAM);
+      PB.registerCGSCCAnalyses(CGAM);
+      PB.registerFunctionAnalyses(FAM);
+      PB.registerLoopAnalyses(LAM);
+      PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+      mpm->run(m, MAM);
+    });
+  }
+
+  llvm::ModulePassManager &native() {
+    flushLegacy();
+    if (!m_native)
+      m_native = std::make_unique<llvm::ModulePassManager>();
+    return *m_native;
+  }
+
 public:
   SeaPassManagerWrapper() {
     if (VerifyAfterAll)
-      m_batch.push_back(seahorn::createDebugVerifierPass(
+      m_legacy.push_back(seahorn::createDebugVerifierPass(
           ++m_verifierInstanceID, "Initial Verifier Pass"));
   }
 
+  // Add a legacy pass (runs via the legacy bridge).
   void add(llvm::Pass *pass) {
-    m_batch.push_back(pass);
+    flushNative();
+    m_legacy.push_back(pass);
     if (VerifyAfterAll)
-      m_batch.push_back(seahorn::createDebugVerifierPass(
+      m_legacy.push_back(seahorn::createDebugVerifierPass(
           ++m_verifierInstanceID, pass->getPassName()));
+  }
+
+  // Add a native new-PM module pass.
+  template <typename PassT> void addModulePass(PassT &&pass) {
+    native().addPass(std::forward<PassT>(pass));
+  }
+
+  // Add a native new-PM function pass (adapted into the module pipeline).
+  template <typename PassT> void addFunctionPass(PassT &&pass) {
+    native().addPass(
+        llvm::createModuleToFunctionPassAdaptor(std::forward<PassT>(pass)));
   }
 
   // Run SeaHorn's InstCombine: the new-PM SeaInstCombine (Avoid* knobs) when
   // llvm-seahorn is available, otherwise stock LLVM InstCombine.
   void addInstCombine() {
 #ifdef HAVE_LLVM_SEAHORN
-    flushBatch();
+    flushLegacy();
+    flushNative();
     m_steps.push_back(seapp::runSeaInstCombine);
 #else
     add(llvm::createInstructionCombiningPass());
@@ -362,7 +408,8 @@ public:
   }
 
   void run(llvm::Module &m) {
-    flushBatch();
+    flushLegacy();
+    flushNative();
     for (auto &step : m_steps)
       step(m);
   }
@@ -743,7 +790,7 @@ int main(int argc, char **argv) {
 
     // AG: Dangerous. Promotes verifier.assume() to llvm.assume()
     if (PromoteAssumptions)
-      pm_wrapper.add(seahorn::createPromoteSeahornAssumePass());
+      pm_wrapper.addFunctionPass(seahorn::PromoteSeahornAssumePass());
   }
 
   if (NameValues)

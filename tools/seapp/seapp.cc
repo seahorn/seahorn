@@ -569,7 +569,7 @@ int main(int argc, char **argv) {
   // checking for simple instances of memory safety. WIP
   else if (SimpleMemoryChecks) {
     pm_wrapper.addFunctionPass(llvm::PromotePass());
-    pm_wrapper.add(seahorn::createSimpleMemoryCheckPass());
+    pm_wrapper.addModulePass(seahorn::SimpleMemoryCheckPass());
   }
   // null deref check. WIP. Not used.
   else if (NullChecks) {

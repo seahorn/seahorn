@@ -1,3 +1,5 @@
+#include "seadsa/DsaAnalysis.hh"
+#include "llvm/ADT/Triple.h"
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 
 #include "seadsa/InitializePasses.hh"
@@ -207,7 +209,6 @@ public:
 
 // A wrapper for seahorn dsa
 class SeaDsa : public PTAWrapper {
-  llvm::Pass *m_abc;
   seadsa::DsaInfo *m_dsa;
 
 public:
@@ -232,9 +233,7 @@ public:
     return &c;
   }
 
-  SeaDsa(Pass *abc)
-      : m_abc(abc),
-        m_dsa(&this->m_abc->getAnalysis<seadsa::DsaInfoPass>().getDsaInfo()) {}
+  SeaDsa(seadsa::DsaInfo &dsa) : m_dsa(&dsa) {}
 
   /// Returns points-to graph of \p F
   seadsa::Graph &getGraph(const Function &F) {
@@ -995,7 +994,9 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
   m_TLI = nullptr;
   m_DL = &M.getDataLayout();
 
-  m_SDSA = std::make_unique<SeaDsa>(this);
+  llvm::TargetLibraryInfoWrapperPass tliWP{llvm::Triple(M.getTargetTriple())};
+  seadsa::LocalDsaInfo localDsa(M, tliWP);
+  m_SDSA = std::make_unique<SeaDsa>(localDsa.getDsaInfo());
   m_PTA = m_SDSA.get();
 
   SMC_LOG(errs() << " ========== SMC (" << (seadsa::FieldType::IsNotTypeAware() ? "Not" : "")
@@ -1018,7 +1019,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
                                       .getCallee());
 
   IRBuilder<> B(*m_Ctx);
-  CallGraphWrapperPass *CGWP = getAnalysisIfAvailable<CallGraphWrapperPass>();
+  CallGraphWrapperPass *CGWP = nullptr;
   m_CG = CGWP ? &CGWP->getCallGraph() : nullptr;
   if (m_CG) {
     m_CG->getOrInsertFunction(m_assumeFn);
@@ -1041,7 +1042,7 @@ bool SimpleMemoryCheck::runOnModule(llvm::Module &M) {
         F.getName().startswith("verifier."))
       continue;
 
-    m_TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    m_TLI = &tliWP.getTLI(F);
     for (auto &BB : F) {
       for (auto &V : BB) {
         auto *I = dyn_cast<Instruction>(&V);
@@ -1363,3 +1364,12 @@ INITIALIZE_PASS_END(SimpleMemoryCheck, "smc",
 
 // static llvm::RegisterPass<SimpleMemoryCheck>
 //     Y("smc", "Insert array buffer checks using simple encoding");
+
+// --- new pass manager wrapper (local TLI wrapper + self-contained sea-dsa) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::SimpleMemoryCheckPass::run(llvm::Module &M,
+                                    llvm::ModuleAnalysisManager &) {
+  return SimpleMemoryCheck().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                            : llvm::PreservedAnalyses::all();
+}

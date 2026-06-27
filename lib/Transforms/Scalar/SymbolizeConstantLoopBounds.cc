@@ -147,6 +147,9 @@ public:
   SymbolizeConstantLoopBounds() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override {
+    return runImpl(F, getAnalysis<LoopInfoWrapperPass>().getLoopInfo());
+  }
+  bool runImpl(Function &F, LoopInfo &li_) {
     if (F.isDeclaration() || F.empty())
       return false;
 
@@ -174,14 +177,14 @@ public:
         M->getOrInsertFunction("verifier.nondet.sym.bound", as, intTy)
             .getCallee());
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     cg = cgwp ? &cgwp->getCallGraph() : nullptr;
     if (cg) {
       cg->getOrInsertFunction(assumeFn);
       cg->getOrInsertFunction(nondetFn);
     }
 
-    LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    LoopInfo *LI = &li_;
     bool Change = false;
     for (auto *L : *LI) {
       // symbolize nested loops
@@ -246,3 +249,14 @@ Pass *createSymbolizeConstantLoopBoundsPass() {
 static llvm::RegisterPass<SymbolizeConstantLoopBounds>
     X("symbolize-constant-loop-bounds",
       "Convert constant loop bounds into symbolic");
+
+// --- new pass manager wrapper ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::SymbolizeConstantLoopBoundsPass::run(llvm::Function &F,
+                                              llvm::FunctionAnalysisManager &FAM) {
+  bool changed =
+      SymbolizeConstantLoopBounds().runImpl(F, FAM.getResult<llvm::LoopAnalysis>(F));
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}

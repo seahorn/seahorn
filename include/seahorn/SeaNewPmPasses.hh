@@ -167,4 +167,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class SymbolizeConstantLoopBoundsPass : public llvm::PassInfoMixin<SymbolizeConstantLoopBoundsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+};
+
 } // namespace seahorn

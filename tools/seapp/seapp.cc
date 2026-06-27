@@ -774,7 +774,7 @@ int main(int argc, char **argv) {
     // -- moves loop initialization up
     // AG: After inline because cheap and loop initialization is moved higher up
     if (SymbolizeLoops)
-      pm_wrapper.add(seahorn::createSymbolizeConstantLoopBoundsPass());
+      pm_wrapper.addFunctionPass(seahorn::SymbolizeConstantLoopBoundsPass());
 
     // AG: Maybe should be moved before inline. Not used as far as I know.
     if (EnumVerifierCalls)

@@ -77,7 +77,7 @@ public:
            use c->getMetadata(seahorn) to test.
         */
         c->setMetadata(F.getParent()->getMDKindID("seahorn"),
-                       MDNode::get(ctx, None));
+                       MDNode::get(ctx, std::nullopt));
         Changed = true;
       }
     }

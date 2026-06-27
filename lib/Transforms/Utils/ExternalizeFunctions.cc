@@ -41,14 +41,14 @@ class ExternalizeFunctions : public ModulePass {
 
 #ifdef EXTERN_FUNCTIONS_USE_REGEX
   struct MatchRegex : public std::unary_function<Function *, bool> {
-    llvm::Optional<llvm::Regex> m_re;
+    std::optional<llvm::Regex> m_re;
     MatchRegex(std::string s) {
       if (s != "") {
         m_re = llvm::Regex(s);
         std::string Error;
         if (!m_re->isValid(Error)) {
           WARN << "Syntax error in regex '" << s << "' " << Error;
-          m_re = llvm::None;
+          m_re = std::nullopt;
         }
       }
     }

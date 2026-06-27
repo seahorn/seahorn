@@ -810,8 +810,8 @@ public:
   void setContext(Bv2OpSemContext &ctx) { m_ctx = &ctx; }
 
   /// \brief Evaluate a constant expression
-  Optional<GenericValue> evaluate(const Constant *C);
-  Optional<GenericValue> operator()(const Constant *c) { return evaluate(c); }
+  std::optional<GenericValue> evaluate(const Constant *C);
+  std::optional<GenericValue> operator()(const Constant *c) { return evaluate(c); }
 
   /// \brief Initialize given memory with the value of a constant expression
   /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp

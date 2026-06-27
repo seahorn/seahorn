@@ -6,6 +6,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/ModRef.h"
 
 #include "llvm/ADT/StringSwitch.h"
 
@@ -178,7 +179,7 @@ void SeaBuiltinsInfo::setCommonAttrs(Function &F) {
   B.addAttribute(Attribute::NoUnwind);
   B.addAttribute(Attribute::NoRecurse);
   B.addAttribute(Attribute::NoFree);
-  B.addAttribute(Attribute::InaccessibleMemOnly);
+  B.addMemoryAttr(MemoryEffects::inaccessibleMemOnly());
 
   AttributeList as = AttributeList::get(C, AttributeList::FunctionIndex, B);
   F.setAttributes(as);

@@ -299,10 +299,10 @@ public:
     if (const Constant *cv = dyn_cast<const Constant>(inst.getOperand(0))) {
       ConstantExprEvaluator ce(m_sem.getDataLayout());
       auto ogv = ce.evaluate(cv);
-      if (!ogv.hasValue()) {
+      if (!ogv.has_value()) {
         llvm_unreachable(nullptr);
       }
-      unsigned nElts = ogv.getValue().IntVal.getZExtValue();
+      unsigned nElts = ogv.value().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
       preAlloc(inst, memSz, true);
     } else {

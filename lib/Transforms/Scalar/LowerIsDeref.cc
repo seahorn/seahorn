@@ -83,7 +83,7 @@ Value *seahorn::lowerIsDereferenceable(CallBase *IsDerefCall,
                                        const TargetLibraryInfo *TLI) {
 
   ObjectSizeOpts EvalOptions;
-  EvalOptions.EvalMode = ObjectSizeOpts::Mode::Exact;
+  EvalOptions.EvalMode = ObjectSizeOpts::Mode::ExactSizeFromOffset;
   EvalOptions.NullIsUnknownSize = false;
 
   if (auto *CI = dyn_cast<ConstantInt>(IsDerefCall->getArgOperand(1))) {

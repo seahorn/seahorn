@@ -279,7 +279,7 @@ void PathBmcEngine::loadCrabInvariants(
   for (const BasicBlock &bb : *m_fn) {
 
     // -- Get crab invariants 
-    llvm::Optional<clam::clam_abstract_domain> preOpt = crab.getPre(&bb);
+    std::optional<clam::clam_abstract_domain> preOpt = crab.getPre(&bb);
     if (!preOpt.hasValue()) {
       continue;
     }
@@ -289,7 +289,7 @@ void PathBmcEngine::loadCrabInvariants(
     clam::clam_abstract_domain pre = preOpt.getValue();
 
     // -- Cleanup of the crab invariants by removing dead variables.
-    llvm::Optional<clam::varset_t> live_vars = cfgBuilder->getLiveSymbols(&bb);
+    std::optional<clam::varset_t> live_vars = cfgBuilder->getLiveSymbols(&bb);
     if (live_vars.hasValue()) {
       std::vector<clam::var_t> proj_vars(live_vars.getValue().begin(),
 					 live_vars.getValue().end());

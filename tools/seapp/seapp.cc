@@ -32,6 +32,19 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include "llvm/Transforms/Scalar/SROA.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/IPO/GlobalOpt.h"
+#include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/Transforms/Utils/LowerInvoke.h"
+#include "llvm/Transforms/Utils/InstructionNamer.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include "llvm/Transforms/Utils/LCSSA.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 
 #include "llvm/IR/Verifier.h"
 
@@ -528,7 +541,7 @@ int main(int argc, char **argv) {
   } else if (MixedSem) {
     // -- apply mixed semantics
     assert(LowerSwitch && "Lower switch must be enabled");
-    pm_wrapper.add(llvm::createLowerSwitchPass());
+    pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
     pm_wrapper.addModulePass(seahorn::PromoteVerifierCallsPass());
     pm_wrapper.addModulePass(seahorn::MixedSemanticsPass());
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
@@ -536,11 +549,11 @@ int main(int argc, char **argv) {
   } else if (CutLoops || PeelLoops > 0) {
     // -- cut loops to turn a program into loop-free program
     assert(LowerSwitch && "Lower switch must be enabled");
-    pm_wrapper.add(llvm::createLowerSwitchPass());
-    pm_wrapper.add(llvm::createLoopSimplifyPass());
+    pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
+    pm_wrapper.addFunctionPass(llvm::LoopSimplifyPass());
     pm_wrapper.add(llvm::createLoopSimplifyCFGPass());
     pm_wrapper.add(llvm_seahorn::createLoopRotatePass(/*1023*/));
-    pm_wrapper.add(llvm::createLCSSAPass());
+    pm_wrapper.addFunctionPass(llvm::LCSSAPass());
     if (PeelLoops > 0)
       pm_wrapper.add(seahorn::createLoopPeelerPass(PeelLoops));
     if (CutLoops) {
@@ -552,7 +565,7 @@ int main(int argc, char **argv) {
   }
   // checking for simple instances of memory safety. WIP
   else if (SimpleMemoryChecks) {
-    pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
+    pm_wrapper.addFunctionPass(llvm::PromotePass());
     pm_wrapper.add(seahorn::createSimpleMemoryCheckPass());
   }
   // null deref check. WIP. Not used.
@@ -573,7 +586,7 @@ int main(int argc, char **argv) {
   } else if (CrabLowerIsDeref) {
     // -- prerequisite 1 : Lower constant expressions to instructions
     pm_wrapper.addModulePass(seahorn::LowerConstantExprsPass());
-    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    pm_wrapper.addFunctionPass(llvm::DCEPass());
     // -- prerequisite 2 : Run Name Values Pass
     pm_wrapper.addModulePass(seahorn::NameValuesPass());
     // -- attempt to lower any left sea.is_dereferenceable()
@@ -617,13 +630,13 @@ int main(int argc, char **argv) {
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {
       return GV.getName() == "main" || GV.getName() == "bcmp";
     };
-    pm_wrapper.add(llvm::createInternalizePass(PreserveMain));
+    pm_wrapper.addModulePass(llvm::InternalizePass(PreserveMain));
 
     if (LowerInvoke) {
       // -- lower invoke's
-      pm_wrapper.add(llvm::createLowerInvokePass());
+      pm_wrapper.addFunctionPass(llvm::LowerInvokePass());
       // cleanup after lowering invoke's
-      pm_wrapper.add(llvm::createCFGSimplificationPass());
+      pm_wrapper.addFunctionPass(llvm::SimplifyCFGPass());
     }
 
     // -- resolve indirect calls
@@ -644,14 +657,14 @@ int main(int argc, char **argv) {
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
     // -- global optimizations
-    pm_wrapper.add(llvm::createGlobalOptimizerPass());
+    pm_wrapper.addModulePass(llvm::GlobalOptPass());
 
     // -- explicitly initialize globals in the beginning of main()
     if (LowerGlobalInitializers)
       pm_wrapper.addModulePass(seahorn::LowerGvInitializersPass());
 
     // -- SSA
-    pm_wrapper.add(llvm::createPromoteMemoryToRegisterPass());
+    pm_wrapper.addFunctionPass(llvm::PromotePass());
 
     if (NondetInit)
       // -- Turn undef into nondet
@@ -662,14 +675,14 @@ int main(int argc, char **argv) {
 
     // -- cleanup after SSA
     pm_wrapper.addInstCombine();
-    pm_wrapper.add(llvm::createCFGSimplificationPass());
+    pm_wrapper.addFunctionPass(llvm::SimplifyCFGPass());
 
     // -- break aggregates
     // XXX: createScalarReplAggregatesPass is not defined in llvm 5.0
     // pm_wrapper.add(llvm::createScalarReplAggregatesPass(
     //     SROA_Threshold, true, SROA_StructMemThreshold,
     //     SROA_ArrayElementThreshold, SROA_ScalarLoadThreshold));
-    pm_wrapper.add(llvm::createSROAPass());
+    pm_wrapper.addFunctionPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
     if (NondetInit)
       // -- Turn undef into nondet (undef are created by SROA when it calls
       //     mem2reg)
@@ -677,15 +690,15 @@ int main(int argc, char **argv) {
 
     // -- cleanup after break aggregates
     pm_wrapper.addInstCombine();
-    pm_wrapper.add(llvm::createCFGSimplificationPass());
+    pm_wrapper.addFunctionPass(llvm::SimplifyCFGPass());
 
     // eliminate unused calls to verifier.nondet() functions
     pm_wrapper.addFunctionPass(seahorn::DeadNondetElimPass());
 
     if (LowerSwitch)
-      pm_wrapper.add(llvm::createLowerSwitchPass());
+      pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
 
-    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    pm_wrapper.addFunctionPass(llvm::DCEPass());
     // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
@@ -698,7 +711,7 @@ int main(int argc, char **argv) {
 
     // cleanup after lowering
     pm_wrapper.addInstCombine();
-    pm_wrapper.add(llvm::createCFGSimplificationPass());
+    pm_wrapper.addFunctionPass(llvm::SimplifyCFGPass());
 
     if (UnfoldLoopsForDsa) {
       // --- help DSA to be more precise
@@ -720,7 +733,7 @@ int main(int argc, char **argv) {
       pm_wrapper.addModulePass(seahorn::AbstractMemoryPass());
       // -- abstract memory pass generates a lot of dead load/store
       // -- instructions
-      pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+      pm_wrapper.addFunctionPass(llvm::DCEPass());
       // Superseded by DCE in LLVM12
       // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
@@ -730,7 +743,7 @@ int main(int argc, char **argv) {
     if (LowerAssert) {
       pm_wrapper.addModulePass(seahorn::LowerAssertPass());
       // LowerAssert might generate some dead code
-      pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+      pm_wrapper.addFunctionPass(llvm::DCEPass());
       // Superseded by DCE in LLVM12
       // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     }
@@ -752,7 +765,7 @@ int main(int argc, char **argv) {
 
     // run inliner pass
     if (InlineAll || InlineAllocFn || InlineConstructFn) {
-      pm_wrapper.add(llvm::createAlwaysInlinerLegacyPass());
+      pm_wrapper.addModulePass(llvm::AlwaysInlinerPass());
       pm_wrapper.add(
           llvm::createGlobalDCEPass()); // kill unused internal global
       pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
@@ -766,11 +779,11 @@ int main(int argc, char **argv) {
     // -- EVERYTHING IS MORE EXPENSIVE AFTER INLINING
     // -- BEFORE SCHEDULING PASSES HERE, THINK WHETHER THEY BELONG BEFORE
     // INLINE!
-    pm_wrapper.add(llvm::createDeadCodeEliminationPass());
+    pm_wrapper.addFunctionPass(llvm::DCEPass());
     // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
     pm_wrapper.add(llvm::createGlobalDCEPass()); // kill unused internal global
-    pm_wrapper.add(llvm::createUnifyFunctionExitNodesPass());
+    pm_wrapper.addFunctionPass(llvm::UnifyFunctionExitNodesPass());
 
     // -- moves loop initialization up
     // AG: After inline because cheap and loop initialization is moved higher up
@@ -798,7 +811,7 @@ int main(int argc, char **argv) {
     pm_wrapper.addModulePass(seahorn::NameValuesPass());
 
   if (InstNamer)
-    pm_wrapper.add(llvm::createInstructionNamerPass());
+    pm_wrapper.addFunctionPass(llvm::InstructionNamerPass());
 
   if (StripDebug)
     pm_wrapper.add(llvm::createStripDeadDebugInfoPass());
@@ -806,7 +819,7 @@ int main(int argc, char **argv) {
   // --- verify if an undefined value can be read
   pm_wrapper.addModulePass(seahorn::CanReadUndefPass());
   // --- verify if bitcode is well-formed
-  pm_wrapper.add(llvm::createVerifierPass());
+  pm_wrapper.addModulePass(llvm::VerifierPass());
 
   if (!OutputFilename.empty()) {
     if (OutputAssembly)

@@ -138,7 +138,8 @@ bool LoopPeelerPass::runOnLoop(Loop *L, LPPassManager &LPM) {
     return false;
   }
 
-  auto res = peelLoop(L, m_Num, &LI, SE, *DT, AC, false /* PreserveLCSSA */);
+  ValueToValueMapTy VMap;
+  auto res = peelLoop(L, m_Num, &LI, SE, *DT, AC, false /* PreserveLCSSA */, VMap);
   if (res)
     LoopsPeeled++;
   else

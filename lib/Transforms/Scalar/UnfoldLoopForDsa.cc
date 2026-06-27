@@ -240,7 +240,7 @@ namespace {
     Function *F = Header->getParent();
     for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
       BasicBlock *New = CloneBasicBlock(*BB, VMap, ".unfolded");
-      F->getBasicBlockList().push_back(New);
+      F->insert(F->end(), New);
 
       // Tell LI about New.
       if (Loop* ParentLoop = L->getParentLoop()) {
@@ -290,7 +290,7 @@ namespace {
       // from the unfolded latch block.
       PN->addIncoming(NewPHI->getIncomingValueForBlock(UnfoldedLatchBlock), 
                       UnfoldedLatchBlock);
-      UnfoldedHeader->getInstList().erase(NewPHI);
+      NewPHI->eraseFromParent();
     }
 
     // connect unfolded header with preheader

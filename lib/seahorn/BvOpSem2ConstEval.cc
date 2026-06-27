@@ -8,7 +8,7 @@ namespace seahorn {
 namespace details {
 
 /// Adapted from llvm::ExecutionEngine::getConstantValue
-Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
+std::optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
   // If its undefined, return the garbage.
   if (isa<UndefValue>(C)) {
     GenericValue Result;
@@ -35,7 +35,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
                 APInt(ElemTy->getPrimitiveSizeInBits(), 0);
           else if (ElemTy->isAggregateType()) {
             const Constant *ElemUndef = UndefValue::get(ElemTy);
-            Result.AggregateVal[i] = evaluate(ElemUndef).getValue();
+            Result.AggregateVal[i] = evaluate(ElemUndef).value();
           }
         }
       }
@@ -62,7 +62,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     case Instruction::GetElementPtr: {
       // Compute the index
       auto base = evaluate(Op0);
-      GenericValue Result = base.getValue();
+      GenericValue Result = base.value();
       APInt Offset(getDataLayout().getPointerSizeInBits(), 0);
       cast<GEPOperator>(CE)->accumulateConstantOffset(getDataLayout(), Offset);
 
@@ -71,37 +71,37 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       return Result;
     }
     case Instruction::Trunc: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       uint32_t BitWidth = cast<IntegerType>(CE->getType())->getBitWidth();
       GV.IntVal = GV.IntVal.trunc(BitWidth);
       return GV;
     }
     case Instruction::ZExt: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       uint32_t BitWidth = cast<IntegerType>(CE->getType())->getBitWidth();
       GV.IntVal = GV.IntVal.zext(BitWidth);
       return GV;
     }
     case Instruction::SExt: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       uint32_t BitWidth = cast<IntegerType>(CE->getType())->getBitWidth();
       GV.IntVal = GV.IntVal.sext(BitWidth);
       return GV;
     }
     case Instruction::FPTrunc: {
       // FIXME long double
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       GV.FloatVal = float(GV.DoubleVal);
       return GV;
     }
     case Instruction::FPExt: {
       // FIXME long double
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       GV.DoubleVal = double(GV.FloatVal);
       return GV;
     }
     case Instruction::UIToFP: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       if (CE->getType()->isFloatTy())
         GV.FloatVal = float(GV.IntVal.roundToDouble());
       else if (CE->getType()->isDoubleTy())
@@ -115,7 +115,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       return GV;
     }
     case Instruction::SIToFP: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       if (CE->getType()->isFloatTy())
         GV.FloatVal = float(GV.IntVal.signedRoundToDouble());
       else if (CE->getType()->isDoubleTy())
@@ -130,7 +130,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     }
     case Instruction::FPToUI: // double->APInt conversion handles sign
     case Instruction::FPToSI: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       uint32_t BitWidth = cast<IntegerType>(CE->getType())->getBitWidth();
       if (Op0->getType()->isFloatTy())
         GV.IntVal = APIntOps::RoundFloatToAPInt(GV.FloatVal, BitWidth);
@@ -149,9 +149,9 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     }
     case Instruction::PtrToInt: {
       auto OGV = evaluate(Op0);
-      if (!OGV.hasValue())
-        return llvm::None;
-      GenericValue GV = OGV.getValue();
+      if (!OGV.has_value())
+        return std::nullopt;
+      GenericValue GV = OGV.value();
 
       uint32_t PtrWidth = getDataLayout().getTypeSizeInBits(Op0->getType());
       assert(PtrWidth <= 64 && "Bad pointer width");
@@ -161,7 +161,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       return GV;
     }
     case Instruction::IntToPtr: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       uint32_t PtrWidth = getDataLayout().getTypeSizeInBits(CE->getType());
       GV.IntVal = GV.IntVal.zextOrTrunc(PtrWidth);
       assert(GV.IntVal.getBitWidth() <= 64 && "Bad pointer width");
@@ -169,7 +169,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       return GV;
     }
     case Instruction::BitCast: {
-      GenericValue GV = evaluate(Op0).getValue();
+      GenericValue GV = evaluate(Op0).value();
       Type *DestTy = CE->getType();
       switch (Op0->getType()->getTypeID()) {
       default:
@@ -208,8 +208,8 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     case Instruction::And:
     case Instruction::Or:
     case Instruction::Xor: {
-      GenericValue LHS = evaluate(Op0).getValue();
-      GenericValue RHS = evaluate(CE->getOperand(1)).getValue();
+      GenericValue LHS = evaluate(Op0).value();
+      GenericValue RHS = evaluate(CE->getOperand(1)).value();
       GenericValue GV;
       switch (CE->getOperand(0)->getType()->getTypeID()) {
       default:
@@ -379,7 +379,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       }
       WARN << "Unhandled function pointer in a constant expression:  " << *C
            << "\n";
-      return llvm::None;
+      return std::nullopt;
     } else if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
       if (m_ctx) {
         Expr reg = m_ctx->getRegister(*GV);
@@ -406,7 +406,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
       // Result = PTOGV((void*)ctx.getPtrToGlobal(*GV));
       WARN << "Unhandled global variable in a constant expression: " << *C
            << "\n";
-      return llvm::None;
+      return std::nullopt;
     } else
       llvm_unreachable("Unknown constant pointer type!");
     break;
@@ -513,7 +513,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
     const auto *CAZ = dyn_cast<ConstantAggregateZero>(C);
     if (!STy) {
       LOG("opsem", WARN << "unable to cast " << *C->getType() << " into a StructType";);
-      return llvm::None;
+      return std::nullopt;
     }
     unsigned int elemNum = STy->getNumElements();
     Result.AggregateVal.resize(elemNum);
@@ -527,7 +527,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
         OPI = UndefValue::get(ElemTy);
       else {
         LOG("opsem", WARN << "unsupported struct constant " << C;);
-        return llvm::None;
+        return std::nullopt;
       }
       if (isa<UndefValue>(OPI)) {
         // if field not defined, just return default garbage
@@ -536,7 +536,7 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
               APInt(ElemTy->getPrimitiveSizeInBits(), 0);
         } else if (ElemTy->isAggregateType()) {
           const Constant *ElemUndef = UndefValue::get(ElemTy);
-          Result.AggregateVal[i] = evaluate(ElemUndef).getValue();
+          Result.AggregateVal[i] = evaluate(ElemUndef).value();
         } else if (ElemTy->isPointerTy()) {
           Result.AggregateVal[i].PointerVal = nullptr;
         }
@@ -545,17 +545,17 @@ Optional<GenericValue> ConstantExprEvaluator::evaluate(const Constant *C) {
             ElemTy->isIntegerTy() ||
             ElemTy->isPointerTy()) {
           auto val = evaluate(OPI);
-          if (val.hasValue())
-            Result.AggregateVal[i] = val.getValue();
+          if (val.has_value())
+            Result.AggregateVal[i] = val.value();
           else {
             LOG("opsem",
                 WARN << "evaluating struct, no value set on this index:" << i;);
-            return llvm::None;
+            return std::nullopt;
           }
         } else {
           LOG("opsem",
               WARN << "unsupported element type " << *ElemTy << " in const struct.";);
-          return llvm::None;
+          return std::nullopt;
         }
       }
     }

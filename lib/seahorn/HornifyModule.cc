@@ -136,14 +136,14 @@ char HornifyModule::ID = 0;
 
 struct FunctionNameMatcher
     : public std::unary_function<const Function &, bool> {
-  llvm::Optional<llvm::Regex> m_re;
+  std::optional<llvm::Regex> m_re;
   FunctionNameMatcher(std::string s) {
     if (s != "") {
       m_re = llvm::Regex(s);
       std::string Error;
       if (!m_re->isValid(Error)) {
         WARN << "syntax error in regex '" << s << "' " << Error;
-        m_re = llvm::None;
+        m_re = std::nullopt;
       }
     }
   }

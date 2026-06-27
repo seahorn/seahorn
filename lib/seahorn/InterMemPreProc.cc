@@ -196,11 +196,11 @@ bool InterMemPreProc::runOnModule(Module &M) {
         continue;
 
       for (auto &callRecord : *cgn) {
-        llvm::Optional<DsaCallSite> optDsaCS =
+        std::optional<DsaCallSite> optDsaCS =
             call_graph_utils::getDsaCallSite(callRecord);
-        if (!optDsaCS.hasValue())
+        if (!optDsaCS.has_value())
           continue;
-        DsaCallSite &dsaCS = optDsaCS.getValue();
+        DsaCallSite &dsaCS = optDsaCS.value();
         const Function *f_callee = dsaCS.getCallee();
         if (!ga.hasSummaryGraph(*f_callee))
           continue;
@@ -358,13 +358,13 @@ void InterMemPreProc::recProcessNode(const Cell &cFrom,
     for (auto field : nFrom->types()) {
       const Cell cFromField(cFrom, field.getFirst());
       const Cell &cToField = smCS.get(cFromField);
-      llvm::Optional<unsigned> opt_cellId = m_shadowDsa.getCellId(cToField);
+      std::optional<unsigned> opt_cellId = m_shadowDsa.getCellId(cToField);
       assert(opt_cellId.hasValue());
 
       CellInfo &ci = cim[cellToPair(cToField)];
       ci.m_ks.push_back(fmap::tagCell(
           bind::intConst(variant::variant(ci.m_ks.size(), m_keyBase)),
-          opt_cellId.getValue(), cToField.getRawOffset()));
+          opt_cellId.value(), cToField.getRawOffset()));
       ci.m_nks++;
     }
 

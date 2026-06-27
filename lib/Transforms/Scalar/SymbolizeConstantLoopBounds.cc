@@ -95,7 +95,7 @@ class SymbolizeConstantLoopBounds : public FunctionPass {
         return false;
       }
 
-      CallInst *nd = B.CreateCall(nondetFn, None, "loop.bound");
+      CallInst *nd = B.CreateCall(nondetFn, std::nullopt, "loop.bound");
       Value *symBound = B.CreateSExtOrTrunc(nd, CstBound->getType());
       updateCallGraph(F, nd);
       CallInst *assumption =
@@ -213,7 +213,7 @@ public:
           Function *fn = dyn_cast<Function>(
               M->getOrInsertFunction("verifier.nondet.bool", as, boolTy)
                   .getCallee());
-          B.CreateCondBr(B.CreateCall(fn, None, "nd.loop.cond"), body, succ);
+          B.CreateCondBr(B.CreateCall(fn, std::nullopt, "nd.loop.cond"), body, succ);
           BI->eraseFromParent();
           B.SetInsertPoint(&entry);
           B.CreateBr(header);

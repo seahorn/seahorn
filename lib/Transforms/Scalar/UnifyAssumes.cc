@@ -188,7 +188,7 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
 }
 
 void UnifyAssumesPass::markAssumeAsUnified(CallInst &CI) {
-  MDNode *meta = MDNode::get(CI.getContext(), None);
+  MDNode *meta = MDNode::get(CI.getContext(), std::nullopt);
   CI.setMetadata(s_assumeUnifiedTag, meta);
 }
 

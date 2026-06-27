@@ -121,8 +121,7 @@ Instruction *LowerCstExprPass::lowerCstExpr(ConstantExpr *CstExp,
                                             Instruction *InsertionLoc) {
   Instruction *NewI = CstExp->getAsInstruction();
   // insert before
-  InsertionLoc->getParent()->getInstList().insert(InsertionLoc->getIterator(),
-                                                  NewI);
+  NewI->insertBefore(InsertionLoc);
   return NewI;
 }
 

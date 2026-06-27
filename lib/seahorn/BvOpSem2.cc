@@ -485,10 +485,10 @@ public:
     if (const Constant *cv = dyn_cast<const Constant>(I.getOperand(0))) {
       ConstantExprEvaluator ce(m_sem.getDataLayout());
       auto ogv = ce.evaluate(cv);
-      if (!ogv.hasValue()) {
+      if (!ogv.has_value()) {
         llvm_unreachable(nullptr);
       }
-      unsigned nElts = ogv.getValue().IntVal.getZExtValue();
+      unsigned nElts = ogv.value().IntVal.getZExtValue();
       unsigned memSz = typeSz * nElts;
       LOG(
           "opsem", auto dloc = I.getDebugLoc(); if (dloc) {
@@ -1634,7 +1634,7 @@ public:
 
     case Intrinsic::eh_typeid_for:
 
-    case Intrinsic::flt_rounds:
+    case Intrinsic::get_rounding:
 
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end: {
@@ -3200,8 +3200,8 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
   if (c.getType()->isIntegerTy()) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
     auto GVO = ce.evaluate(&c);
-    if (GVO.hasValue()) {
-      GenericValue gv = GVO.getValue();
+    if (GVO.has_value()) {
+      GenericValue gv = GVO.value();
       expr::mpz_class k = toMpz(gv.IntVal);
       return alu().num(k, m_sem.sizeInBits(c));
     }
@@ -3209,12 +3209,12 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
     ce.setContext(*this);
     auto GVO = ce.evaluate(&c);
-    if (GVO.hasValue()) {
-      auto &gv = GVO.getValue();
+    if (GVO.has_value()) {
+      auto &gv = GVO.value();
       if (!gv.AggregateVal.empty()) {
         auto vecBv0 = m_sem.vec(c.getType(), gv.AggregateVal, *this);
-        if (vecBv0.hasValue()) {
-          const APInt &vecBv = vecBv0.getValue();
+        if (vecBv0.has_value()) {
+          const APInt &vecBv = vecBv0.value();
           expr::mpz_class k = toMpz(vecBv);
           return alu().num(k, vecBv.getBitWidth());
         }
@@ -3225,12 +3225,12 @@ Expr Bv2OpSemContext::getConstantValue(const llvm::Constant &c) {
     ConstantExprEvaluator ce(m_sem.getDataLayout());
     ce.setContext(*this);
     auto GVO = ce.evaluate(&c);
-    if (GVO.hasValue()) {
-      GenericValue &gv = GVO.getValue();
+    if (GVO.has_value()) {
+      GenericValue &gv = GVO.value();
       if (!gv.AggregateVal.empty()) {
         auto aggBvO = m_sem.agg(c.getType(), gv.AggregateVal, *this);
-        if (aggBvO.hasValue()) {
-          const APInt &aggBv = aggBvO.getValue();
+        if (aggBvO.has_value()) {
+          const APInt &aggBv = aggBvO.value();
           expr::mpz_class k = toMpz(aggBv);
           return alu().num(k, aggBv.getBitWidth());
         }
@@ -3699,7 +3699,7 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
   intraBr(ctx, dst);
 }
 
-Optional<APInt> Bv2OpSem::agg(Type *aggTy,
+std::optional<APInt> Bv2OpSem::agg(Type *aggTy,
                               const std::vector<GenericValue> &elements,
                               details::Bv2OpSemContext &ctx) {
   APInt res;
@@ -3725,15 +3725,15 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
                           << " to convert in aggregate.";);
         llvm_unreachable(
             "Only support converting Int or Pointer in aggregates");
-        return llvm::None;
+        return std::nullopt;
       }
     } else {
       auto AIO = agg(ElmTy, element.AggregateVal, ctx);
-      if (AIO.hasValue())
-        next = AIO.getValue();
+      if (AIO.has_value())
+        next = AIO.value();
       else {
         LOG("opsem", WARN << "nested struct conversion failed";);
-        return llvm::None;
+        return std::nullopt;
       }
     }
     // Add padding to element
@@ -3756,7 +3756,7 @@ Optional<APInt> Bv2OpSem::agg(Type *aggTy,
   return res;
 }
 
-Optional<APInt> Bv2OpSem::vec(Type *vecTy,
+std::optional<APInt> Bv2OpSem::vec(Type *vecTy,
                               const std::vector<GenericValue> &elements,
                               details::Bv2OpSemContext &ctx) {
 

@@ -31,7 +31,7 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
     const DataLayout *DL = &M.getDataLayout();
     Type *IntPtrTy = DL->getIntPtrType(Context, 0);
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
     m_mallocFn = dyn_cast<Function>(M.getOrInsertFunction(
@@ -55,7 +55,7 @@ struct LowerLibCxxAbiFunctions : public ModulePass {
 
   bool runOnFunction(Function &F) {
 
-    CallGraphWrapperPass *cgwp = getAnalysisIfAvailable<CallGraphWrapperPass>();
+    CallGraphWrapperPass *cgwp = nullptr;
     CallGraph *cg = cgwp ? &cgwp->getCallGraph() : nullptr;
 
     SmallVector<Instruction *, 16> toKill;
@@ -142,3 +142,11 @@ Pass *createLowerLibCxxAbiFunctionsPass() {
 }
 
 } // namespace seahorn
+
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+#include "seahorn/SeaNewPmPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LowerLibCxxAbiFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return LowerLibCxxAbiFunctions().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                : llvm::PreservedAnalyses::all();
+}

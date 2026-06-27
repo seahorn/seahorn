@@ -557,7 +557,7 @@ int main(int argc, char **argv) {
   // null deref check. WIP. Not used.
   else if (NullChecks) {
     pm_wrapper.addModulePass(seahorn::LowerConstantExprsPass());
-    pm_wrapper.add(seahorn::createNullCheckPass());
+    pm_wrapper.addModulePass(seahorn::NullCheckPass());
   } else if (FatBoundsCheck) {
     initializeFatBufferBoundsCheckPass(Registry);
     pm_wrapper.addFunctionPass(seahorn::FatBufferBoundsCheckPass());
@@ -693,7 +693,7 @@ int main(int argc, char **argv) {
       // lower arithmetic with overflow intrinsics
       pm_wrapper.addFunctionPass(seahorn::LowerArithWithOverflowIntrinsicsPass());
     // lower libc++abi functions
-    pm_wrapper.add(seahorn::createLowerLibCxxAbiFunctionsPass());
+    pm_wrapper.addModulePass(seahorn::LowerLibCxxAbiFunctionsPass());
 
     // cleanup after lowering
     pm_wrapper.addInstCombine();
@@ -778,7 +778,7 @@ int main(int argc, char **argv) {
 
     // AG: Maybe should be moved before inline. Not used as far as I know.
     if (EnumVerifierCalls)
-      pm_wrapper.add(seahorn::createEnumVerifierCallsPass());
+      pm_wrapper.addModulePass(seahorn::EnumVerifierCallsPass());
 
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
@@ -786,7 +786,7 @@ int main(int argc, char **argv) {
 
     // -- Enable function slicing
     // AG: NOT USED. Not part of std pipeline
-    pm_wrapper.add(seahorn::createSliceFunctionsPass());
+    pm_wrapper.addModulePass(seahorn::SliceFunctionsPass());
 
     // AG: Dangerous. Promotes verifier.assume() to llvm.assume()
     if (PromoteAssumptions)

@@ -16,6 +16,9 @@ namespace seahorn
   {return m_must.count (f) > 0 || m_may.count (f) > 0;}
 
   bool CanFail::runOnModule (Module &M)
+  { return runImpl (M, getAnalysis<CallGraphWrapperPass> ().getCallGraph ()); }
+
+  bool CanFail::runImpl (Module &M, CallGraph &CG)
   {
     LOG ("canfail", errs () << "Running mark-fail analysis\n";);
 
@@ -28,7 +31,6 @@ namespace seahorn
     // -- no error function found at all
     if (m_must.empty ()) return false;
 
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
     for (auto it = scc_begin (&CG); !it.isAtEnd (); ++it)
     {
       auto &scc = *it;

@@ -197,4 +197,9 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class MixedSemanticsPass : public llvm::PassInfoMixin<MixedSemanticsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 } // namespace seahorn

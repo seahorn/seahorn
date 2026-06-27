@@ -44,6 +44,8 @@
 
 #ifdef HAVE_LLVM_SEAHORN
 #include "llvm_seahorn/Transforms/Scalar.h"
+#include "llvm_seahorn/Transforms/Scalar/SeaFakeLatchExit.h"
+#include "llvm_seahorn/Transforms/IPO/SeaLoopExtractor.h"
 // Runs the new-PM SeaInstCombine; defined in SeaInstCombineRunner.cpp so this TU
 // never pulls llvm's InstCombine.h (which shares SeaInstCombine.h's include
 // guard and would otherwise shadow it).
@@ -502,7 +504,7 @@ int main(int argc, char **argv) {
   pm_wrapper.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
   pm_wrapper.add(seahorn::createSeaBuiltinsWrapperPass());
   if (ReplaceLoopsWithNDFuncs) {
-    pm_wrapper.add(llvm_seahorn::createSeaLoopExtractorPass());
+    pm_wrapper.addModulePass(llvm::SeaLoopExtractorPass());
   }
 
   if (RenameNondet)
@@ -702,7 +704,7 @@ int main(int argc, char **argv) {
     if (UnfoldLoopsForDsa) {
       // --- help DSA to be more precise
 #ifdef HAVE_LLVM_SEAHORN
-      pm_wrapper.add(llvm_seahorn::createFakeLatchExitPass());
+      pm_wrapper.addFunctionPass(llvm_seahorn::SeaFakeLatchExitPass());
 #endif
       pm_wrapper.add(seahorn::createUnfoldLoopForDsaPass());
     }

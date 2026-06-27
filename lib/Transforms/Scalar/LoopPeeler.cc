@@ -40,6 +40,8 @@ public:
   }
 
   bool runOnLoop(Loop *L, LPPassManager &LPM) override;
+  bool runImpl(Loop *L, ScalarEvolution *SE, DominatorTree *DT,
+               AssumptionCache *AC, LoopInfo &LI);
 
   StringRef getPassName() const override { return "LoopPeeler"; }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -109,22 +111,24 @@ char LoopPeelerPass::ID = 0;
  */
 
 bool LoopPeelerPass::runOnLoop(Loop *L, LPPassManager &LPM) {
-  DOG(MSG << "Peeling loop: " << *L;);
-
-  if (m_Num == 0) return false;
-
   auto *Header = L->getHeader();
-  if (!Header)
-    return false;
-  Function *F = Header->getParent();
-
-  auto &SEWP = getAnalysis<ScalarEvolutionWrapperPass>();
-  auto *SE = &SEWP.getSE();
+  Function *F = Header ? Header->getParent() : nullptr;
+  auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
   auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
   auto *DT = DTWP ? &DTWP->getDomTree() : nullptr;
   auto *ACWP = getAnalysisIfAvailable<AssumptionCacheTracker>();
-  auto *AC = ACWP ? &ACWP->getAssumptionCache(*F) : nullptr;
+  auto *AC = (ACWP && F) ? &ACWP->getAssumptionCache(*F) : nullptr;
   auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+  return runImpl(L, SE, DT, AC, LI);
+}
+
+bool LoopPeelerPass::runImpl(Loop *L, ScalarEvolution *SE, DominatorTree *DT,
+                             AssumptionCache *AC, LoopInfo &LI) {
+  DOG(MSG << "Peeling loop: " << *L;);
+
+  if (m_Num == 0) return false;
+  if (!L->getHeader())
+    return false;
 
   if (!canPeel(L)) {
     DOG(WARN << "Skipping loop peeling: " << *L);
@@ -153,4 +157,16 @@ llvm::Pass *seahorn::createLoopPeelerPass(unsigned Num) {
 
 // XXX dependencies are not listed
 INITIALIZE_PASS(LoopPeelerPass, DEBUG_TYPE, "Loop Peeler", false, false);
+
+// --- new pass manager wrapper (loop pass via FunctionToLoopPassAdaptor) ---
+#include "seahorn/SeaNewPmLoopPasses.hh"
+llvm::PreservedAnalyses
+seahorn::LoopPeelerNewPass::run(llvm::Loop &L, llvm::LoopAnalysisManager &,
+                                llvm::LoopStandardAnalysisResults &AR,
+                                llvm::LPMUpdater &) {
+  bool changed =
+      LoopPeelerPass(m_Num).runImpl(&L, &AR.SE, &AR.DT, &AR.AC, AR.LI);
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}
 

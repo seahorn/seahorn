@@ -878,8 +878,10 @@ class CutLoops(sea.LimitedCmd):
 
 
 class Seaopt(sea.LimitedCmd):
-    def __init__(self, quiet=False):
+    def __init__(self, quiet=False, enable_indvar=False):
         super(Seaopt, self).__init__('opt', 'Compiler optimizations', allow_extra=True)
+        # set by the bounded (BMC) aliases, whose pipelines want IndVarSimplify
+        self.enable_indvar = enable_indvar
 
     @property
     def stdout (self):
@@ -932,13 +934,16 @@ class Seaopt(sea.LimitedCmd):
         if args.opt_level > 0 and args.opt_level <= 3:
             argv.append('-O{0}'.format (args.opt_level))
 
-        # dev16 seaopt's curated new-PM pipeline (buildSeaPipeline) does not run
-        # indvars / loop-idiom and dropped the --seaopt-enable-indvar /
-        # --seaopt-enable-loop-idiom toggles, so there is nothing to disable here.
-        if not args.enable_indvar:
-            pass  # was: --seaopt-enable-indvar=false (flag removed in dev16)
-        if not args.enable_loop_idiom:
-            pass  # was: --seaopt-enable-loop-idiom=false (flag removed in dev16)
+        # IndVarSimplify is off by default in dev16 seaopt (buildSeaPipeline)
+        # and enabled with --seaopt-enable-indvar=true. The bounded (BMC)
+        # aliases construct this stage with enable_indvar=True: exit-value
+        # rewriting soundly folds summarizable assume-bounded loops, and a
+        # loop that survives is handled by the BMC VC-gen mode (unify-assumes
+        # + dataflow + coi + gsa). LoopIdiom stays hard-disabled in seaopt
+        # (the --enable-loop-idiom sea flag has no effect on dev16).
+        if args.enable_indvar or self.enable_indvar:
+            argv.append('--seaopt-enable-indvar=true')
+
         # if not args.enable_nondet_init:
         #     argv.append ('--enable-nondet-init=false')
         if args.inline_threshold is not None:
@@ -1704,13 +1709,20 @@ Pf = sea.SeqCmd ('pf', 'alias for fe|horn --solve',
                  FrontEnd.cmds + [Seahorn(solve=True)])
 LfeSmt = sea.SeqCmd ('lfe-smt', 'alias for lfe|horn', [LegacyFrontEnd(), Seahorn()])
 LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), SeahornClp()])
+# Bounded (BMC) front-end stage list: same shape as FrontEnd.cmds but with
+# IndVarSimplify enabled in seaopt (sound early fold of summarizable
+# assume-bounded loops; a surviving loop is handled by the BMC VC-gen mode).
+# Fresh instances -- NOT FrontEnd.cmds -- so the setting cannot leak into the
+# unbounded flows (smt/pf/...) that share FrontEnd.cmds.
+BndFeCmds = [Clang(), Seapp(), MixedSem(), Seaopt(enable_indvar=True)]
 BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
-                     FrontEnd.cmds + [Unroll(), CutLoops(), MixedSem (),
-                                      Seaopt(), Seahorn()])
+                     BndFeCmds + [Unroll(), CutLoops(), MixedSem (),
+                                  Seaopt(enable_indvar=True), Seahorn()])
 BndFrontEnd = sea.SeqCmd('bnd-fe', 'Bounded front-end: alias for fe|unroll|cut-loops|opt',
-                         FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt()])
+                         BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True)])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
-                  FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+                  BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True),
+                               Seahorn(solve=True)])
 Crab = sea.SeqCmd ('crab', 'alias for fe|crab-inst', FrontEnd.cmds + [CrabInst()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
 ClangPP = sea.SeqCmd ('clang-pp', 'alias for clang|pp', [Clang(), Seapp()])
@@ -1728,8 +1740,9 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                     Seaopt(), Seahorn(solve=True)])
 # run clang before anything else so that we accept both high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+                 [Clang(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])
 Fpcf = sea.SeqCmd('fpcf', 'clang|fat-bnd-check|fec|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), FatBoundsCheck()] + FECrab.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+                 [Clang(), FatBoundsCheck(), Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt(enable_indvar=True)] +
+                 [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])
 Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), AddBranchSentinel(), FatBoundsCheck()] + FrontEnd.cmds + [Unroll(), CutLoops(), Seaopt(), Seahorn(solve=True)])
+                 [Clang(), AddBranchSentinel(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])

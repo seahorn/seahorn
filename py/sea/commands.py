@@ -878,10 +878,12 @@ class CutLoops(sea.LimitedCmd):
 
 
 class Seaopt(sea.LimitedCmd):
-    def __init__(self, quiet=False, enable_indvar=False):
+    def __init__(self, quiet=False, enable_indvar=False, avoid_bv=True):
         super(Seaopt, self).__init__('opt', 'Compiler optimizations', allow_extra=True)
         # set by the bounded (BMC) aliases, whose pipelines want IndVarSimplify
+        # and allow the bit-vector-introducing InstCombine folds (avoid_bv=False)
         self.enable_indvar = enable_indvar
+        self.avoid_bv = avoid_bv
 
     @property
     def stdout (self):
@@ -944,6 +946,14 @@ class Seaopt(sea.LimitedCmd):
         if args.enable_indvar or self.enable_indvar:
             argv.append('--seaopt-enable-indvar=true')
 
+        # SeaInstCombine's avoid-bv (default on in seaopt) suppresses folds
+        # that introduce bit-vector reasoning (shift/mask tricks). The bounded
+        # (BMC) aliases construct this stage with avoid_bv=False: the bv2
+        # opsem encodes everything as bitvectors anyway, and the 2026-07-03
+        # A/B showed no correctness or timing impact from allowing the folds
+        # (opsem2 42/42, opsem 125, vcc 228/228).
+        if not self.avoid_bv:
+            argv.append('--seaopt-instcombine-avoid-bv=false')
         # if not args.enable_nondet_init:
         #     argv.append ('--enable-nondet-init=false')
         if args.inline_threshold is not None:
@@ -1714,14 +1724,14 @@ LfeClp= sea.SeqCmd ('lfe-clp', 'alias for lfe|horn-clp', [LegacyFrontEnd(), Seah
 # assume-bounded loops; a surviving loop is handled by the BMC VC-gen mode).
 # Fresh instances -- NOT FrontEnd.cmds -- so the setting cannot leak into the
 # unbounded flows (smt/pf/...) that share FrontEnd.cmds.
-BndFeCmds = [Clang(), Seapp(), MixedSem(), Seaopt(enable_indvar=True)]
+BndFeCmds = [Clang(), Seapp(), MixedSem(), Seaopt(enable_indvar=True, avoid_bv=False)]
 BndSmt = sea.SeqCmd ('bnd-smt', 'alias for fe|unroll|cut-loops|ms|opt|horn',
                      BndFeCmds + [Unroll(), CutLoops(), MixedSem (),
-                                  Seaopt(enable_indvar=True), Seahorn()])
+                                  Seaopt(enable_indvar=True, avoid_bv=False), Seahorn()])
 BndFrontEnd = sea.SeqCmd('bnd-fe', 'Bounded front-end: alias for fe|unroll|cut-loops|opt',
-                         BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True)])
+                         BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True, avoid_bv=False)])
 Bpf = sea.SeqCmd ('bpf', 'alias for fe|unroll|cut-loops|opt|horn --solve',
-                  BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True),
+                  BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True, avoid_bv=False),
                                Seahorn(solve=True)])
 Crab = sea.SeqCmd ('crab', 'alias for fe|crab-inst', FrontEnd.cmds + [CrabInst()])
 seaTerm = sea.SeqCmd ('term', 'SeaHorn Termination analysis', Smt.cmds + [SeaTerm()])
@@ -1740,9 +1750,9 @@ Smc = sea.SeqCmd ('smc', 'alias for fe|opt|smc',
                     Seaopt(), Seahorn(solve=True)])
 # run clang before anything else so that we accept both high level source and bitcode.
 Fpf = sea.SeqCmd('fpf', 'clang|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])
+                 [Clang(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True, avoid_bv=False), Seahorn(solve=True)])
 Fpcf = sea.SeqCmd('fpcf', 'clang|fat-bnd-check|fec|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), FatBoundsCheck(), Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt(enable_indvar=True)] +
-                 [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])
+                 [Clang(), FatBoundsCheck(), Clang(), Seapp(), MixedSem(), CrabPP(), Seaopt(enable_indvar=True, avoid_bv=False)] +
+                 [Unroll(), CutLoops(), Seaopt(enable_indvar=True, avoid_bv=False), Seahorn(solve=True)])
 Spf = sea.SeqCmd('spf', 'clang|add-branch-sentinel|fat-bnd-check|fe|unroll|cut-loops|opt|horn --solve',
-                 [Clang(), AddBranchSentinel(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True), Seahorn(solve=True)])
+                 [Clang(), AddBranchSentinel(), FatBoundsCheck()] + BndFeCmds + [Unroll(), CutLoops(), Seaopt(enable_indvar=True, avoid_bv=False), Seahorn(solve=True)])

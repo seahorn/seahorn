@@ -1,4 +1,4 @@
-// RUN: %sea --assert-on-backedge --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true "%s" 2>&1 | filecheck %s
+// RUN: %sea --assert-on-backedge --horn-unify-assumes=true --horn-vcgen-only-dataflow=true --horn-bmc-coi=true --horn-gsa "%s" 2>&1 | filecheck %s
 // CHECK-NOT: {{^Error: vacuity failed}}
 // CHECK: {{^Error: assertion failed}}
 // CHECK: {{^unsat$}}
@@ -11,10 +11,10 @@ int main(int argc, char **argv) {
   int c = nd_int();
   int limit = nd_int();
   __VERIFIER_assume(c == 2);
-  __VERIFIER_assume(limit == 10);
+  __VERIFIER_assume(limit == 20);
   while (c < limit) {
-    c++;
+    c *= 2;
   }
-  sassert(c == 9);
+  if (c > limit) sassert(c >= 20);
   return 0;
 }

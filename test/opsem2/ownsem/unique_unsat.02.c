@@ -4,6 +4,7 @@
 #include "seahorn/seahorn.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern char nd_char();
 

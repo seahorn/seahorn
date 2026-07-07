@@ -22,7 +22,7 @@ RUN apt-get update && \
   apt-get update && \
   apt-get upgrade -yqq && \
   apt-get install -yqq cmake cmake-data unzip \
-      zlib1g-dev \
+      zlib1g-dev libzstd-dev \
       ninja-build libgraphviz-dev \
       ccache \
       libgmp-dev libmpfr-dev \

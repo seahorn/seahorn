@@ -194,6 +194,23 @@ else()
 
   # We incorporate the CMake features provided by LLVM:
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  # apt.llvm.org LLVM is built with zstd and its exports reference
+  # zstd::libzstd_shared, but the Findzstd module that defines that target
+  # lives in LLVM_CMAKE_DIR, which only just joined the module path (the
+  # early find_package(zstd) above cannot see it). Resolve the imported
+  # target now, before any target links LLVM libraries. Needs libzstd-dev.
+  # NB: the global ".a"-first CMAKE_FIND_LIBRARY_SUFFIXES above makes
+  # Findzstd resolve the static archive and skip defining the shared
+  # target, so re-find with the shared library preferred.
+  if (LLVM_ENABLE_ZSTD AND NOT TARGET zstd::libzstd_shared)
+    unset(zstd_LIBRARY CACHE)
+    set(_sea_find_suffixes ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES
+        ${CMAKE_SHARED_LIBRARY_SUFFIX} ${_sea_find_suffixes})
+    find_package(zstd REQUIRED)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_sea_find_suffixes})
+    unset(_sea_find_suffixes)
+  endif()
   include(AddLLVM)
   include(HandleLLVMOptions)
   set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin)

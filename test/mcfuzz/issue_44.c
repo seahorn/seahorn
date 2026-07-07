@@ -5,10 +5,10 @@
 // RUN: %sea bpf -m64 -O3 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem "%s" 2>&1 | filecheck %s
 
 // CHECK: unsat
-// XFAIL: *
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/46.
-// Both the old and new bv-opsem give sat.
+// Historically XFAIL: both the old and new bv-opsem gave sat. Passes on
+// dev16 (LLVM 16 + IndVarSimplify enabled on the bounded flows).
 
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 

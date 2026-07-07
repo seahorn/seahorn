@@ -52,6 +52,10 @@
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "seahorn/Support/GitSHA1.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm_seahorn/Transforms/IPO.h"
 void print_seahorn_version(llvm::raw_ostream &OS) {
   OS << "SeaHorn (http://seahorn.github.io/):\n"
      << "  SeaHorn version " << SEAHORN_VERSION_INFO << "-" << g_GIT_SHA1
@@ -304,14 +308,31 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
-  pass_manager.add(llvm_seahorn::createSeaAnnotation2MetadataLegacyPass());
+  // SEAHORN: new-PM migration (batch A). The leading transform slice runs
+  // through a ModulePassManager here, BEFORE the legacy pipeline below (which
+  // only executes at pass_manager.run at the end), so pass order is preserved.
+  // Passes move from the legacy PM to this MPM as their twins are adopted.
+  {
+    llvm::PassBuilder PB;
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+    llvm::ModulePassManager MPM;
+    MPM.addPass(llvm_seahorn::SeaAnnotation2MetadataPass());
+    // turn all functions internal so that we can inline them if requested
+    MPM.addPass(llvm::InternalizePass([](const llvm::GlobalValue &GV) {
+      return GV.getName() == "main";
+    }));
+    MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal globals
+    MPM.run(*module, MAM);
+  }
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
-  // turn all functions internal so that we can inline them if requested
-  auto PreserveMain = [=](const llvm::GlobalValue &GV) {
-    return GV.getName() == "main";
-  };
-  pass_manager.add(llvm::createInternalizePass(PreserveMain));
-  pass_manager.add(llvm::createGlobalDCEPass()); // kill unused internal global
   pass_manager.add(seahorn::createGeneratePartialFnPass());
 
   if (InlineAll) {

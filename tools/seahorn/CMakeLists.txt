@@ -15,6 +15,7 @@ set (USED_LIBS
 
 
 set(LLVM_LINK_COMPONENTS
+  Passes
   BitWriter
   IRReader
   IPO

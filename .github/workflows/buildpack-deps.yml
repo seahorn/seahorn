@@ -29,10 +29,10 @@ jobs:
       - name: Check Out Repo
         uses: actions/checkout@v2
         with:
-          ref: dev15
+          ref: dev16
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build buildpack-deps image
-        run: docker build . --file docker/buildpack-deps-seahorn.Dockerfile --tag ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm15
+        run: docker build . --file docker/buildpack-deps-seahorn.Dockerfile --build-arg LLVM_VERSION=16 --tag ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm16
       - name: Push buildpack-deps image
-        run: docker push ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm15
+        run: docker push ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm16

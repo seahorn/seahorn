@@ -8,10 +8,17 @@ ARG BASE_IMAGE=jammy-scm
 # Base image with usual build dependencies
 FROM buildpack-deps:$BASE_IMAGE
 
+# LLVM major version to install. Jammy's own archive stops at clang-15, so the
+# toolchain comes from apt.llvm.org (which also serves 15, so this works for
+# rebuilding the llvm15 image too).
+ARG LLVM_VERSION=16
+
 # Install dependencies
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-  apt-get install -yqq software-properties-common && \
+  apt-get install -yqq software-properties-common wget gnupg && \
+  wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+  add-apt-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-${LLVM_VERSION} main" && \
   apt-get update && \
   apt-get upgrade -yqq && \
   apt-get install -yqq cmake cmake-data unzip \
@@ -26,7 +33,8 @@ RUN apt-get update && \
       sudo \
       graphviz libgraphviz-dev python3-pygraphviz \
       lcov gcovr rsync \
-      clang-15 lldb-15 lld-15 clang-format-15 && \
+      clang-${LLVM_VERSION} lldb-${LLVM_VERSION} lld-${LLVM_VERSION} \
+      clang-format-${LLVM_VERSION} llvm-${LLVM_VERSION}-dev && \
   pip3 install lit filecheck && \
   pip3 install networkx && \
   mkdir seahorn

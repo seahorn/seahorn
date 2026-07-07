@@ -6,7 +6,7 @@
 #
 
 ARG BUILDPACK_IMAGE=ghcr.io/seahorn/buildpack-deps-seahorn
-ARG BASE_IMAGE=jammy-llvm15
+ARG BASE_IMAGE=jammy-llvm16
 FROM ${BUILDPACK_IMAGE}:${BASE_IMAGE}
 ENV SEAHORN=/home/usea/seahorn/bin/sea PATH="$PATH:/home/usea/seahorn/bin"
 USER root

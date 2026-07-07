@@ -18,6 +18,8 @@ set -euo pipefail
 
 SRC_DIR=${SRC_DIR:-/seahorn}
 BUILD_TYPE=${BUILD_TYPE:-RelWithDebInfo}
+# LLVM major version; the dev16 branch builds with clang/LLVM 16.
+LLVM_VERSION=${LLVM_VERSION:-16}
 export CCACHE_DIR=${CCACHE_DIR:-/ccache}
 # Make cached files world-readable so the host runner (a different uid) can
 # pack the cache directory with actions/cache after a containerized build.
@@ -53,8 +55,8 @@ cmake .. -GNinja \
   -DZ3_ROOT=/opt/z3-4.8.9 \
   -DYICES2_HOME=/opt/yices-2.6.1 \
   -DCMAKE_INSTALL_PREFIX=run \
-  -DCMAKE_CXX_COMPILER=clang++-15 \
-  -DCMAKE_C_COMPILER=clang-15 \
+  -DCMAKE_CXX_COMPILER=clang++-${LLVM_VERSION} \
+  -DCMAKE_C_COMPILER=clang-${LLVM_VERSION} \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DSEA_ENABLE_LLD=ON \

@@ -59,11 +59,10 @@ Pass *createKillVarArgFnPass() { return new KillVarArgFn(); }
 static llvm::RegisterPass<KillVarArgFn> X("kill-vaarg",
                                           "Remove variadic functions");
 
-
 // --- new pass manager wrappers ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
 seahorn::KillVarArgFnPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return KillVarArgFn().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                            : llvm::PreservedAnalyses::all();
+                                       : llvm::PreservedAnalyses::all();
 }

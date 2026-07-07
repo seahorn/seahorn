@@ -137,13 +137,16 @@ Pass *createDevirtualizeFunctionsPass() {
 static llvm::RegisterPass<seahorn::DevirtualizeFunctionsPass>
     XX("devirt-functions", "Devirtualize indirect function calls");
 
-// --- new pass manager wrapper (local CallGraph + TLI wrapper + sea-dsa info) ---
+// --- new pass manager wrapper (local CallGraph + TLI wrapper + sea-dsa info)
+// ---
 #include "seahorn/SeaNewPmPasses.hh"
 #include "llvm/ADT/Triple.h"
 llvm::PreservedAnalyses
-seahorn::DevirtFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::DevirtFunctionsPass::run(llvm::Module &M,
+                                  llvm::ModuleAnalysisManager &) {
   llvm::TargetLibraryInfoWrapperPass tliWP{llvm::Triple(M.getTargetTriple())};
   llvm::CallGraph cg(M);
   bool changed = DevirtualizeFunctionsPass().runImpl(M, cg, tliWP);
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

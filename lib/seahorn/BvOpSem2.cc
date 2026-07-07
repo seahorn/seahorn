@@ -3700,8 +3700,8 @@ void Bv2OpSem::execBr(const BasicBlock &src, const BasicBlock &dst,
 }
 
 std::optional<APInt> Bv2OpSem::agg(Type *aggTy,
-                              const std::vector<GenericValue> &elements,
-                              details::Bv2OpSemContext &ctx) {
+                                   const std::vector<GenericValue> &elements,
+                                   details::Bv2OpSemContext &ctx) {
   APInt res;
   APInt next;
   int resWidth = 0; // treat initial res as empty
@@ -3757,8 +3757,8 @@ std::optional<APInt> Bv2OpSem::agg(Type *aggTy,
 }
 
 std::optional<APInt> Bv2OpSem::vec(Type *vecTy,
-                              const std::vector<GenericValue> &elements,
-                              details::Bv2OpSemContext &ctx) {
+                                   const std::vector<GenericValue> &elements,
+                                   details::Bv2OpSemContext &ctx) {
 
   assert(vecTy->isVectorTy());
   unsigned resBits = getDataLayout().getTypeSizeInBits(vecTy);

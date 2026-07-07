@@ -114,9 +114,10 @@ llvm::Pass *createCrabLowerIsDerefPass();
 } // namespace seahorn
 
 // NOTE: llvm-seahorn dev16 migrated SeaInstCombine to the new pass manager
-// (`-passes=sea-instcombine`) and removed the legacy createSeaInstructionCombiningPass.
-// SeaHorn's pipelines still use the legacy PM, which cannot host a new-PM pass,
-// so the legacy createInstCombine() falls back to stock LLVM InstCombine for now.
+// (`-passes=sea-instcombine`) and removed the legacy
+// createSeaInstructionCombiningPass. SeaHorn's pipelines still use the legacy
+// PM, which cannot host a new-PM pass, so the legacy createInstCombine() falls
+// back to stock LLVM InstCombine for now.
 namespace seahorn {
 inline llvm::FunctionPass *createInstCombine() {
   return llvm::createInstructionCombiningPass();

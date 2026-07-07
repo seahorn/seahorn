@@ -149,11 +149,11 @@ Pass *createExternalizeFunctionsPass() { return new ExternalizeFunctions(); }
 
 } // namespace seahorn
 
-
 // --- new pass manager wrappers ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::ExternalizeFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::ExternalizeFunctionsPass::run(llvm::Module &M,
+                                       llvm::ModuleAnalysisManager &) {
   return ExternalizeFunctions().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                            : llvm::PreservedAnalyses::all();
+                                               : llvm::PreservedAnalyses::all();
 }

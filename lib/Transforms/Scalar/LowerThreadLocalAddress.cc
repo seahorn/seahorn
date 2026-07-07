@@ -6,7 +6,8 @@
 /// operational semantics is single-threaded, so that instance is simply the
 /// underlying global -- replace each call with its operand. Without this the
 /// opsem treats the intrinsic as an unhandled call (nondet), which makes
-/// thread-local reads (error codes) arbitrary and breaks otherwise-valid proofs.
+/// thread-local reads (error codes) arbitrary and breaks otherwise-valid
+/// proofs.
 #include "seahorn/SeaNewPmPasses.hh"
 
 #include "llvm/IR/Function.h"

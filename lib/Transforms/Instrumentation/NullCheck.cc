@@ -291,10 +291,11 @@ Pass *createNullCheckPass() { return new NullCheck(); }
 static llvm::RegisterPass<seahorn::NullCheck>
     X("null-check", "Insert null dereference checks", false, false);
 
-// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by
+// new PM) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
 seahorn::NullCheckPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return NullCheck().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
+                                    : llvm::PreservedAnalyses::all();
 }

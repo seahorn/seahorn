@@ -101,10 +101,12 @@ static RegisterPass<EnumVerifierCalls>
     X("enum-verifier-calls",
       "Assign unique identifiers to each call to verifier.error");
 
-// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by
+// new PM) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::EnumVerifierCallsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::EnumVerifierCallsPass::run(llvm::Module &M,
+                                    llvm::ModuleAnalysisManager &) {
   return EnumVerifierCalls().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
+                                            : llvm::PreservedAnalyses::all();
 }

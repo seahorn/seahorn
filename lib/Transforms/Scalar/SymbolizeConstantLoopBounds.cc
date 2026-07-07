@@ -216,7 +216,8 @@ public:
           Function *fn = dyn_cast<Function>(
               M->getOrInsertFunction("verifier.nondet.bool", as, boolTy)
                   .getCallee());
-          B.CreateCondBr(B.CreateCall(fn, std::nullopt, "nd.loop.cond"), body, succ);
+          B.CreateCondBr(B.CreateCall(fn, std::nullopt, "nd.loop.cond"), body,
+                         succ);
           BI->eraseFromParent();
           B.SetInsertPoint(&entry);
           B.CreateBr(header);
@@ -252,11 +253,10 @@ static llvm::RegisterPass<SymbolizeConstantLoopBounds>
 
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
-llvm::PreservedAnalyses
-seahorn::SymbolizeConstantLoopBoundsPass::run(llvm::Function &F,
-                                              llvm::FunctionAnalysisManager &FAM) {
-  bool changed =
-      SymbolizeConstantLoopBounds().runImpl(F, FAM.getResult<llvm::LoopAnalysis>(F));
+llvm::PreservedAnalyses seahorn::SymbolizeConstantLoopBoundsPass::run(
+    llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+  bool changed = SymbolizeConstantLoopBounds().runImpl(
+      F, FAM.getResult<llvm::LoopAnalysis>(F));
   return changed ? llvm::PreservedAnalyses::none()
                  : llvm::PreservedAnalyses::all();
 }

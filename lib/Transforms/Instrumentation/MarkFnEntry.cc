@@ -89,11 +89,10 @@ llvm::Pass *createMarkFnEntryPass() { return new MarkFnEntry(); }
 static RegisterPass<MarkFnEntry> X("mark-fn-enter",
                                    "Mark function entry point");
 
-
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
 seahorn::MarkFnEntryPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return MarkFnEntry().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                     : llvm::PreservedAnalyses::all();
+                                      : llvm::PreservedAnalyses::all();
 }

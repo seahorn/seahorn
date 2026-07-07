@@ -811,7 +811,9 @@ public:
 
   /// \brief Evaluate a constant expression
   std::optional<GenericValue> evaluate(const Constant *C);
-  std::optional<GenericValue> operator()(const Constant *c) { return evaluate(c); }
+  std::optional<GenericValue> operator()(const Constant *c) {
+    return evaluate(c);
+  }
 
   /// \brief Initialize given memory with the value of a constant expression
   /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp

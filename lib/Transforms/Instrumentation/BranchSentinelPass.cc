@@ -61,9 +61,11 @@ void AddBranchSentinelPass::augmentBranchInstWithSentinel(BranchInst &BI,
 }
 
 bool AddBranchSentinelPass::runOnFunction(Function &F) {
-  return runImpl(F, getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI());
+  return runImpl(F,
+                 getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI());
 }
-bool AddBranchSentinelPass::runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI) {
+bool AddBranchSentinelPass::runImpl(Function &F,
+                                    seahorn::SeaBuiltinsInfo &SBI) {
   m_SBI = &SBI;
   IRBuilder<> builder(F.getContext());
   SmallVector<BranchInst *, 16> branches;
@@ -99,7 +101,7 @@ INITIALIZE_PASS(AddBranchSentinelPass, "branch-sentinel-pass-instrument",
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
 seahorn::BranchSentinelPass::run(llvm::Function &F,
-                                llvm::FunctionAnalysisManager &) {
+                                 llvm::FunctionAnalysisManager &) {
   seahorn::SeaBuiltinsInfo sbi;
   bool changed = AddBranchSentinelPass().runImpl(F, sbi);
   return changed ? llvm::PreservedAnalyses::none()

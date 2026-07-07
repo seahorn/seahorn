@@ -231,5 +231,5 @@ Pass *createLowerAssertPass() { return new LowerAssert(); }
 llvm::PreservedAnalyses
 seahorn::LowerAssertPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return LowerAssert().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
+                                      : llvm::PreservedAnalyses::all();
 }

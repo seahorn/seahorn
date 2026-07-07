@@ -7,15 +7,15 @@ Released under a modified BSD license, please see license.txt for full
 terms.
 */
 
+#include "seahorn/Transforms/Utils/Local.hh"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "seahorn/Transforms/Utils/Local.hh"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
 
@@ -63,7 +63,7 @@ namespace
 
         if (KeepLibFn) {
             if (!m_tli)
-                m_tli = &m_getTLI(F);
+              m_tli = &m_getTLI(F);
 
             // known library function
             LibFunc libfn;
@@ -75,24 +75,23 @@ namespace
     }
     bool runOnModule (Module &M) override
     {
-      return runImpl(M, [this](llvm::Function &F) -> llvm::TargetLibraryInfo & {
-        return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-      });
+        return runImpl(
+            M, [this](llvm::Function &F) -> llvm::TargetLibraryInfo & {
+              return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+            });
     }
     bool runImpl(llvm::Module &M,
-                 llvm::function_ref<llvm::TargetLibraryInfo &(llvm::Function &)> getTLI)
-    {
-      m_getTLI = getTLI;
-      for (auto &F : M)
-      {
-        if (F.isDeclaration ())
-        {
-            if (isUseless (F)) strip (F);
+                 llvm::function_ref<llvm::TargetLibraryInfo &(llvm::Function &)>
+                     getTLI) {
+        m_getTLI = getTLI;
+        for (auto &F : M) {
+            if (F.isDeclaration()) {
+              if (isUseless(F))
+                strip(F);
+            } else
+              stripAsm(F);
         }
-        else
-          stripAsm (F);
-      }
-      return true;
+        return true;
     }
 
     void strip (Function &F)
@@ -225,10 +224,14 @@ static llvm::RegisterPass<StripUselessDeclarations> X ("strip-useless-decls",
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::StripUselessDeclarationsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
-  bool changed = StripUselessDeclarations().runImpl(M, [&](llvm::Function &F) -> llvm::TargetLibraryInfo & {
-    return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
-  });
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+seahorn::StripUselessDeclarationsPass::run(llvm::Module &M,
+                                           llvm::ModuleAnalysisManager &MAM) {
+    auto &FAM =
+        MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+    bool changed = StripUselessDeclarations().runImpl(
+        M, [&](llvm::Function &F) -> llvm::TargetLibraryInfo & {
+          return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+        });
+    return changed ? llvm::PreservedAnalyses::none()
+                   : llvm::PreservedAnalyses::all();
 }

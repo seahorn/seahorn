@@ -510,7 +510,7 @@ Expr LoadCrab::CrabInvToExpr(llvm::BasicBlock &B, const CfgBuilder *cfgBuilder,
   ExprFactory &efac = m_hm.getExprFactory();
   llvm::Function &fn = *(B.getParent());
   Expr e = mk<TRUE>(efac);
-  
+
   std::optional<clam_abstract_domain> absOpt = m_clam.getPre(&B, false);
   if (!absOpt.hasValue()) {
     return e;

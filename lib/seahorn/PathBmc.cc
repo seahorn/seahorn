@@ -278,7 +278,7 @@ void PathBmcEngine::loadCrabInvariants(
   clam::lin_cst_unordered_map<Expr> cache;
   for (const BasicBlock &bb : *m_fn) {
 
-    // -- Get crab invariants 
+    // -- Get crab invariants
     std::optional<clam::clam_abstract_domain> preOpt = crab.getPre(&bb);
     if (!preOpt.hasValue()) {
       continue;

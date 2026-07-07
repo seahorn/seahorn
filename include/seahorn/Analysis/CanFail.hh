@@ -4,11 +4,11 @@
 /**
  * Identifies which functions may fail because of a call to verifier.error()
  */
-#include "llvm/Analysis/CallGraph.h"
-#include "llvm/Pass.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Function.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Analysis/CallGraph.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 
 namespace seahorn
 {
@@ -27,7 +27,7 @@ namespace seahorn
     CanFail () : ModulePass (ID) {}
     
     virtual bool runOnModule (Module &M) override;
-    bool runImpl (Module &M, llvm::CallGraph &CG);
+    bool runImpl(Module &M, llvm::CallGraph &CG);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
     bool canFail (const Function *f) const;
     bool mustFail (const Function *f) const

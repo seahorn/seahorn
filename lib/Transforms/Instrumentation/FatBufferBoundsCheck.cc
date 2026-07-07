@@ -93,7 +93,8 @@ struct FatBufferBoundsCheck : public FunctionPass {
   FatBufferBoundsCheck() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
-  bool runImpl(Function &F, const TargetLibraryInfo &tli, seahorn::SeaBuiltinsInfo &sbi);
+  bool runImpl(Function &F, const TargetLibraryInfo &tli,
+               seahorn::SeaBuiltinsInfo &sbi);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -415,7 +416,8 @@ bool FatBufferBoundsCheck::runOnFunction(Function &F) {
   return runImpl(F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
                  getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI());
 }
-bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli, seahorn::SeaBuiltinsInfo &sbi) {
+bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
+                                   seahorn::SeaBuiltinsInfo &sbi) {
   if (std::find(std::begin(NoInstrumentFunctionNames),
                 std::end(NoInstrumentFunctionNames),
                 F.getName()) != std::end(NoInstrumentFunctionNames)) {
@@ -588,8 +590,11 @@ INITIALIZE_PASS(FatBufferBoundsCheck, "fat-buffer-bounds-instrument",
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::FatBufferBoundsCheckPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+seahorn::FatBufferBoundsCheckPass::run(llvm::Function &F,
+                                       llvm::FunctionAnalysisManager &FAM) {
   seahorn::SeaBuiltinsInfo sbi;
-  bool changed = FatBufferBoundsCheck().runImpl(F, FAM.getResult<llvm::TargetLibraryAnalysis>(F), sbi);
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+  bool changed = FatBufferBoundsCheck().runImpl(
+      F, FAM.getResult<llvm::TargetLibraryAnalysis>(F), sbi);
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

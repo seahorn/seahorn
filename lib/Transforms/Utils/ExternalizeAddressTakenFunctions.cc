@@ -168,11 +168,11 @@ Pass *createExternalizeAddressTakenFunctionsPass() {
 
 } // namespace seahorn
 
-
 // --- new pass manager wrappers ---
 #include "seahorn/SeaNewPmPasses.hh"
-llvm::PreservedAnalyses
-seahorn::ExternalizeAddressTakenFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
-  return ExternalizeAddressTakenFunctions().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                            : llvm::PreservedAnalyses::all();
+llvm::PreservedAnalyses seahorn::ExternalizeAddressTakenFunctionsPass::run(
+    llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  return ExternalizeAddressTakenFunctions().runOnModule(M)
+             ? llvm::PreservedAnalyses::none()
+             : llvm::PreservedAnalyses::all();
 }

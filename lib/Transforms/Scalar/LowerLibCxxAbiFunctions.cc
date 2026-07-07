@@ -143,10 +143,13 @@ Pass *createLowerLibCxxAbiFunctionsPass() {
 
 } // namespace seahorn
 
-// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by new PM) ---
+// --- new pass manager wrapper (CallGraph maintenance dropped; recomputed by
+// new PM) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::LowerLibCxxAbiFunctionsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
-  return LowerLibCxxAbiFunctions().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
+seahorn::LowerLibCxxAbiFunctionsPass::run(llvm::Module &M,
+                                          llvm::ModuleAnalysisManager &) {
+  return LowerLibCxxAbiFunctions().runOnModule(M)
+             ? llvm::PreservedAnalyses::none()
+             : llvm::PreservedAnalyses::all();
 }

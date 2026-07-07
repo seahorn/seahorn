@@ -35,7 +35,8 @@ public:
   explicit po_iterator_storage(BlockedEdges &VSet) : Visited(VSet) {}
   po_iterator_storage(const po_iterator_storage &S) = default;
 
-  bool insertEdge(std::optional<const BasicBlock *> src, const BasicBlock *dst) {
+  bool insertEdge(std::optional<const BasicBlock *> src,
+                  const BasicBlock *dst) {
     if (!src)
       return Visited.insert(dst);
 

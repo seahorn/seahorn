@@ -45,7 +45,8 @@ class KleeInternalize : public ModulePass {
 
   const DataLayout *m_dl;
   TargetLibraryInfo *m_tli;
-  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)> m_getTLI;
+  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)>
+      m_getTLI;
   IntegerType *m_intptrTy;
 
   FunctionCallee m_assertFailFn;
@@ -313,10 +314,15 @@ static llvm::RegisterPass<KleeInternalize>
 // --- new pass manager wrapper (CG dropped) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::KleeInternalizePass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
-  bool changed = KleeInternalize().runImpl(M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
-    return FAM.getResult<llvm::TargetLibraryAnalysis>(const_cast<llvm::Function &>(F));
-  });
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+seahorn::KleeInternalizePass::run(llvm::Module &M,
+                                  llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = KleeInternalize().runImpl(
+      M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
+        return FAM.getResult<llvm::TargetLibraryAnalysis>(
+            const_cast<llvm::Function &>(F));
+      });
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

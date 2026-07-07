@@ -18,18 +18,21 @@ public:
 
 class PromoteMallocPass : public llvm::PassInfoMixin<PromoteMallocPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class PromoteBoolLoadsPass : public llvm::PassInfoMixin<PromoteBoolLoadsPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class LowerArithWithOverflowIntrinsicsPass
     : public llvm::PassInfoMixin<LowerArithWithOverflowIntrinsicsPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class CanReadUndefPass : public llvm::PassInfoMixin<CanReadUndefPass> {
@@ -49,20 +52,24 @@ public:
 
 class DeadNondetElimPass : public llvm::PassInfoMixin<DeadNondetElimPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
-class DummyMainFunctionPass : public llvm::PassInfoMixin<DummyMainFunctionPass> {
+class DummyMainFunctionPass
+    : public llvm::PassInfoMixin<DummyMainFunctionPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class ExternalizeFunctionsPass : public llvm::PassInfoMixin<ExternalizeFunctionsPass> {
+class ExternalizeFunctionsPass
+    : public llvm::PassInfoMixin<ExternalizeFunctionsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class ExternalizeAddressTakenFunctionsPass : public llvm::PassInfoMixin<ExternalizeAddressTakenFunctionsPass> {
+class ExternalizeAddressTakenFunctionsPass
+    : public llvm::PassInfoMixin<ExternalizeAddressTakenFunctionsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -72,7 +79,8 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class MarkInternalInlinePass : public llvm::PassInfoMixin<MarkInternalInlinePass> {
+class MarkInternalInlinePass
+    : public llvm::PassInfoMixin<MarkInternalInlinePass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -87,52 +95,65 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class LowerGvInitializersPass : public llvm::PassInfoMixin<LowerGvInitializersPass> {
+class LowerGvInitializersPass
+    : public llvm::PassInfoMixin<LowerGvInitializersPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class LowerConstantExprsPass : public llvm::PassInfoMixin<LowerConstantExprsPass> {
+class LowerConstantExprsPass
+    : public llvm::PassInfoMixin<LowerConstantExprsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class SeaRemoveUnreachableBlocksPass : public llvm::PassInfoMixin<SeaRemoveUnreachableBlocksPass> {
+class SeaRemoveUnreachableBlocksPass
+    : public llvm::PassInfoMixin<SeaRemoveUnreachableBlocksPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class PromoteMemcpyPass : public llvm::PassInfoMixin<PromoteMemcpyPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
-class SimplifyPointerLoopsPass : public llvm::PassInfoMixin<SimplifyPointerLoopsPass> {
+class SimplifyPointerLoopsPass
+    : public llvm::PassInfoMixin<SimplifyPointerLoopsPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class BranchSentinelPass : public llvm::PassInfoMixin<BranchSentinelPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class BackEdgeCutterPass : public llvm::PassInfoMixin<BackEdgeCutterPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class LowerIsDerefPass : public llvm::PassInfoMixin<LowerIsDerefPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
-class FatBufferBoundsCheckPass : public llvm::PassInfoMixin<FatBufferBoundsCheckPass> {
+class FatBufferBoundsCheckPass
+    : public llvm::PassInfoMixin<FatBufferBoundsCheckPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
-class EnumVerifierCallsPass : public llvm::PassInfoMixin<EnumVerifierCallsPass> {
+class EnumVerifierCallsPass
+    : public llvm::PassInfoMixin<EnumVerifierCallsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -142,7 +163,8 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class LowerLibCxxAbiFunctionsPass : public llvm::PassInfoMixin<LowerLibCxxAbiFunctionsPass> {
+class LowerLibCxxAbiFunctionsPass
+    : public llvm::PassInfoMixin<LowerLibCxxAbiFunctionsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -157,19 +179,23 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class PromoteVerifierCallsPass : public llvm::PassInfoMixin<PromoteVerifierCallsPass> {
+class PromoteVerifierCallsPass
+    : public llvm::PassInfoMixin<PromoteVerifierCallsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class MarkInternalAllocOrDeallocInlinePass : public llvm::PassInfoMixin<MarkInternalAllocOrDeallocInlinePass> {
+class MarkInternalAllocOrDeallocInlinePass
+    : public llvm::PassInfoMixin<MarkInternalAllocOrDeallocInlinePass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class SymbolizeConstantLoopBoundsPass : public llvm::PassInfoMixin<SymbolizeConstantLoopBoundsPass> {
+class SymbolizeConstantLoopBoundsPass
+    : public llvm::PassInfoMixin<SymbolizeConstantLoopBoundsPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 class RenameNondetPass : public llvm::PassInfoMixin<RenameNondetPass> {
@@ -182,7 +208,8 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class StripUselessDeclarationsPass : public llvm::PassInfoMixin<StripUselessDeclarationsPass> {
+class StripUselessDeclarationsPass
+    : public llvm::PassInfoMixin<StripUselessDeclarationsPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -207,24 +234,29 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class SeaStripDeadDebugInfoPass : public llvm::PassInfoMixin<SeaStripDeadDebugInfoPass> {
+class SeaStripDeadDebugInfoPass
+    : public llvm::PassInfoMixin<SeaStripDeadDebugInfoPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class SimpleMemoryCheckPass : public llvm::PassInfoMixin<SimpleMemoryCheckPass> {
+class SimpleMemoryCheckPass
+    : public llvm::PassInfoMixin<SimpleMemoryCheckPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class MarkInternalConstructOrDestructInlinePass : public llvm::PassInfoMixin<MarkInternalConstructOrDestructInlinePass> {
+class MarkInternalConstructOrDestructInlinePass
+    : public llvm::PassInfoMixin<MarkInternalConstructOrDestructInlinePass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class LowerThreadLocalAddressPass : public llvm::PassInfoMixin<LowerThreadLocalAddressPass> {
+class LowerThreadLocalAddressPass
+    : public llvm::PassInfoMixin<LowerThreadLocalAddressPass> {
 public:
-  llvm::PreservedAnalyses run(llvm::Function &, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
 };
 
 } // namespace seahorn

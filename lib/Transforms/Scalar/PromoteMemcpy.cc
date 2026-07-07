@@ -258,10 +258,10 @@ static llvm::RegisterPass<PromoteMemcpy>
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
 seahorn::PromoteMemcpyPass::run(llvm::Function &F,
-                               llvm::FunctionAnalysisManager &FAM) {
-  bool changed = PromoteMemcpy().runImpl(
-      F, FAM.getResult<llvm::DominatorTreeAnalysis>(F),
-      FAM.getResult<llvm::AssumptionAnalysis>(F));
+                                llvm::FunctionAnalysisManager &FAM) {
+  bool changed =
+      PromoteMemcpy().runImpl(F, FAM.getResult<llvm::DominatorTreeAnalysis>(F),
+                              FAM.getResult<llvm::AssumptionAnalysis>(F));
   return changed ? llvm::PreservedAnalyses::none()
                  : llvm::PreservedAnalyses::all();
 }

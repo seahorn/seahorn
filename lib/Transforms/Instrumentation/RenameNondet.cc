@@ -37,7 +37,8 @@ namespace {
 class RenameNondet : public ModulePass {
   std::set<std::string> m_externalNames;
   TargetLibraryInfo *m_tli;
-  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)> m_getTLI;
+  llvm::function_ref<llvm::TargetLibraryInfo &(const llvm::Function &)>
+      m_getTLI;
   StringMap<int> m_functionId;
   Module *m_module;
   SmallSet<Function *, 32> m_killFn;
@@ -171,10 +172,15 @@ static llvm::RegisterPass<RenameNondet>
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::RenameNondetPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
-  bool changed = RenameNondet().runImpl(M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
-    return FAM.getResult<llvm::TargetLibraryAnalysis>(const_cast<llvm::Function &>(F));
-  });
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+seahorn::RenameNondetPass::run(llvm::Module &M,
+                               llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  bool changed = RenameNondet().runImpl(
+      M, [&](const llvm::Function &F) -> llvm::TargetLibraryInfo & {
+        return FAM.getResult<llvm::TargetLibraryAnalysis>(
+            const_cast<llvm::Function &>(F));
+      });
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

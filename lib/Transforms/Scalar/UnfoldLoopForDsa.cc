@@ -54,11 +54,11 @@ namespace {
       initializeLoopPassPass(*PassRegistry::getPassRegistry());
     }
 
-    bool runOnLoop (Loop *L, LPPassManager &LPM) override
-    { return runImpl (L, getAnalysis<LoopInfoWrapperPass>().getLoopInfo()); }
+    bool runOnLoop(Loop *L, LPPassManager &LPM) override {
+      return runImpl(L, getAnalysis<LoopInfoWrapperPass>().getLoopInfo());
+    }
 
-    bool runImpl (Loop *L, LoopInfo &li)
-    {
+    bool runImpl(Loop *L, LoopInfo &li) {
       LI = &li;
       if (UnfoldAllLoops || ShouldLoopBeUnfolded (L))
         return OneUnfoldLoop (L);
@@ -334,11 +334,10 @@ X ("unfold-loop-dsa",
 
 // --- new pass manager wrapper (loop pass via FunctionToLoopPassAdaptor) ---
 #include "seahorn/SeaNewPmLoopPasses.hh"
-llvm::PreservedAnalyses
-seahorn::UnfoldLoopForDsaNewPass::run(llvm::Loop &L, llvm::LoopAnalysisManager &,
-                                      llvm::LoopStandardAnalysisResults &AR,
-                                      llvm::LPMUpdater &) {
-  bool changed = UnfoldLoopForDsa().runImpl(&L, AR.LI);
-  return changed ? llvm::PreservedAnalyses::none()
-                 : llvm::PreservedAnalyses::all();
+llvm::PreservedAnalyses seahorn::UnfoldLoopForDsaNewPass::run(
+    llvm::Loop &L, llvm::LoopAnalysisManager &,
+    llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &) {
+    bool changed = UnfoldLoopForDsa().runImpl(&L, AR.LI);
+    return changed ? llvm::PreservedAnalyses::none()
+                   : llvm::PreservedAnalyses::all();
 }

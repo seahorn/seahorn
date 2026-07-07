@@ -520,8 +520,7 @@ public:
         });
   }
 
-  bool runImpl(Module &M,
-               function_ref<TargetLibraryInfo &(Function &)> getTLI,
+  bool runImpl(Module &M, function_ref<TargetLibraryInfo &(Function &)> getTLI,
                function_ref<LoopInfo &(Function &)> getLI) {
     m_cg = nullptr;
     m_getLI = getLI;
@@ -600,8 +599,10 @@ Pass *createAbstractMemoryPass() { return new AbstractMemory(); }
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::AbstractMemoryPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+seahorn::AbstractMemoryPass::run(llvm::Module &M,
+                                 llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
   bool changed = AbstractMemory().runImpl(
       M,
       [&](llvm::Function &F) -> llvm::TargetLibraryInfo & {
@@ -610,5 +611,6 @@ seahorn::AbstractMemoryPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &M
       [&](llvm::Function &F) -> llvm::LoopInfo & {
         return FAM.getResult<llvm::LoopAnalysis>(F);
       });
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

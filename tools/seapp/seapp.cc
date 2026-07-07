@@ -17,11 +17,11 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Passes/PassBuilder.h"
-#include <functional>
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/LinkAllPasses.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -32,46 +32,45 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/GlobalOpt.h"
+#include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/IPO/GlobalOpt.h"
-#include "llvm/Transforms/IPO/GlobalDCE.h"
-#include "llvm/IRPrinter/IRPrintingPasses.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
-#include "llvm/Transforms/IPO/Internalize.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
-#include "llvm/Transforms/Utils/LowerSwitch.h"
-#include "llvm/Transforms/Utils/LowerInvoke.h"
 #include "llvm/Transforms/Utils/InstructionNamer.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
+#include "llvm/Transforms/Utils/LowerInvoke.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include <functional>
 #ifndef HAVE_LLVM_SEAHORN
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #endif
-#include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
+#include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 
 #include "llvm/IR/Verifier.h"
 
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
-#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/SeaNewPmLoopPasses.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 
 #include "seadsa/InitializePasses.hh"
-#include "seadsa/support/RemovePtrToInt.hh"
 #include "seadsa/SeaDsaAnalysis.hh"
+#include "seadsa/support/RemovePtrToInt.hh"
 
 #ifdef HAVE_LLVM_SEAHORN
+#include "llvm_seahorn/Transforms/IPO/SeaLoopExtractor.h"
 #include "llvm_seahorn/Transforms/Scalar.h"
 #include "llvm_seahorn/Transforms/Scalar/SeaFakeLatchExit.h"
-#include "llvm_seahorn/Transforms/IPO/SeaLoopExtractor.h"
 #include "llvm_seahorn/Transforms/Scalar/SeaLoopRotate.h"
-// Runs the new-PM SeaInstCombine; defined in SeaInstCombineRunner.cpp so this TU
-// never pulls llvm's InstCombine.h (which shares SeaInstCombine.h's include
+// Runs the new-PM SeaInstCombine; defined in SeaInstCombineRunner.cpp so this
+// TU never pulls llvm's InstCombine.h (which shares SeaInstCombine.h's include
 // guard and would otherwise shadow it).
 namespace seapp {
 void runSeaInstCombine(llvm::Module &m);
@@ -366,7 +365,8 @@ class SeaPassManagerWrapper {
       PB.registerLoopAnalyses(LAM);
       PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
       // -- Register sea-dsa's new-PM analyses so consumers can request them via
-      // -- MAM.getResult<>; the MAM computes each once per module and caches it.
+      // -- MAM.getResult<>; the MAM computes each once per module and caches
+      // it.
       MAM.registerPass([] { return seadsa::AllocWrapInfoAnalysis(); });
       MAM.registerPass([] { return seadsa::DsaLibFuncInfoAnalysis(); });
       MAM.registerPass([] { return seadsa::DsaInfoAnalysis(); });
@@ -545,11 +545,14 @@ int main(int argc, char **argv) {
     assert(LowerSwitch && "Lower switch must be enabled");
     pm_wrapper.addFunctionPass(llvm::LowerSwitchPass());
     pm_wrapper.addFunctionPass(llvm::LoopSimplifyPass());
-    pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(llvm::LoopSimplifyCFGPass()));
-    pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(llvm_seahorn::SeaLoopRotatePass()));
+    pm_wrapper.addFunctionPass(
+        llvm::createFunctionToLoopPassAdaptor(llvm::LoopSimplifyCFGPass()));
+    pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(
+        llvm_seahorn::SeaLoopRotatePass()));
     pm_wrapper.addFunctionPass(llvm::LCSSAPass());
     if (PeelLoops > 0)
-      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(seahorn::LoopPeelerNewPass(PeelLoops)));
+      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(
+          seahorn::LoopPeelerNewPass(PeelLoops)));
     if (CutLoops) {
       pm_wrapper.addFunctionPass(seahorn::BackEdgeCutterPass());
       // -- disabled. back-edge-cutter should be more robust
@@ -648,7 +651,8 @@ int main(int argc, char **argv) {
       pm_wrapper.addModulePass(seahorn::ExternalizeAddressTakenFunctionsPass());
 
     // kill internal unused code
-    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(
+        llvm::GlobalDCEPass()); // kill unused internal global
 
     // -- global optimizations
     pm_wrapper.addModulePass(llvm::GlobalOptPass());
@@ -699,7 +703,8 @@ int main(int argc, char **argv) {
 
     if (!KeepArithOverflow)
       // lower arithmetic with overflow intrinsics
-      pm_wrapper.addFunctionPass(seahorn::LowerArithWithOverflowIntrinsicsPass());
+      pm_wrapper.addFunctionPass(
+          seahorn::LowerArithWithOverflowIntrinsicsPass());
     // lower libc++abi functions
     pm_wrapper.addModulePass(seahorn::LowerLibCxxAbiFunctionsPass());
 
@@ -712,7 +717,8 @@ int main(int argc, char **argv) {
 #ifdef HAVE_LLVM_SEAHORN
       pm_wrapper.addFunctionPass(llvm_seahorn::SeaFakeLatchExitPass());
 #endif
-      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(seahorn::UnfoldLoopForDsaNewPass()));
+      pm_wrapper.addFunctionPass(llvm::createFunctionToLoopPassAdaptor(
+          seahorn::UnfoldLoopForDsaNewPass()));
     }
 
     if (SimplifyPointerLoops) {
@@ -750,7 +756,8 @@ int main(int argc, char **argv) {
     } else {
       // mark memory allocator/deallocators to be inlined
       if (InlineAllocFn)
-        pm_wrapper.addModulePass(seahorn::MarkInternalAllocOrDeallocInlinePass());
+        pm_wrapper.addModulePass(
+            seahorn::MarkInternalAllocOrDeallocInlinePass());
       // mark constructors to be inlined
       if (InlineConstructFn)
         pm_wrapper.addModulePass(
@@ -776,7 +783,8 @@ int main(int argc, char **argv) {
     pm_wrapper.addFunctionPass(llvm::DCEPass());
     // Superseded by DCE in LLVM12
     // pm_wrapper.add(llvm::createDeadInstEliminationPass());
-    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(
+        llvm::GlobalDCEPass()); // kill unused internal global
     pm_wrapper.addFunctionPass(llvm::UnifyFunctionExitNodesPass());
 
     // -- moves loop initialization up
@@ -790,7 +798,8 @@ int main(int argc, char **argv) {
 
     pm_wrapper.addFunctionPass(seahorn::SeaRemoveUnreachableBlocksPass());
     pm_wrapper.addFunctionPass(seahorn::PromoteMallocPass());
-    pm_wrapper.addModulePass(llvm::GlobalDCEPass()); // kill unused internal global
+    pm_wrapper.addModulePass(
+        llvm::GlobalDCEPass()); // kill unused internal global
 
     // -- Enable function slicing
     // AG: NOT USED. Not part of std pipeline

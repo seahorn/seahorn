@@ -62,11 +62,11 @@ Pass *createPromoteBoolLoadsPass() { return new PromoteBoolLoads(); }
 static llvm::RegisterPass<PromoteBoolLoads> X("promote-bools",
                                               "Promote _Bool loads");
 
-
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::PromoteBoolLoadsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+seahorn::PromoteBoolLoadsPass::run(llvm::Function &F,
+                                   llvm::FunctionAnalysisManager &) {
   return PromoteBoolLoads().runOnFunction(F) ? llvm::PreservedAnalyses::none()
-                                     : llvm::PreservedAnalyses::all();
+                                             : llvm::PreservedAnalyses::all();
 }

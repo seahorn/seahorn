@@ -35,8 +35,8 @@ void getContentStr(Expr value, unsigned desiredNumBytes, bool includeAscii,
                       // most sig byte first, 0: nails bit unused
 
     if (includeAscii) {
-      stream << format_bytes_with_ascii(bytes, std::nullopt, desiredNumBytes, 1, 0,
-                                        false);
+      stream << format_bytes_with_ascii(bytes, std::nullopt, desiredNumBytes, 1,
+                                        0, false);
     } else {
       stream << format_bytes(bytes, std::nullopt, desiredNumBytes, 1, 0, false);
     }

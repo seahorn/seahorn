@@ -15,11 +15,11 @@ namespace seahorn
   bool CanFail::canFail (const Function *f) const
   {return m_must.count (f) > 0 || m_may.count (f) > 0;}
 
-  bool CanFail::runOnModule (Module &M)
-  { return runImpl (M, getAnalysis<CallGraphWrapperPass> ().getCallGraph ()); }
+  bool CanFail::runOnModule(Module &M) {
+    return runImpl(M, getAnalysis<CallGraphWrapperPass>().getCallGraph());
+  }
 
-  bool CanFail::runImpl (Module &M, CallGraph &CG)
-  {
+  bool CanFail::runImpl(Module &M, CallGraph &CG) {
     LOG ("canfail", errs () << "Running mark-fail analysis\n";);
 
     if (const Function *errorFn = M.getFunction ("verifier.error"))

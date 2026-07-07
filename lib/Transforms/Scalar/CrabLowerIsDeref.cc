@@ -166,17 +166,19 @@ llvm::Pass *seahorn::createCrabLowerIsDerefPass() {
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 #ifdef HAVE_CLAM
-#include "llvm/ADT/Triple.h"
 #include "seadsa/TargetLibraryInfoGetter.hh"
+#include "llvm/ADT/Triple.h"
 llvm::PreservedAnalyses
-seahorn::CrabLowerIsDerefPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::CrabLowerIsDerefPass::run(llvm::Module &M,
+                                   llvm::ModuleAnalysisManager &) {
   return CrabLowerIsDeref().runOnModule(M) ? llvm::PreservedAnalyses::none()
                                            : llvm::PreservedAnalyses::all();
 }
 #else
 #include "llvm/Support/ErrorHandling.h"
 llvm::PreservedAnalyses
-seahorn::CrabLowerIsDerefPass::run(llvm::Module &, llvm::ModuleAnalysisManager &) {
+seahorn::CrabLowerIsDerefPass::run(llvm::Module &,
+                                   llvm::ModuleAnalysisManager &) {
   llvm::report_fatal_error(
       "CrabLowerIsDeref pass requires building SeaHorn with Clam support");
 }

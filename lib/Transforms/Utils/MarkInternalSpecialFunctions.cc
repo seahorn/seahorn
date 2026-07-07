@@ -135,9 +135,8 @@ Pass *createMarkInternalConstructOrDestructInlinePass() {
 
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
-llvm::PreservedAnalyses
-seahorn::MarkInternalAllocOrDeallocInlinePass::run(llvm::Module &M,
-                                                   llvm::ModuleAnalysisManager &MAM) {
+llvm::PreservedAnalyses seahorn::MarkInternalAllocOrDeallocInlinePass::run(
+    llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
   auto &FAM =
       MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
   bool changed = MarkInternalAllocOrDeallocInline().runImpl(
@@ -148,8 +147,7 @@ seahorn::MarkInternalAllocOrDeallocInlinePass::run(llvm::Module &M,
                  : llvm::PreservedAnalyses::all();
 }
 
-llvm::PreservedAnalyses
-seahorn::MarkInternalConstructOrDestructInlinePass::run(
+llvm::PreservedAnalyses seahorn::MarkInternalConstructOrDestructInlinePass::run(
     llvm::Module &M, llvm::ModuleAnalysisManager &) {
   return MarkInternalConstructOrDestructInline().runOnModule(M)
              ? llvm::PreservedAnalyses::none()

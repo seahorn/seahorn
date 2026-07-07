@@ -126,7 +126,8 @@ bool LoopPeelerPass::runImpl(Loop *L, ScalarEvolution *SE, DominatorTree *DT,
                              AssumptionCache *AC, LoopInfo &LI) {
   DOG(MSG << "Peeling loop: " << *L;);
 
-  if (m_Num == 0) return false;
+  if (m_Num == 0)
+    return false;
   if (!L->getHeader())
     return false;
 
@@ -143,7 +144,8 @@ bool LoopPeelerPass::runImpl(Loop *L, ScalarEvolution *SE, DominatorTree *DT,
   }
 
   ValueToValueMapTy VMap;
-  auto res = peelLoop(L, m_Num, &LI, SE, *DT, AC, false /* PreserveLCSSA */, VMap);
+  auto res =
+      peelLoop(L, m_Num, &LI, SE, *DT, AC, false /* PreserveLCSSA */, VMap);
   if (res)
     LoopsPeeled++;
   else
@@ -169,4 +171,3 @@ seahorn::LoopPeelerNewPass::run(llvm::Loop &L, llvm::LoopAnalysisManager &,
   return changed ? llvm::PreservedAnalyses::none()
                  : llvm::PreservedAnalyses::all();
 }
-

@@ -1,7 +1,7 @@
 /// New pass-manager reimplementation of LLVM's legacy-only StripDeadDebugInfo
 /// pass. LLVM 16 ships StripDeadDebugInfo as a legacy ModulePass with no new-PM
-/// equivalent, so SeaHorn provides its own so seapp's pipeline stays entirely on
-/// the new pass manager.
+/// equivalent, so SeaHorn provides its own so seapp's pipeline stays entirely
+/// on the new pass manager.
 ///
 /// The transform prunes, from every DICompileUnit, the global-variable debug
 /// entries that are no longer attached to any live GlobalVariable -- mirroring

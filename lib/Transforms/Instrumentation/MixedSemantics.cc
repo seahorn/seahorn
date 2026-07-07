@@ -287,7 +287,8 @@ static llvm::RegisterPass<seahorn::MixedSemantics>
 // --- new pass manager wrapper (local CanFail + stateless SBI) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::MixedSemanticsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::MixedSemanticsPass::run(llvm::Module &M,
+                                 llvm::ModuleAnalysisManager &) {
   return MixedSemantics().runOnModule(M) ? llvm::PreservedAnalyses::none()
                                          : llvm::PreservedAnalyses::all();
 }

@@ -405,7 +405,8 @@ static llvm::RegisterPass<seahorn::PromoteVerifierCalls>
 // --- new pass manager wrapper (SeaBuiltinsInfo is stateless; CG dropped) ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::PromoteVerifierCallsPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+seahorn::PromoteVerifierCallsPass::run(llvm::Module &M,
+                                       llvm::ModuleAnalysisManager &) {
   return PromoteVerifierCalls().runOnModule(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
+                                               : llvm::PreservedAnalyses::all();
 }

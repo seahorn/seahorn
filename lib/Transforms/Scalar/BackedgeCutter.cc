@@ -172,8 +172,10 @@ llvm::Pass *seahorn::createBackEdgeCutterPass() { return new BackedgeCutter(); }
 // --- new pass manager wrapper ---
 #include "seahorn/SeaNewPmPasses.hh"
 llvm::PreservedAnalyses
-seahorn::BackEdgeCutterPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+seahorn::BackEdgeCutterPass::run(llvm::Function &F,
+                                 llvm::FunctionAnalysisManager &) {
   seahorn::SeaBuiltinsInfo sbi;
   bool changed = BackedgeCutter().runImpl(F, sbi);
-  return changed ? llvm::PreservedAnalyses::none() : llvm::PreservedAnalyses::all();
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
 }

@@ -106,8 +106,7 @@ void ConstantExprEvaluator::initMemory(const Constant *Init, void *Addr) {
   if (Init->getType()->isFirstClassType()) {
     auto valo = evaluate(Init);
     if (valo)
-      storeValueToMemory(valo.value(), (GenericValue *)Addr,
-                         Init->getType());
+      storeValueToMemory(valo.value(), (GenericValue *)Addr, Init->getType());
     return;
   }
 

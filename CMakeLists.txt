@@ -76,9 +76,11 @@ if (GIT_FOUND)
     CACHE STRING "clam repo")
   
   add_custom_target (llvm-seahorn-git
-    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev15)
+    ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev16)
   add_custom_target (sea-dsa-git
-    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev15)
+    ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev16)
+  # clam is not ported to LLVM 16 (WITH_CLAM=OFF); keep cloning its dev15
+  # branch so the `extra` target still resolves.
   add_custom_target (clam-git
     ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev15)
   add_custom_target (extra

@@ -3,6 +3,7 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Passes.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/SeaDebug.h"
 
 #include "llvm/IR/Constants.h"
@@ -72,6 +73,11 @@ public:
 
   bool runOnModule(Module &M) override {
     auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+    return runImpl(M, SBI);
+  }
+
+  // shared with the new-PM wrapper (SeaBuiltinsInfo is stateless)
+  bool runImpl(Module &M, SeaBuiltinsInfo &SBI) {
     m_assumeFn = SBI.mkSeaBuiltinFn(SeaBuiltinsOp::ASSUME, M);
 
     bool changed = false;
@@ -154,6 +160,14 @@ char GeneratePartialFnPass::ID = 0;
 
 llvm::Pass *createGeneratePartialFnPass() {
   return new GeneratePartialFnPass();
+}
+
+llvm::PreservedAnalyses
+GeneratePartialFnNewPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+  SeaBuiltinsInfo SBI;
+  return GeneratePartialFnPass().runImpl(M, SBI)
+             ? llvm::PreservedAnalyses::none()
+             : llvm::PreservedAnalyses::all();
 }
 
 } // namespace seahorn

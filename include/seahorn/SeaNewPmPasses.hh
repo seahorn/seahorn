@@ -179,6 +179,12 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class GeneratePartialFnNewPass
+    : public llvm::PassInfoMixin<GeneratePartialFnNewPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 class PromoteVerifierCallsPass
     : public llvm::PassInfoMixin<PromoteVerifierCallsPass> {
 public:

@@ -14,8 +14,11 @@
 // forward declarations
 namespace llvm {
 class GetElementPtrInst;
+class LazyValueInfo;
 class LazyValueInfoWrapperPass;
 } // namespace llvm
+
+#include <functional>
 
 namespace clam {
 class CrabBuilderManager;
@@ -37,16 +40,19 @@ Bv2OpSemContext &ctx(OpSemContext &_ctx);
    Memory is modelled by arrays.
  */
 class Bv2OpSem : public OperationalSemantics {
-  Pass &m_pass;
+  // Legacy-PM escape hatch; only the HAVE_CLAM code path still needs a Pass.
+  Pass *m_pass = nullptr;
   TrackLevel m_trackLvl;
 
   const DataLayout *m_td;
-  const TargetLibraryInfoWrapperPass *m_tliWrapper;
-  const CanFail *m_canFail;
+  const CanFail *m_canFail = nullptr;
+  /// \brief lazily fetches per-function LazyValueInfo (legacy getAnalysis or
+  /// new-PM FAM); may be empty when LVI-based range inference is disabled
+  std::function<llvm::LazyValueInfo &(llvm::Function &)> m_lviGetter;
 
   /// \brief lvi's map used for analysis
   using lvi_func_map_t =
-      DenseMap<const llvm::Function *, LazyValueInfoWrapperPass *>;
+      DenseMap<const llvm::Function *, llvm::LazyValueInfo *>;
   std::unique_ptr<lvi_func_map_t> m_lvi_map;
 
 #ifdef HAVE_CLAM
@@ -58,6 +64,10 @@ class Bv2OpSem : public OperationalSemantics {
 
 public:
   Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+           TrackLevel trackLvl = MEM);
+  /// new-PM construction: analyses provided explicitly
+  Bv2OpSem(ExprFactory &efac, const DataLayout &dl, const CanFail *canFail,
+           std::function<llvm::LazyValueInfo &(llvm::Function &)> lviGetter,
            TrackLevel trackLvl = MEM);
 
   Bv2OpSem(const Bv2OpSem &o);

@@ -3277,15 +3277,28 @@ Expr Bv2OpSemContext::getRawMem(Expr p) { return mem().getRawMem(p); }
 
 Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
                    TrackLevel trackLvl)
-    : OperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
+    : OperationalSemantics(efac), m_pass(&pass), m_trackLvl(trackLvl),
       m_td(&dl) {
   m_canFail = pass.getAnalysisIfAvailable<CanFail>();
+  m_lviGetter = [&pass](Function &F) -> LazyValueInfo & {
+    return pass.getAnalysis<LazyValueInfoWrapperPass>(F).getLVI();
+  };
   m_lvi_map = UseLVIInferRng ? std::make_unique<lvi_func_map_t>() : nullptr;
-  auto *p = pass.getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-  if (p)
-    m_tliWrapper = p;
 
   // -- hack to get ENode::dump() to compile by forcing a use
+  LOG("dump.debug", trueE->dump(););
+}
+
+Bv2OpSem::Bv2OpSem(ExprFactory &efac, const DataLayout &dl,
+                   const CanFail *canFail,
+                   std::function<llvm::LazyValueInfo &(llvm::Function &)>
+                       lviGetter,
+                   TrackLevel trackLvl)
+    : OperationalSemantics(efac), m_trackLvl(trackLvl), m_td(&dl),
+      m_canFail(canFail), m_lviGetter(std::move(lviGetter)) {
+  m_lvi_map = (UseLVIInferRng && m_lviGetter)
+                  ? std::make_unique<lvi_func_map_t>()
+                  : nullptr;
   LOG("dump.debug", trueE->dump(););
 }
 
@@ -3296,7 +3309,7 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
     : OperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
-      m_td(o.m_td), m_canFail(o.m_canFail) {}
+      m_td(o.m_td), m_canFail(o.m_canFail), m_lviGetter(o.m_lviGetter) {}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
@@ -3781,11 +3794,12 @@ std::optional<APInt> Bv2OpSem::vec(Type *vecTy,
 #ifdef HAVE_CLAM
 void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
   // Get seadsa -- pointer analysis
-  auto &dsa_pass = m_pass.getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+  assert(m_pass && "clam analysis requires legacy-PM construction");
+  auto &dsa_pass = m_pass->getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
   auto &dsa = dsa_pass.getDsaAnalysis();
 
   // XXX: use of legacy operational semantics
-  auto &tli = m_pass.getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tli = m_pass->getAnalysis<TargetLibraryInfoWrapperPass>();
 
   clam::SeaDsaHeapAbstractionParams params;
   params.is_context_sensitive =
@@ -3836,14 +3850,11 @@ void Bv2OpSem::runCrabAnalysis() {
 #endif // HAVE_CLAM
 
 void Bv2OpSem::runLVIAnalysis(const Function &F) {
-  if (m_lvi_map) {
+  if (m_lvi_map && m_lviGetter) {
     Function &fn = const_cast<Function &>(F);
-    LazyValueInfoWrapperPass *m_lvi =
-        &m_pass.getAnalysis<LazyValueInfoWrapperPass>(fn);
-    if (m_lvi) {
-      m_lvi_map->insert({&F, m_lvi});
-      LOG("opsem-rng", MSG << "Running LVI on function: " << F.getName(););
-    }
+    LazyValueInfo &lvi = m_lviGetter(fn);
+    m_lvi_map->insert({&F, &lvi});
+    LOG("opsem-rng", MSG << "Running LVI on function: " << F.getName(););
   }
 }
 
@@ -3863,7 +3874,7 @@ const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
     if (fn) {
       auto it = m_lvi_map->find(fn);
       if (it != m_lvi_map->end()) {
-        return it->second->getLVI().getConstantRange(dyn_cast<Value>(&I), &I);
+        return it->second->getConstantRange(dyn_cast<Value>(&I), &I);
       }
     }
   }

@@ -8,10 +8,26 @@
 // REQUIRES: disabled
 // (undefined lit feature: portable way to skip in every lit version)
 
-// Based on https://github.com/MCFuzzer/MCFuzz/issues/46.
+// Based on https://github.com/MCFuzzer/MCFuzz/issues/46 (file numbering is
+// seahorn-local, the reference is MCFuzz's upstream tracker).
+//
+// The correct verdict is unsat: i.a = 2 concretely writes the low 16 bits of
+// the bitfield's storage unit; f() writes only .b; the by-value copies
+// preserve written bits (undef occupies only the never-written high bits and
+// b, which do not flow into the comparison), so i.a != 2 is unreachable. At
+// -O3 LLVM folds the branch away, corroborating that the error is dead code,
+// and MCFuzz's differential report adjudicated SeaHorn's historical sat as
+// the false alarm. A sat verdict requires the opsem to lose *written* low
+// bits while copying a partially-undef storage unit -- an imprecision in
+// sub-word undef handling during aggregate copies, not a defensible model of
+// uninitialized memory.
+//
 // Historically XFAIL: both bv-opsems gave sat. On dev16 the verdict is
 // environment-dependent (unsat in the local jammy-llvm16 container, fail on
-// the CI runner), so neither XFAIL nor plain pass is stable; disabled.
+// the CI runner), so neither XFAIL nor plain pass is stable; disabled by
+// renaming out of lit discovery (marker semantics differ across lit
+// versions). Re-enable by renaming back once the opsem preserves written
+// sub-word bits across struct copies; must be unsat in all four RUN configs.
 
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 

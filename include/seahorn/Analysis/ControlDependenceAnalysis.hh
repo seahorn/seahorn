@@ -7,6 +7,11 @@
 
 #include <memory>
 
+namespace llvm {
+class DominatorTree;
+class PostDominatorTree;
+} // namespace llvm
+
 namespace seahorn {
 
 class ControlDependenceAnalysis;
@@ -22,6 +27,7 @@ public:
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   bool runOnFunction(llvm::Function &F);
+  bool runImpl(llvm::Function &F, llvm::PostDominatorTree &PDT);
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {

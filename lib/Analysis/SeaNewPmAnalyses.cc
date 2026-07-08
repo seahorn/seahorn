@@ -1,6 +1,8 @@
 #include "seahorn/SeaNewPmAnalyses.hh"
 
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/IR/Dominators.h"
 
 using namespace llvm;
 
@@ -30,6 +32,34 @@ CutPointGraphAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
   auto &topo = FAM.getResult<TopologicalOrderAnalysis>(F);
   auto res = std::make_unique<seahorn::CutPointGraph>();
   res->runImpl(F, *topo);
+  return res;
+}
+
+AnalysisKey ControlDependenceAnalysisWrapper::Key;
+AnalysisKey GateAnalysisWrapper::Key;
+
+ControlDependenceAnalysisWrapper::Result
+ControlDependenceAnalysisWrapper::run(Module &M, ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto res = std::make_unique<seahorn::ControlDependenceAnalysisPass>();
+  for (auto &F : M)
+    if (!F.isDeclaration())
+      res->runImpl(F, FAM.getResult<PostDominatorTreeAnalysis>(F));
+  return res;
+}
+
+GateAnalysisWrapper::Result
+GateAnalysisWrapper::run(Module &M, ModuleAnalysisManager &MAM) {
+  auto &cda = MAM.getResult<ControlDependenceAnalysisWrapper>(M);
+  auto &FAM =
+      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto res = std::make_unique<seahorn::GateAnalysisPass>();
+  for (auto &F : M)
+    if (!F.isDeclaration())
+      res->runImpl(F, cda->getControlDependenceAnalysis(F),
+                   FAM.getResult<DominatorTreeAnalysis>(F),
+                   FAM.getResult<PostDominatorTreeAnalysis>(F));
   return res;
 }
 

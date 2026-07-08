@@ -21,7 +21,6 @@ namespace seahorn
   */
   class ClpOpSem : public LegacyOperationalSemantics
   {
-    Pass &m_pass;
     TrackLevel m_trackLvl;
 
     const DataLayout *m_td;
@@ -31,17 +30,17 @@ namespace seahorn
     Expr one;
 
   public:
-    ClpOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
+    ClpOpSem (ExprFactory &efac, const CanFail *canFail, const DataLayout &dl,
 		     TrackLevel trackLvl = MEM) :
-      LegacyOperationalSemantics (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
+      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl),
+      m_canFail (canFail)
     {
-      m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
       zero = mkTerm<expr::mpz_class>(0UL, m_efac);
       one  = mkTerm<expr::mpz_class>(1UL, m_efac);
     }
 
     ClpOpSem (const ClpOpSem& o) :
-      LegacyOperationalSemantics (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+      LegacyOperationalSemantics (o), m_trackLvl (o.m_trackLvl),
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 
     Expr errorFlag (const BasicBlock &BB) override;

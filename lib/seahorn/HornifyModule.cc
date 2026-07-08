@@ -180,7 +180,7 @@ bool HornifyModule::runOnModule(Module &M) {
 
   if (Step == hm_detail::CLP_SMALL_STEP ||
       Step == hm_detail::CLP_FLAT_SMALL_STEP)
-    m_sem.reset(new ClpOpSem(m_efac, *this, M.getDataLayout(), TL));
+    m_sem.reset(new ClpOpSem(m_efac, m_canFail, M.getDataLayout(), TL));
   else if (InterProcMem || InterProcMemFmaps || InterMemArrayConstraints) {
     ShadowMemPass *smp = getAnalysisIfAvailable<seadsa::ShadowMemPass>();
     assert(smp);
@@ -192,18 +192,18 @@ bool HornifyModule::runOnModule(Module &M) {
 
     m_imPreProc->runOnModule(M);
     if (InterProcMem)
-      m_sem.reset(new MemUfoOpSem(m_efac, *this, M.getDataLayout(), m_imPreProc,
+      m_sem.reset(new MemUfoOpSem(m_efac, m_canFail, M.getDataLayout(), m_imPreProc,
                                   TL, abs_fns, m_shadowMem));
     else if (InterProcMemFmaps)
-      m_sem.reset(new FMapUfoOpSem(m_efac, *this, M.getDataLayout(),
+      m_sem.reset(new FMapUfoOpSem(m_efac, m_canFail, M.getDataLayout(),
                                    m_imPreProc, TL, abs_fns, m_shadowMem));
     else // regular UfoOpSem but we add invariants about memory modification
          // in `HornifyFunction`
-      m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
+      m_sem.reset(new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
   } else if (BitPrecise) {
     m_sem.reset(new BvOpSem(m_efac, *this, M.getDataLayout(), TL));
   } else {
-    m_sem.reset(new UfoOpSem(m_efac, *this, M.getDataLayout(), TL, abs_fns));
+    m_sem.reset(new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
   }
 
   Function *main = M.getFunction("main");

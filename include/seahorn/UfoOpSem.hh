@@ -38,7 +38,6 @@ struct CallBaseInfo {
  * low-level bit-precise reasoning.
  */
 class UfoOpSem : public LegacyOperationalSemantics {
-  Pass &m_pass;
   TrackLevel m_trackLvl;
 
 public:
@@ -50,14 +49,12 @@ private:
   const CanFail *m_canFail;
 
 public:
-  UfoOpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+  UfoOpSem(ExprFactory &efac, const CanFail *canFail, const DataLayout &dl,
            TrackLevel trackLvl = MEM, FunctionPtrSet abs_fns = FunctionPtrSet())
-      : LegacyOperationalSemantics(efac), m_pass(pass), m_trackLvl(trackLvl),
-        m_abs_funcs(abs_fns), m_td(&dl) {
-    m_canFail = pass.getAnalysisIfAvailable<CanFail>();
-  }
+      : LegacyOperationalSemantics(efac), m_trackLvl(trackLvl),
+        m_abs_funcs(abs_fns), m_td(&dl), m_canFail(canFail) {}
   UfoOpSem(const UfoOpSem &o)
-      : LegacyOperationalSemantics(o), m_pass(o.m_pass),
+      : LegacyOperationalSemantics(o),
         m_trackLvl(o.m_trackLvl), m_abs_funcs(o.m_abs_funcs), m_td(o.m_td),
         m_canFail(o.m_canFail) {}
 
@@ -124,12 +121,12 @@ private:
   CellExprMap m_tmprep_out;
 
 public:
-  MemUfoOpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+  MemUfoOpSem(ExprFactory &efac, const CanFail *canFail, const DataLayout &dl,
               std::shared_ptr<InterMemPreProc> preproc,
               TrackLevel trackLvl = MEM,
               FunctionPtrSet abs_fns = FunctionPtrSet(),
               seadsa::ShadowMem *dsa = NULL)
-      : UfoOpSem(efac, pass, dl, trackLvl, abs_fns), m_preproc(preproc),
+      : UfoOpSem(efac, canFail, dl, trackLvl, abs_fns), m_preproc(preproc),
         m_shadowDsa(dsa) {}
 
   void execCallBase(CallBaseInfo &CS, ExprVector &side, SymStore &s) override;
@@ -183,11 +180,12 @@ private:
 class FMapUfoOpSem : public MemUfoOpSem {
 
 public:
-  FMapUfoOpSem(expr::ExprFactory &efac, Pass &pass, const DataLayout &dl,
+  FMapUfoOpSem(expr::ExprFactory &efac, const CanFail *canFail,
+               const DataLayout &dl,
                std::shared_ptr<InterMemPreProc> preproc,
                TrackLevel trackLvl = MEM,
                FunctionPtrSet abs_fns = FunctionPtrSet(), ShadowMem *dsa = NULL)
-      : MemUfoOpSem(efac, pass, dl, preproc, trackLvl, abs_fns, dsa) {
+      : MemUfoOpSem(efac, canFail, dl, preproc, trackLvl, abs_fns, dsa) {
     m_keyBase = mkTerm<std::string>("k", efac);
     m_fmDefault = mkTerm<expr::mpz_class>(0UL, m_efac);
   }

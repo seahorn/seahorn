@@ -55,6 +55,8 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/Inliner.h"
+#include "seadsa/support/RemovePtrToInt.hh"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
@@ -371,36 +373,37 @@ int main(int argc, char **argv) {
     // -- it invalidates DSA passes so it should be run before
     // -- ShadowMem
     MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal global
+    // -- initialize any global variables that are left
+    if (LowerGlobalInitializers) {
+      MPM.addPass(seahorn::LowerGvInitializersPass());
+      MPM.addPass(llvm::ModuleInlinerWrapperPass());
+    }
+    {
+      llvm::FunctionPassManager FPM;
+      FPM.addPass(seadsa::RemovePtrToIntPass());
+      // XXX If not BMC and not BoogieOutput then we are in Horn mode
+      if (!Bmc && !BoogieOutput)
+        // in CHC mode, rewrite all loops with constant trip count to make
+        // trip count symbolic. This does not change the semantics (i.e., is
+        // exact), but hides the constants from the CHC solver
+        FPM.addPass(seahorn::SymbolizeConstantLoopBoundsPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    if (NondetInit)
+      MPM.addPass(seahorn::NondetInitPass());
+    {
+      llvm::FunctionPassManager FPM;
+      // Preceding passes may introduce overflow intrinsics. This is
+      // undesirable if we are not in BMC mode.
+      if (!Bmc)
+        FPM.addPass(seahorn::LowerArithWithOverflowIntrinsicsPass());
+      FPM.addPass(seahorn::SeaRemoveUnreachableBlocksPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
     MPM.run(*module, MAM);
   }
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
 
-  // -- initialize any global variables that are left
-  if (LowerGlobalInitializers) {
-    pass_manager.add(new seahorn::LowerGvInitializers());
-    pass_manager.add(llvm::createFunctionInliningPass());
-  }
-
-  pass_manager.add(seadsa::createRemovePtrToIntPass());
-
-  // XXX If not BMC and not BoogieOutput then we are in Horn mode
-  // XXX This needs to be cleaned up ...
-  if (!Bmc && !BoogieOutput)
-    // in CHC mode, rewrite all loops with constant trip count to make trip
-    // count symbolic This does not change the semantics (i.e., is exact), but
-    // hides the constants from CHC solver
-    // XXX enabled by default. Currently, no flag to disable
-    pass_manager.add(seahorn::createSymbolizeConstantLoopBoundsPass());
-
-  if (NondetInit)
-    pass_manager.add(seahorn::createNondetInitPass());
-
-  // Preceding passes may introduce overflow intrinsics. This is undesirable if
-  // we are not in BMC mode.
-  if (!Bmc)
-    pass_manager.add(seahorn::createLowerArithWithOverflowIntrinsicsPass());
-
-  pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
   pass_manager.add(seahorn::createStripLifetimePass());
   pass_manager.add(seahorn::createDeadNondetElimPass());
 

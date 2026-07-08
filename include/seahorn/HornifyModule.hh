@@ -24,12 +24,18 @@ using namespace expr;
 using namespace llvm;
 using namespace seahorn;
 
+/// true when any inter-procedural memory encoding flag is set (these modes
+/// need seadsa CompleteCallGraph + ShadowMem via the legacy PM)
+bool hornInterMemEnabled();
+
 class HornifyModule : public llvm::ModulePass {
   typedef llvm::DenseMap<const Function *, LiveSymbols> LiveSymbolsMap;
   typedef llvm::DenseMap<const BasicBlock *, Expr> PredDeclMap;
 
 protected:
   ExprFactory m_efac;
+  /// stateless; owned so the standalone (new-PM route) object works
+  SeaBuiltinsInfo m_sbi;
   EZ3 m_zctx;
   HornClauseDB m_db;
 
@@ -84,7 +90,15 @@ public:
   /// -- symbolic execution engine
   LegacyOperationalSemantics &symExec() { return *m_sem; }
 
-  CutPointGraph &getCpg(Function &F) { return getAnalysis<CutPointGraph>(F); }
+  CutPointGraph &getCpg(Function &F) { return m_cpgGetter(F); }
+
+  /// analysis getters; wired from legacy getAnalysis in runOnModule or
+  /// explicitly by the new-PM driver route
+  std::function<CutPointGraph &(Function &)> m_cpgGetter;
+  std::function<llvm::CallGraph &()> m_cgGetter;
+  void setCanFail(const CanFail *cf) { m_canFail = cf; }
+  /// shared by runOnModule and the new-PM route (getters already wired)
+  bool processModule(Module &M);
   InterMemPreProc &getInterMemPP() {
     assert(m_imPreProc);
     return *m_imPreProc;
@@ -96,7 +110,7 @@ public:
   }
 
   SeaBuiltinsInfo &getSBI() {
-    return getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+    return m_sbi;
   }
 };
 } // namespace seahorn

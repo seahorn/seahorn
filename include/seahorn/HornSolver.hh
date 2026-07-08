@@ -11,7 +11,9 @@
 namespace seahorn {
 using namespace llvm;
 
+class HornifyModule;
 class HornSolver : public llvm::ModulePass {
+  HornifyModule *m_hm = nullptr;
   boost::tribool m_result;
   std::unique_ptr<EZ3> m_local_ctx;
   std::unique_ptr<ZFixedPoint<EZ3>> m_fp;
@@ -29,6 +31,7 @@ public:
   virtual ~HornSolver() {}
 
   virtual bool runOnModule(Module &M) override;
+  bool runImpl(Module &M, HornifyModule &hm);
   virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
   virtual StringRef getPassName() const override { return "HornSolver"; }
   ZFixedPoint<EZ3> &getZFixedPoint() { return *m_fp; }

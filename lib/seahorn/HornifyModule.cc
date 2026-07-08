@@ -164,12 +164,26 @@ bool shouldBeAbstracted(const Function &fn) {
 HornifyModule::HornifyModule()
     : ModulePass(ID), m_zctx(m_efac), m_db(m_efac), m_td(0), m_canFail(0) {}
 
+bool hornInterMemEnabled() {
+  return InterProcMem || InterProcMemFmaps || InterMemArrayConstraints;
+}
+
 bool HornifyModule::runOnModule(Module &M) {
+  m_canFail = getAnalysisIfAvailable<CanFail>();
+  m_cpgGetter = [this](Function &F) -> CutPointGraph & {
+    return getAnalysis<CutPointGraph>(F);
+  };
+  m_cgGetter = [this]() -> CallGraph & {
+    return getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  };
+  return processModule(M);
+}
+
+bool HornifyModule::processModule(Module &M) {
   ScopedStats _st("HornifyModule");
 
   bool Changed = false;
   m_td = &M.getDataLayout();
-  m_canFail = getAnalysisIfAvailable<CanFail>();
 
   typename UfoOpSem::FunctionPtrSet abs_fns;
   if (!AbstractFunctions.empty()) {
@@ -311,7 +325,7 @@ bool HornifyModule::runOnModule(Module &M) {
                                mk<OR>(args[0], mk<EQ>(args[1], args[2]))));
   }
 
-  CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  CallGraph &CG = m_cgGetter();
   for (auto it = scc_begin(&CG); !it.isAtEnd(); ++it) {
     const std::vector<CallGraphNode *> &scc = *it;
     CallGraphNode *cgn = scc.front();
@@ -423,7 +437,7 @@ bool HornifyModule::runOnFunction(Function &F) {
   // (and unifying return nodes) before computing liveness so that
   // we make sure the CFG does not change between LiveSymbols and
   // hornify function.
-  /*CutPointGraph &cpg =*/getAnalysis<CutPointGraph>(F);
+  /*CutPointGraph &cpg =*/m_cpgGetter(F);
 
   boost::scoped_ptr<HornifyFunction> hf(
       new SmallHornifyFunction(*this, InterProc));

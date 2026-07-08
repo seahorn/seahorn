@@ -42,8 +42,11 @@ void setInfo(Out &out, Key &key, Value &val) {
 }
 
 bool HornWrite::runOnModule(Module &M) {
+  return runImpl(M, getAnalysis<HornifyModule>());
+}
+
+bool HornWrite::runImpl(Module &M, HornifyModule &hm) {
   ScopedStats _st_("HornWrite");
-  HornifyModule &hm = getAnalysis<HornifyModule>();
 
   HornClauseDB &origdb = hm.getHornClauseDB();
   HornClauseDB tdb(origdb.getExprFactory());

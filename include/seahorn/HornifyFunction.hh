@@ -59,7 +59,7 @@ public:
         m_db(m_parent.getHornClauseDB()), m_zctx(parent.getZContext()),
         m_efac(m_zctx.getExprFactory()), m_interproc(interproc),
         m_interprocFmaps(interprocFmaps),
-        m_smp(m_parent.getAnalysisIfAvailable<seadsa::ShadowMemPass>()) {}
+        m_smp(nullptr) {}
 
   virtual ~HornifyFunction() {}
   HornClauseDB &getHornClauseDB() { return m_db; }

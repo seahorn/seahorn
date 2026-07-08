@@ -7,6 +7,7 @@
 
 namespace seahorn
 {
+  class HornifyModule;
   using namespace llvm;
   
   
@@ -20,6 +21,7 @@ namespace seahorn
     virtual StringRef getPassName() const override {return "HornWrite";}
     
     virtual bool runOnModule(Module &M) override;
+    bool runImpl(Module &M, HornifyModule &hm);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
   };
 }

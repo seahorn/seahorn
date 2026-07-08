@@ -179,6 +179,18 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class StripLifetimeNewPass
+    : public llvm::PassInfoMixin<StripLifetimeNewPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class OneAssumePerBlockNewPass
+    : public llvm::PassInfoMixin<OneAssumePerBlockNewPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 class GeneratePartialFnNewPass
     : public llvm::PassInfoMixin<GeneratePartialFnNewPass> {
 public:

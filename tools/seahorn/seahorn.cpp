@@ -400,17 +400,19 @@ int main(int argc, char **argv) {
       FPM.addPass(seahorn::SeaRemoveUnreachableBlocksPass());
       MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
     }
+    MPM.addPass(seahorn::StripLifetimeNewPass());
+    {
+      llvm::FunctionPassManager FPM;
+      FPM.addPass(seahorn::DeadNondetElimPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    if (OneAssumePerBlock) {
+      // -- it must be called after all the cfg simplifications
+      MPM.addPass(seahorn::OneAssumePerBlockNewPass());
+    }
     MPM.run(*module, MAM);
   }
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
-
-  pass_manager.add(seahorn::createStripLifetimePass());
-  pass_manager.add(seahorn::createDeadNondetElimPass());
-
-  if (OneAssumePerBlock) {
-    // -- it must be called after all the cfg simplifications
-    pass_manager.add(seahorn::createOneAssumePerBlockPass());
-  }
 
   // -- called after DeadNondetElimPass so that the graphs do not contain
   // -- values that have been freed

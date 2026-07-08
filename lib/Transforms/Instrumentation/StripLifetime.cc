@@ -1,3 +1,4 @@
+#include "seahorn/SeaNewPmPasses.hh"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -43,6 +44,12 @@ namespace
 namespace seahorn
 {
   Pass * createStripLifetimePass () {return new StripLifetime ();}
+
+  llvm::PreservedAnalyses
+  StripLifetimeNewPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
+    return StripLifetime().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                          : llvm::PreservedAnalyses::all();
+  }
 }
 
 static llvm::RegisterPass<StripLifetime> Y ("strip-lifetime",

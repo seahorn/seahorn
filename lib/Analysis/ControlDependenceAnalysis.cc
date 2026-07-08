@@ -198,9 +198,13 @@ bool ControlDependenceAnalysisPass::runOnModule(llvm::Module &M) {
 }
 
 bool ControlDependenceAnalysisPass::runOnFunction(llvm::Function &F) {
-  CDA_LOG(llvm::errs() << "CDA: Running on " << F.getName() << "\n");
-
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+  return runImpl(F, PDT);
+}
+
+bool ControlDependenceAnalysisPass::runImpl(llvm::Function &F,
+                                            llvm::PostDominatorTree &PDT) {
+  CDA_LOG(llvm::errs() << "CDA: Running on " << F.getName() << "\n");
   m_analyses[&F] = std::make_unique<ControlDependenceAnalysisImpl>(F, PDT);
   return false;
 }

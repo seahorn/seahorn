@@ -7,6 +7,8 @@
 #include "llvm/IR/PassManager.h"
 
 #include "seahorn/Analysis/CanFail.hh"
+#include "seahorn/Analysis/ControlDependenceAnalysis.hh"
+#include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "seahorn/Analysis/TopologicalOrder.hh"
 
@@ -44,6 +46,28 @@ class CutPointGraphAnalysis
 public:
   using Result = std::unique_ptr<seahorn::CutPointGraph>;
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+};
+
+/// Module analysis: per-function control dependence info.
+class ControlDependenceAnalysisWrapper
+    : public llvm::AnalysisInfoMixin<ControlDependenceAnalysisWrapper> {
+  friend llvm::AnalysisInfoMixin<ControlDependenceAnalysisWrapper>;
+  static llvm::AnalysisKey Key;
+
+public:
+  using Result = std::unique_ptr<seahorn::ControlDependenceAnalysisPass>;
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+};
+
+/// Module analysis: per-function gated-SSA gamma info (--horn-gsa).
+class GateAnalysisWrapper
+    : public llvm::AnalysisInfoMixin<GateAnalysisWrapper> {
+  friend llvm::AnalysisInfoMixin<GateAnalysisWrapper>;
+  static llvm::AnalysisKey Key;
+
+public:
+  using Result = std::unique_ptr<seahorn::GateAnalysisPass>;
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 };
 
 } // namespace seahorn

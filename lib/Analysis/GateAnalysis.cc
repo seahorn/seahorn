@@ -335,11 +335,16 @@ bool GateAnalysisPass::runOnModule(llvm::Module &M) {
 
 bool GateAnalysisPass::runOnFunction(llvm::Function &F,
                                      ControlDependenceAnalysis &CDA) {
-  GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
-
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>(F).getPostDomTree();
+  return runImpl(F, CDA, DT, PDT);
+}
 
+bool GateAnalysisPass::runImpl(llvm::Function &F,
+                               ControlDependenceAnalysis &CDA,
+                               llvm::DominatorTree &DT,
+                               llvm::PostDominatorTree &PDT) {
+  GSA_LOG(llvm::errs() << "\nGSA: Running on " << F.getName() << "\n");
   m_analyses[&F] = std::make_unique<GateAnalysisImpl>(F, DT, PDT, CDA);
   return false;
 }

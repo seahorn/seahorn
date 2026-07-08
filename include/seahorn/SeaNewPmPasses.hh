@@ -179,6 +179,19 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+/// New-PM mono-engine BMC. Consumes CanFailAnalysis, CutPointGraphAnalysis,
+/// GateAnalysisWrapper (under --horn-gsa) and stock TLI/LVI from the FAM.
+/// ShadowMem instrumentation must have run beforehand (legacy pre-step).
+class BmcPassNew : public llvm::PassInfoMixin<BmcPassNew> {
+  llvm::raw_ostream *m_out;
+  bool m_solve;
+
+public:
+  BmcPassNew(llvm::raw_ostream *out, bool solve)
+      : m_out(out), m_solve(solve) {}
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 class UnifyAssumesNewPass
     : public llvm::PassInfoMixin<UnifyAssumesNewPass> {
 public:

@@ -1,3 +1,4 @@
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/Support/SeaDebug.h"
@@ -151,6 +152,16 @@ bool EvalBranchSentinelPass::runOnFunction(Function &F) {
 
 Pass *createEvalBranchSentinelPassPass() {
   return new EvalBranchSentinelPass();
+}
+
+llvm::PreservedAnalyses
+EvalBranchSentinelNewPass::run(llvm::Function &F,
+                               llvm::FunctionAnalysisManager &) {
+  seahorn::SeaBuiltinsInfo SBI;
+  EvalBranchSentinelPass P;
+  P.m_SBI = &SBI;
+  P.runOnFunction(F);
+  return llvm::PreservedAnalyses::all();
 }
 
 } // namespace seahorn

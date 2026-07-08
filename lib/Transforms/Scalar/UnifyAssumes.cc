@@ -1,3 +1,4 @@
+#include "seahorn/SeaNewPmPasses.hh"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Dominators.h"
@@ -46,6 +47,9 @@ public:
   }
 
   bool runOnFunction(Function &F);
+  bool runImpl(Function &F, seahorn::SeaBuiltinsInfo &SBI,
+               llvm::function_ref<llvm::DominatorTree &()> getDT,
+               llvm::function_ref<llvm::AssumptionCache &()> getAC);
 
   void processCallInst(CallInst &CI, AllocaInst &flag);
   void processAssertInst(CallInst &CI, AllocaInst &flag);
@@ -110,8 +114,24 @@ CallInst *UnifyAssumesPass::findSeahornFail(llvm::Function &F) {
 }
 
 bool UnifyAssumesPass::runOnFunction(Function &F) {
+  auto &SBI = getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+  // analyses fetched lazily: DT/AC must be computed AFTER the mutations below
+  return runImpl(
+      F, SBI,
+      [&]() -> DominatorTree & {
+        return getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
+      },
+      [&]() -> AssumptionCache & {
+        return getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
+      });
+}
+
+bool UnifyAssumesPass::runImpl(
+    Function &F, seahorn::SeaBuiltinsInfo &SBI,
+    llvm::function_ref<llvm::DominatorTree &()> getDT,
+    llvm::function_ref<llvm::AssumptionCache &()> getAC) {
   Module &M = *F.getParent();
-  m_SBI = &getAnalysis<seahorn::SeaBuiltinsInfoWrapperPass>().getSBI();
+  m_SBI = &SBI;
   auto *assumeFn = m_SBI->mkSeaBuiltinFn(seahorn::SeaBuiltinsOp::ASSUME, M);
 
   SmallVector<CallInst *, 16> assumes;
@@ -177,12 +197,9 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
 
   LOG("unify.dump", errs() << F << "\n";);
 
-  // -- run mem2reg to lower assumeFlag to register
-  DominatorTree &DT =
-      getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
-  AssumptionCache &AC =
-      getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
-  PromoteMemToReg(assumeFlag, DT, &AC);
+  // -- run mem2reg to lower assumeFlag to register (DT/AC computed now,
+  // -- after all mutations above)
+  PromoteMemToReg(assumeFlag, getDT(), &getAC());
 
   return false;
 }
@@ -249,6 +266,27 @@ void UnifyAssumesPass::processCallInst(CallInst &CI, AllocaInst &flag) {
 
 namespace seahorn {
 Pass *createUnifyAssumesPass() { return new UnifyAssumesPass(); };
+
+llvm::PreservedAnalyses
+UnifyAssumesNewPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  Function *main = M.getFunction("main");
+  if (!main)
+    return llvm::PreservedAnalyses::all();
+  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M)
+                  .getManager();
+  SeaBuiltinsInfo SBI;
+  UnifyAssumesPass P;
+  bool changed = P.runImpl(
+      *main, SBI,
+      [&]() -> llvm::DominatorTree & {
+        return FAM.getResult<llvm::DominatorTreeAnalysis>(*main);
+      },
+      [&]() -> llvm::AssumptionCache & {
+        return FAM.getResult<llvm::AssumptionAnalysis>(*main);
+      });
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}
 bool isUnifiedAssume(const Instruction &I) {
   return I.hasMetadata(UnifyAssumesPass::s_assumeUnifiedTag);
 }

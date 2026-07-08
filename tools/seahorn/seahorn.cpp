@@ -412,6 +412,12 @@ int main(int argc, char **argv) {
     }
     MPM.run(*module, MAM);
   }
+  // SEAHORN: the migration boundary. ShadowMem cannot leave this legacy PM
+  // yet: BmcPass and HornifyModule addRequired<ShadowMemPass>, so it must be
+  // scheduled in the same manager as the tail. UnifyAssumes / CanReadUndef /
+  // EvalBranchSentinel already have new-PM twins (UnifyAssumesNewPass,
+  // CanReadUndefPass, EvalBranchSentinelNewPass) and move out together with
+  // ShadowMem once the tail consumes shadow memory via an analysis.
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
 
   // -- called after DeadNondetElimPass so that the graphs do not contain
@@ -421,14 +427,6 @@ int main(int argc, char **argv) {
   if (UnifyAssumes) {
     pass_manager.add(seahorn::createUnifyAssumesPass());
   }
-  // #ifdef HAVE_CLAM
-  //   if (Crab && !BoogieOutput) {
-  //     /// -- insert invariants in the bitecode
-  //     pass_manager.add(new crab_llvm::InsertInvariants());
-  //     /// -- simplify invariants added in the bitecode
-  //     // pass_manager.add (seahorn::createInstCombine ());
-  //   }
-  // #endif
 
   // --- verify if an undefined value can be read
   pass_manager.add(seahorn::createCanReadUndefPass());

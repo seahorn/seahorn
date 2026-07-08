@@ -179,6 +179,19 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+class UnifyAssumesNewPass
+    : public llvm::PassInfoMixin<UnifyAssumesNewPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+class EvalBranchSentinelNewPass
+    : public llvm::PassInfoMixin<EvalBranchSentinelNewPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &,
+                              llvm::FunctionAnalysisManager &);
+};
+
 class StripLifetimeNewPass
     : public llvm::PassInfoMixin<StripLifetimeNewPass> {
 public:

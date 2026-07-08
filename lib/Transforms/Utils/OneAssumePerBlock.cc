@@ -1,3 +1,4 @@
+#include "seahorn/SeaNewPmPasses.hh"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Value.h"
@@ -80,6 +81,13 @@ namespace seahorn
   char OneAssumePerBlock::ID = 0;
   
   Pass *createOneAssumePerBlockPass () {return new OneAssumePerBlock ();}
-  
+
+  llvm::PreservedAnalyses
+  OneAssumePerBlockNewPass::run(llvm::Module &M,
+                                llvm::ModuleAnalysisManager &) {
+    return OneAssumePerBlock().runOnModule(M)
+               ? llvm::PreservedAnalyses::none()
+               : llvm::PreservedAnalyses::all();
+  }
 }
 

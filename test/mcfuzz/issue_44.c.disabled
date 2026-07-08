@@ -5,7 +5,8 @@
 // RUN: %sea bpf -m64 -O3 --bmc=mono --inline --bound=8 --keep-shadows=true --horn-stats --log=opsem "%s" 2>&1 | filecheck %s
 
 // CHECK: unsat
-// UNSUPPORTED: true
+// REQUIRES: disabled
+// (undefined lit feature: portable way to skip in every lit version)
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/46.
 // Historically XFAIL: both bv-opsems gave sat. On dev16 the verdict is

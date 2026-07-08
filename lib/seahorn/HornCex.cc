@@ -251,8 +251,9 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   // -- HornSolver
   ExprFactory &efac = hm.getExprFactory();
 
-  UfoOpSem semUfo(efac, *this, M.getDataLayout(), MEM);
-  BvOpSem semBv(efac, *this, M.getDataLayout(), MEM);
+  const CanFail *canFail = getAnalysisIfAvailable<CanFail>();
+  UfoOpSem semUfo(efac, canFail, M.getDataLayout(), MEM);
+  BvOpSem semBv(efac, M.getDataLayout(), canFail, MEM);
 
   LegacyOperationalSemantics *sem =
       UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv)

@@ -54,7 +54,13 @@
 #include "seahorn/Support/GitSHA1.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "llvm_seahorn/Transforms/IPO.h"
 void print_seahorn_version(llvm::raw_ostream &OS) {
   OS << "SeaHorn (http://seahorn.github.io/):\n"
@@ -330,40 +336,44 @@ int main(int argc, char **argv) {
       return GV.getName() == "main";
     }));
     MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal globals
+    MPM.addPass(seahorn::GeneratePartialFnNewPass());
+
+    if (InlineAll) {
+      MPM.addPass(seahorn::MarkInternalInlinePass());
+      MPM.addPass(llvm::AlwaysInlinerPass());
+      MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal global
+    }
+    {
+      llvm::FunctionPassManager FPM;
+      FPM.addPass(seahorn::SeaRemoveUnreachableBlocksPass());
+      FPM.addPass(seahorn::PromoteMallocPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    MPM.addPass(seahorn::PromoteVerifierCallsPass());
+    {
+      llvm::FunctionPassManager FPM;
+      // -- attempt to lower any left sea.is_dereferenceable()
+      // -- they might be preventing some register promotion
+      FPM.addPass(seahorn::LowerIsDerefPass());
+      FPM.addPass(llvm::PromotePass());
+      FPM.addPass(llvm::DCEPass());
+      FPM.addPass(llvm::LowerSwitchPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    // lowers constant expressions to instructions
+    MPM.addPass(seahorn::LowerConstantExprsPass());
+    {
+      llvm::FunctionPassManager FPM;
+      FPM.addPass(llvm::DCEPass());
+      FPM.addPass(llvm::UnifyFunctionExitNodesPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    // -- it invalidates DSA passes so it should be run before
+    // -- ShadowMem
+    MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal global
     MPM.run(*module, MAM);
   }
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
-  pass_manager.add(seahorn::createGeneratePartialFnPass());
-
-  if (InlineAll) {
-    pass_manager.add(seahorn::createMarkInternalInlinePass());
-    pass_manager.add(llvm::createAlwaysInlinerLegacyPass());
-    pass_manager.add(
-        llvm::createGlobalDCEPass()); // kill unused internal global
-  }
-  pass_manager.add(new seahorn::RemoveUnreachableBlocksPass());
-
-  pass_manager.add(seahorn::createPromoteMallocPass());
-  pass_manager.add(seahorn::createPromoteVerifierCallsPass());
-
-  // -- attempt to lower any left sea.is_dereferenceable()
-  // -- they might be preventing some register promotion
-  pass_manager.add(seahorn::createLowerIsDerefPass());
-
-  pass_manager.add(llvm::createPromoteMemoryToRegisterPass());
-  pass_manager.add(llvm::createDeadCodeEliminationPass());
-  // Superseded by DCE in LLVM12      
-  // pass_manager.add(llvm::createDeadInstEliminationPass());
-  pass_manager.add(llvm::createLowerSwitchPass());
-  // lowers constant expressions to instructions
-  pass_manager.add(new seahorn::LowerCstExprPass());
-  pass_manager.add(llvm::createDeadCodeEliminationPass());
-
-  pass_manager.add(llvm::createUnifyFunctionExitNodesPass());
-
-  // -- it invalidates DSA passes so it should be run before
-  // -- ShadowMem
-  pass_manager.add(llvm::createGlobalDCEPass()); // kill unused internal global
 
   // -- initialize any global variables that are left
   if (LowerGlobalInitializers) {

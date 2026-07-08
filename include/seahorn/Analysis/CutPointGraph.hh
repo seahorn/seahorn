@@ -174,6 +174,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
   virtual bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F, const TopologicalOrder &topo);
   virtual void releaseMemory() override {
     m_cps.clear();
     m_edges.clear();

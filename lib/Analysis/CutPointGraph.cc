@@ -34,9 +34,12 @@ namespace seahorn
 
   bool CutPointGraph::runOnFunction (llvm::Function &F)
   {
-    //LOG("seahorn", errs () << "CPG runOnFunction: " << F.getName () << "\n");
-
     const TopologicalOrder &topo = getAnalysis<TopologicalOrder> ();
+    return runImpl (F, topo);
+  }
+
+  bool CutPointGraph::runImpl (llvm::Function &F, const TopologicalOrder &topo)
+  {
 
     computeCutPoints (F, topo);
     computeFwdReach (F, topo);

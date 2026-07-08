@@ -15,7 +15,9 @@ void TopologicalOrder::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool TopologicalOrder::runOnFunction(Function &F) {
+bool TopologicalOrder::runOnFunction(Function &F) { return runImpl(F); }
+
+bool TopologicalOrder::runImpl(Function &F) {
   m_backEdges.clear();
   m_order.clear();
 

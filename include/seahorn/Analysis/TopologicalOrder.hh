@@ -25,6 +25,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU)  const override;
   virtual bool runOnFunction(Function &F) override;
+  bool runImpl(Function &F);
   virtual void releaseMemory() override {
     m_order.clear();
     m_backEdges.clear();

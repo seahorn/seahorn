@@ -30,7 +30,6 @@ namespace seahorn
    */
   class BvOpSem : public LegacyOperationalSemantics
   {
-    Pass &m_pass;
     TrackLevel m_trackLvl;
 
     const DataLayout *m_td;
@@ -40,12 +39,17 @@ namespace seahorn
   public:
     BvOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
              TrackLevel trackLvl = MEM) :
-      LegacyOperationalSemantics (efac), m_pass (pass), m_trackLvl (trackLvl), m_td(&dl)
+      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl)
     {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
+    /// new-PM construction: analyses provided explicitly
+    BvOpSem (ExprFactory &efac, const DataLayout &dl, const CanFail *canFail,
+             TrackLevel trackLvl = MEM) :
+      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl),
+      m_canFail (canFail) {}
     BvOpSem (const BvOpSem& o) :
-      LegacyOperationalSemantics (o), m_pass (o.m_pass), m_trackLvl (o.m_trackLvl),
+      LegacyOperationalSemantics (o), m_trackLvl (o.m_trackLvl),
       m_td (o.m_td), m_canFail (o.m_canFail) {}
 
     Expr errorFlag (const BasicBlock &BB) override;

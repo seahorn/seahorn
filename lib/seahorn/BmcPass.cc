@@ -28,6 +28,8 @@
 #include "seahorn/SolverBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "seahorn/SeaNewPmAnalyses.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "seahorn/config.h"
@@ -91,7 +93,16 @@ private:
   GateAnalysis *m_gsa;
 
 public:
+  // analysis getters; wired from legacy getAnalysis (runOnModule) or from the
+  // analysis managers (BmcPassNew)
+  std::function<const CutPointGraph &(Function &)> m_cpgGetter;
+  std::function<const llvm::TargetLibraryInfo &(Function &)> m_tliGetter;
+  std::function<llvm::LazyValueInfo &(Function &)> m_lviGetter;
+  std::function<GateAnalysis &(Function &)> m_gsaGetter;
+
   static char ID;
+
+  void setFailureAnalysis(CanFail *cf) { m_failure_analysis = cf; }
 
   BmcPass(BmcEngineKind engine = BmcEngineKind::mono_bmc,
           raw_ostream *out = nullptr, bool solve = true)
@@ -99,8 +110,25 @@ public:
         m_failure_analysis(nullptr) {}
 
   virtual bool runOnModule(Module &M) override {
-    LOG("bmc-pass", errs() << "Start BmcPass\n";);
     m_failure_analysis = getAnalysisIfAvailable<CanFail>();
+    m_cpgGetter = [this](Function &F) -> const CutPointGraph & {
+      return getAnalysis<CutPointGraph>(F);
+    };
+    m_tliGetter = [this](Function &F) -> const llvm::TargetLibraryInfo & {
+      return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    };
+    m_lviGetter = [this](Function &F) -> llvm::LazyValueInfo & {
+      return getAnalysis<LazyValueInfoWrapperPass>(F).getLVI();
+    };
+    m_gsaGetter = [this](Function &F) -> GateAnalysis & {
+      return getAnalysis<GateAnalysisPass>().getGateAnalysis(F);
+    };
+    return processModule(M);
+  }
+
+  /// shared by the legacy pass and BmcPassNew (getters already wired)
+  bool processModule(Module &M) {
+    LOG("bmc-pass", errs() << "Start BmcPass\n";);
 
     Function *main = M.getFunction("main");
     if (!main || main->isDeclaration()) {
@@ -112,8 +140,7 @@ public:
       return false;
     }
 
-    m_gsa = HornGSA ? &getAnalysis<GateAnalysisPass>().getGateAnalysis(*main)
-                    : nullptr;
+    m_gsa = (HornGSA && m_gsaGetter) ? &m_gsaGetter(*main) : nullptr;
 
     return runOnFunction(*main);
   }
@@ -165,7 +192,7 @@ public:
       }
     }
 
-    const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
+    const CutPointGraph &cpg = m_cpgGetter(F);
     const CutPoint &src = cpg.getCp(F.getEntryBlock());
     const CutPoint *dst = nullptr;
 
@@ -197,11 +224,11 @@ public:
     if (m_engine == BmcEngineKind::mono_bmc) {
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2)
-        sem = std::make_unique<Bv2OpSem>(efac, *this,
-                                         F.getParent()->getDataLayout(), MEM);
+        sem = std::make_unique<Bv2OpSem>(efac, F.getParent()->getDataLayout(),
+                                         m_failure_analysis, m_lviGetter, MEM);
       else
-        sem = std::make_unique<BvOpSem>(efac, *this,
-                                        F.getParent()->getDataLayout(), MEM);
+        sem = std::make_unique<BvOpSem>(efac, F.getParent()->getDataLayout(),
+                                        m_failure_analysis, MEM);
 
       if (ComputeCoi) {
         computeCoi(F, *sem);
@@ -385,15 +412,15 @@ public:
         StringRef CexFileRef(HornCexFile);
         if (CexFileRef != "") {
           if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+            auto const &tli = m_tliGetter(F);
             auto const &dl = F.getParent()->getDataLayout();
             if (BmcCexGen) {
-              cexGen::CexExeGenerator<ZBmcTraceTy> cex(trace, dl, tli.getTLI(F),
+              cexGen::CexExeGenerator<ZBmcTraceTy> cex(trace, dl, tli,
                                                        F.getContext());
               cex.saveCexModuleToFile(CexFileRef);
             } else {
               BmcTraceWrapper<ZBmcTraceTy> trace_wrapper(trace);
-              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli,
                           F.getContext());
             }
           } else {
@@ -450,15 +477,15 @@ public:
         StringRef CexFileRef(HornCexFile);
         if (CexFileRef != "") {
           if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
-            auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+            auto const &tli = m_tliGetter(F);
             auto const &dl = F.getParent()->getDataLayout();
             if (BmcCexGen) {
               cexGen::CexExeGenerator<SolverBmcTraceTy> cex(
-                  trace, dl, tli.getTLI(F), F.getContext());
+                  trace, dl, tli, F.getContext());
               cex.saveCexModuleToFile(CexFileRef);
             } else {
               BmcTraceWrapper<SolverBmcTraceTy> trace_wrapper(trace);
-              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli.getTLI(F),
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli,
                           F.getContext());
             }
           } else {
@@ -510,6 +537,28 @@ public:
 char BmcPass::ID = 0;
 } // namespace
 namespace seahorn {
+llvm::PreservedAnalyses BmcPassNew::run(llvm::Module &M,
+                                        llvm::ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
+  BmcPass P(BmcPass::BmcEngineKind::mono_bmc, m_out, m_solve);
+  P.setFailureAnalysis(MAM.getResult<CanFailAnalysis>(M).get());
+  P.m_cpgGetter = [&FAM](Function &F) -> const CutPointGraph & {
+    return *FAM.getResult<CutPointGraphAnalysis>(F);
+  };
+  P.m_tliGetter = [&FAM](Function &F) -> const llvm::TargetLibraryInfo & {
+    return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+  };
+  P.m_lviGetter = [&FAM](Function &F) -> llvm::LazyValueInfo & {
+    return FAM.getResult<llvm::LazyValueAnalysis>(F);
+  };
+  P.m_gsaGetter = [&MAM, &M](Function &F) -> GateAnalysis & {
+    return MAM.getResult<GateAnalysisWrapper>(M)->getGateAnalysis(F);
+  };
+  P.processModule(M);
+  return llvm::PreservedAnalyses::all();
+}
+
 Pass *createBmcPass(raw_ostream *out, bool solve) {
   return new BmcPass(BmcPass::BmcEngineKind::mono_bmc, out, solve);
 }

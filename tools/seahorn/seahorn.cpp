@@ -62,6 +62,7 @@
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include "seahorn/SeaNewPmAnalyses.hh"
 #include "seahorn/SeaNewPmPasses.hh"
 #include "llvm_seahorn/Transforms/IPO.h"
 void print_seahorn_version(llvm::raw_ostream &OS) {
@@ -412,27 +413,33 @@ int main(int argc, char **argv) {
     }
     MPM.run(*module, MAM);
   }
-  // SEAHORN: the migration boundary. ShadowMem cannot leave this legacy PM
-  // yet: BmcPass and HornifyModule addRequired<ShadowMemPass>, so it must be
-  // scheduled in the same manager as the tail. UnifyAssumes / CanReadUndef /
-  // EvalBranchSentinel already have new-PM twins (UnifyAssumesNewPass,
-  // CanReadUndefPass, EvalBranchSentinelNewPass) and move out together with
-  // ShadowMem once the tail consumes shadow memory via an analysis.
+  // SEAHORN: new-PM BMC route (batch C2c). The mono BMC engine runs as
+  // BmcPassNew in a ModulePassManager, consuming the seahorn analyses from
+  // the analysis managers. ShadowMem instrumentation still runs in the legacy
+  // PM (its pass has no new-PM face), but nothing in the new route requires
+  // the pass object. Everything else (path engine, --oll dumps, --mem-dot,
+  // Boogie, CHC) stays on the legacy tail below.
+  const bool NewPmBmcRoute = Bmc &&
+                             BmcEngine == BmcEngineKind::mono_bmc &&
+                             AsmOutputFilename.empty() && !MemDot;
+
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
 
   // -- called after DeadNondetElimPass so that the graphs do not contain
   // -- values that have been freed
   pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
-  if (UnifyAssumes) {
-    pass_manager.add(seahorn::createUnifyAssumesPass());
-  }
+  if (!NewPmBmcRoute) {
+    if (UnifyAssumes) {
+      pass_manager.add(seahorn::createUnifyAssumesPass());
+    }
 
-  // --- verify if an undefined value can be read
-  pass_manager.add(seahorn::createCanReadUndefPass());
-  if (EvalBranchSentinelOpt) {
-    initializeEvalBranchSentinelPassPass(Registry);
-    pass_manager.add(seahorn::createEvalBranchSentinelPassPass());
+    // --- verify if an undefined value can be read
+    pass_manager.add(seahorn::createCanReadUndefPass());
+    if (EvalBranchSentinelOpt) {
+      initializeEvalBranchSentinelPassPass(Registry);
+      pass_manager.add(seahorn::createEvalBranchSentinelPassPass());
+    }
   }
   // Z3_open_log("log.txt");
 
@@ -488,7 +495,8 @@ int main(int argc, char **argv) {
       break;
     case BmcEngineKind::mono_bmc:
     default:
-      pass_manager.add(seahorn::createBmcPass(out, Solve));
+      if (!NewPmBmcRoute)
+        pass_manager.add(seahorn::createBmcPass(out, Solve));
     }
 
   } else if (BoogieOutput) {
@@ -517,6 +525,38 @@ int main(int argc, char **argv) {
   }
 
   pass_manager.run(*module.get());
+
+  if (NewPmBmcRoute) {
+    llvm::raw_ostream *out =
+        OutputFilename.empty() ? nullptr : &output->os();
+    llvm::PassBuilder PB;
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+    MAM.registerPass([] { return seahorn::CanFailAnalysis(); });
+    MAM.registerPass([] { return seahorn::ControlDependenceAnalysisWrapper(); });
+    MAM.registerPass([] { return seahorn::GateAnalysisWrapper(); });
+    FAM.registerPass([] { return seahorn::TopologicalOrderAnalysis(); });
+    FAM.registerPass([] { return seahorn::CutPointGraphAnalysis(); });
+    llvm::ModulePassManager MPM;
+    if (UnifyAssumes)
+      MPM.addPass(seahorn::UnifyAssumesNewPass());
+    MPM.addPass(seahorn::CanReadUndefPass());
+    if (EvalBranchSentinelOpt) {
+      llvm::FunctionPassManager FPM;
+      FPM.addPass(seahorn::EvalBranchSentinelNewPass());
+      MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
+    }
+    MPM.addPass(seahorn::NameValuesPass());
+    MPM.addPass(seahorn::BmcPassNew(out, Solve));
+    MPM.run(*module, MAM);
+  }
 
   if (!AsmOutputFilename.empty())
     asmOutput->keep();

@@ -123,9 +123,14 @@ namespace seahorn {
 char HornSolver::ID = 0;
 
 bool HornSolver::runOnModule(Module &M) {
+  return runImpl(M, getAnalysis<HornifyModule>());
+}
+
+bool HornSolver::runImpl(Module &M, HornifyModule &hornifyModule) {
+  m_hm = &hornifyModule;
   Stats::sset("Result", "UNKNOWN");
 
-  HornifyModule &hm = getAnalysis<HornifyModule>();
+  HornifyModule &hm = *m_hm;
 
   HornClauseDB &origdb = hm.getHornClauseDB();
   HornClauseDB tdb(origdb.getExprFactory());
@@ -251,7 +256,7 @@ void HornSolver::printCex() {
 }
 
 void HornSolver::estimateSizeInvars(Module &M) {
-  HornifyModule &hm = getAnalysis<HornifyModule>();
+  HornifyModule &hm = *m_hm;
   ZFixedPoint<EZ3> fp = *m_fp;
 
   Expr allInvars;
@@ -302,7 +307,7 @@ void HornSolver::printInvars(Function &F, HornDbModel &model) {
   if (F.isDeclaration())
     return;
 
-  HornifyModule &hm = getAnalysis<HornifyModule>();
+  HornifyModule &hm = *m_hm;
   outs() << "Function: " << F.getName() << "\n";
 
   // -- not used for now

@@ -422,6 +422,14 @@ int main(int argc, char **argv) {
   const bool NewPmBmcRoute = Bmc &&
                              BmcEngine == BmcEngineKind::mono_bmc &&
                              AsmOutputFilename.empty() && !MemDot;
+  // CHC (pf/smt) route: hornify + write + solve run explicitly after a
+  // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
+  // stay on the legacy tail.
+  const bool NewPmChcRoute = !Bmc && !BoogieOutput && !HoudiniInv &&
+                             !PredAbs && !Crab && !Cex && !MemDot &&
+                             AsmOutputFilename.empty() &&
+                             !seahorn::hornInterMemEnabled();
+  const bool NewPmRoute = NewPmBmcRoute || NewPmChcRoute;
 
   pass_manager.add(seahorn::createSeaBuiltinsWrapperPass());
 
@@ -429,7 +437,7 @@ int main(int argc, char **argv) {
   // -- values that have been freed
   pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
-  if (!NewPmBmcRoute) {
+  if (!NewPmRoute) {
     if (UnifyAssumes) {
       pass_manager.add(seahorn::createUnifyAssumesPass());
     }
@@ -484,7 +492,9 @@ int main(int argc, char **argv) {
     pass_manager.add(createPrintModulePass(asmOutput->os()));
   }
 
-  if (Bmc) {
+  if (NewPmChcRoute) {
+    /* hornify/write/solve run explicitly after the legacy PM below */
+  } else if (Bmc) {
     llvm::raw_ostream *out = nullptr;
     if (!OutputFilename.empty())
       out = &output->os();
@@ -526,7 +536,7 @@ int main(int argc, char **argv) {
 
   pass_manager.run(*module.get());
 
-  if (NewPmBmcRoute) {
+  if (NewPmRoute) {
     llvm::raw_ostream *out =
         OutputFilename.empty() ? nullptr : &output->os();
     llvm::PassBuilder PB;
@@ -554,8 +564,31 @@ int main(int argc, char **argv) {
       MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
     }
     MPM.addPass(seahorn::NameValuesPass());
-    MPM.addPass(seahorn::BmcPassNew(out, Solve));
+    if (NewPmBmcRoute)
+      MPM.addPass(seahorn::BmcPassNew(out, Solve));
     MPM.run(*module, MAM);
+
+    if (NewPmChcRoute) {
+      // -- explicit CHC orchestration: hornify, then write and/or solve.
+      // -- The run-once, side-effecting tail needs no pass manager.
+      seahorn::HornifyModule hm;
+      hm.setCanFail(MAM.getResult<seahorn::CanFailAnalysis>(*module).get());
+      hm.m_cpgGetter = [&FAM](llvm::Function &F) -> seahorn::CutPointGraph & {
+        return *FAM.getResult<seahorn::CutPointGraphAnalysis>(F);
+      };
+      hm.m_cgGetter = [&MAM, &module]() -> llvm::CallGraph & {
+        return MAM.getResult<llvm::CallGraphAnalysis>(*module);
+      };
+      hm.processModule(*module);
+      if (!OutputFilename.empty()) {
+        seahorn::HornWrite hw(output->os());
+        hw.runImpl(*module, hm);
+      }
+      if (Solve) {
+        seahorn::HornSolver hs;
+        hs.runImpl(*module, hm);
+      }
+    }
   }
 
   if (!AsmOutputFilename.empty())

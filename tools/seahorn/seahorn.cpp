@@ -52,6 +52,7 @@
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
 #include "seahorn/Support/GitSHA1.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -420,13 +421,11 @@ int main(int argc, char **argv) {
   // the pass object. Everything else (path engine, --oll dumps, --mem-dot,
   // Boogie, CHC) stays on the legacy tail below.
   const bool NewPmBmcRoute = Bmc &&
-                             BmcEngine == BmcEngineKind::mono_bmc &&
-                             AsmOutputFilename.empty() && !MemDot;
+                             BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
   // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
   // stay on the legacy tail.
   const bool NewPmChcRoute = !Bmc && !BoogieOutput && !Crab && !MemDot &&
-                             AsmOutputFilename.empty() &&
                              !seahorn::hornInterMemEnabled();
   const bool NewPmRoute = NewPmBmcRoute || NewPmChcRoute;
 
@@ -470,7 +469,7 @@ int main(int argc, char **argv) {
     pass_manager.add(seadsa::createDsaPrinterPass());
   }
 
-  if (!AsmOutputFilename.empty()) {
+  if (!AsmOutputFilename.empty() && !NewPmRoute) {
     if (!KeepShadows) {
       pass_manager.add(new seahorn::NameValues());
       // -- XXX might destroy names using by HornSolver later on.
@@ -563,6 +562,18 @@ int main(int argc, char **argv) {
       MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
     }
     MPM.addPass(seahorn::NameValuesPass());
+    if (!AsmOutputFilename.empty()) {
+      if (!KeepShadows) {
+        if (Bmc || BoogieOutput || HoudiniInv || PredAbs || Solve) {
+          ERR << "Option --keep-shadows=false is not compatible with any of "
+                 "the solving options";
+          std::exit(1);
+        }
+        // NameValuesPass already ran above; strip the shadows before dumping
+        MPM.addPass(seadsa::StripShadowMemNewPmPass());
+      }
+      MPM.addPass(llvm::PrintModulePass(asmOutput->os()));
+    }
     if (NewPmBmcRoute)
       MPM.addPass(seahorn::BmcPassNew(out, Solve));
     MPM.run(*module, MAM);

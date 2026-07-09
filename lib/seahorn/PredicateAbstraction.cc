@@ -33,7 +33,13 @@ namespace seahorn
 
   bool PredicateAbstraction::runOnModule (Module &M)
   {
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    m_hm = &getAnalysis<HornifyModule>();
+    return runImpl(M, *m_hm);
+  }
+
+  bool PredicateAbstraction::runImpl (Module &M, HornifyModule &hm)
+  {
+    m_hm = &hm;
     PredicateAbstractionAnalysis pabs(hm);
     Stats::resume ("Pabs solve");
     
@@ -131,7 +137,7 @@ namespace seahorn
   {
     if (F.isDeclaration ()) return;
 
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    HornifyModule &hm = *m_hm;
     outs () << "Function: " << F.getName () << "\n";
 
     // -- not used for now

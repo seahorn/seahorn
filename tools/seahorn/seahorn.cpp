@@ -44,6 +44,7 @@
 #endif
 
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
 
@@ -433,7 +434,8 @@ int main(int argc, char **argv) {
 
   // -- called after DeadNondetElimPass so that the graphs do not contain
   // -- values that have been freed
-  pass_manager.add(seahorn::createSeaDsaShadowMemPass());
+  if (!NewPmRoute)
+    pass_manager.add(seahorn::createSeaDsaShadowMemPass());
 
   if (!NewPmRoute) {
     if (UnifyAssumes) {
@@ -449,7 +451,7 @@ int main(int argc, char **argv) {
   }
   // Z3_open_log("log.txt");
 
-  if (!Bmc && !BoogieOutput) {
+  if (!NewPmChcRoute && !Bmc && !BoogieOutput) {
     pass_manager.add(new seahorn::HornifyModule());
     if (!OutputFilename.empty()) {
       // -- XXX we dump the horn clauses into a file *before* we strip
@@ -547,12 +549,18 @@ int main(int argc, char **argv) {
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+    MAM.registerPass([] { return seadsa::AllocWrapInfoAnalysis(); });
+    MAM.registerPass([] { return seadsa::DsaLibFuncInfoAnalysis(); });
+    MAM.registerPass([] { return seadsa::DsaInfoAnalysis(); });
+    MAM.registerPass([] { return seadsa::AllocSiteInfoAnalysis(); });
     MAM.registerPass([] { return seahorn::CanFailAnalysis(); });
     MAM.registerPass([] { return seahorn::ControlDependenceAnalysisWrapper(); });
     MAM.registerPass([] { return seahorn::GateAnalysisWrapper(); });
     FAM.registerPass([] { return seahorn::TopologicalOrderAnalysis(); });
     FAM.registerPass([] { return seahorn::CutPointGraphAnalysis(); });
     llvm::ModulePassManager MPM;
+    // -- shadow-mem instrumentation, same position as the legacy tail
+    MPM.addPass(seadsa::ShadowMemNewPmPass());
     if (UnifyAssumes)
       MPM.addPass(seahorn::UnifyAssumesNewPass());
     MPM.addPass(seahorn::CanReadUndefPass());

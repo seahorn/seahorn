@@ -86,6 +86,9 @@ llvm::Pass *createLowerCstExprPass();
 
 llvm::Pass *createNullCheckPass();
 
+llvm::Pass *createGlobalBufferBoundsCheck();
+llvm::Pass *createLocalBufferBoundsCheck();
+llvm::Pass *createGlobalCBufferBoundsCheckPass();
 
 llvm::Pass *createFatBufferBoundsCheckPass();
 

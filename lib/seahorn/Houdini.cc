@@ -33,7 +33,11 @@ namespace seahorn
 
   bool HoudiniPass::runOnModule (Module &M)
   {
-    HornifyModule &hm = getAnalysis<HornifyModule> ();
+    return runImpl(M, getAnalysis<HornifyModule>());
+  }
+
+  bool HoudiniPass::runImpl (Module &M, HornifyModule &hm)
+  {
 
     //Use commandline option to replace it.
     int config = EACH_RULE_A_SOLVER;

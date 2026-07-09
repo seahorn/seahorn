@@ -100,6 +100,26 @@ static void dumpLLVMBitcode(const Module &M, StringRef BcFile);
 char HornCex::ID = 0;
 
 bool HornCex::runOnModule(Module &M) {
+  m_hm = &getAnalysis<HornifyModule>();
+  m_hs = &getAnalysis<HornSolver>();
+  m_canFail = getAnalysisIfAvailable<CanFail>();
+  m_tliGetter = [this](Function &F) -> const TargetLibraryInfo & {
+    return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+  };
+  for (Function &F : M)
+    if (F.getName().equals("main"))
+      return runOnFunction(M, F);
+  return false;
+}
+
+bool HornCex::runImpl(
+    Module &M, HornifyModule &hm, HornSolver &hs, const CanFail *canFail,
+    std::function<const llvm::TargetLibraryInfo &(llvm::Function &)>
+        tliGetter) {
+  m_hm = &hm;
+  m_hs = &hs;
+  m_canFail = canFail;
+  m_tliGetter = std::move(tliGetter);
   for (Function &F : M)
     if (F.getName().equals("main"))
       return runOnFunction(M, F);
@@ -107,7 +127,7 @@ bool HornCex::runOnModule(Module &M) {
 }
 
 bool HornCex::runOnFunction(Module &M, Function &F) {
-  HornSolver &hs = getAnalysis<HornSolver>();
+  HornSolver &hs = *m_hs;
   // -- only run if result is true, skip if it is false or unknown
   if (hs.getResult())
     ;
@@ -118,9 +138,9 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   //      errs () << "Analyzed Function:\n"
   //      << F << "\n";);
 
-  HornifyModule &hm = getAnalysis<HornifyModule>();
-  const CutPointGraph &cpg = getAnalysis<CutPointGraph>(F);
-  auto &SBI = getAnalysis<SeaBuiltinsInfoWrapperPass>().getSBI();
+  HornifyModule &hm = *m_hm;
+  const CutPointGraph &cpg = hm.getCpg(F);
+  auto &SBI = hm.getSBI();
 
   Stats::resume("CexValidation");
 
@@ -251,7 +271,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   // -- HornSolver
   ExprFactory &efac = hm.getExprFactory();
 
-  const CanFail *canFail = getAnalysisIfAvailable<CanFail>();
+  const CanFail *canFail = m_canFail;
   UfoOpSem semUfo(efac, canFail, M.getDataLayout(), MEM);
   BvOpSem semBv(efac, M.getDataLayout(), canFail, MEM);
 
@@ -259,8 +279,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
       UseBv ? static_cast<LegacyOperationalSemantics *>(&semBv)
             : static_cast<LegacyOperationalSemantics *>(&semUfo);
 
-  const TargetLibraryInfo &tli =
-      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+  const TargetLibraryInfo &tli = m_tliGetter(F);
 
   BmcEngine bmc(*sem, hm.getZContext());
 
@@ -310,8 +329,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
 
   if (UseBv) {
     const DataLayout &dl = M.getDataLayout();
-    const TargetLibraryInfo &tli =
-        getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
+    const TargetLibraryInfo &tli = m_tliGetter(F);
     if (MemSim) {
       memSim = std::unique_ptr<MemSimulator>(new MemSimulator(trace, dl, tli));
       bool simRes = memSim->simulate();

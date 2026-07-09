@@ -76,6 +76,8 @@ public:
   virtual ~PredicateAbstraction() {}
   void releaseMemory() override { m_fp.reset(nullptr); }
   virtual bool runOnModule(Module &M) override;
+  bool runImpl(Module &M, HornifyModule &hm);
+  HornifyModule *m_hm = nullptr;
   virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
   virtual StringRef getPassName() const override { return "PredicateAbstraction"; }
 

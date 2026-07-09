@@ -425,8 +425,7 @@ int main(int argc, char **argv) {
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
   // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
   // stay on the legacy tail.
-  const bool NewPmChcRoute = !Bmc && !BoogieOutput && !HoudiniInv &&
-                             !PredAbs && !Crab && !Cex && !MemDot &&
+  const bool NewPmChcRoute = !Bmc && !BoogieOutput && !Crab && !MemDot &&
                              AsmOutputFilename.empty() &&
                              !seahorn::hornInterMemEnabled();
   const bool NewPmRoute = NewPmBmcRoute || NewPmChcRoute;
@@ -584,9 +583,26 @@ int main(int argc, char **argv) {
         seahorn::HornWrite hw(output->os());
         hw.runImpl(*module, hm);
       }
+      if (HoudiniInv) {
+        seahorn::HoudiniPass hp;
+        hp.runImpl(*module, hm);
+      }
+      if (PredAbs) {
+        seahorn::PredicateAbstraction pa;
+        pa.runImpl(*module, hm);
+      }
       if (Solve) {
         seahorn::HornSolver hs;
         hs.runImpl(*module, hm);
+        if (Cex) {
+          seahorn::HornCex hc;
+          hc.runImpl(*module, hm, hs,
+                     MAM.getResult<seahorn::CanFailAnalysis>(*module).get(),
+                     [&FAM](llvm::Function &F)
+                         -> const llvm::TargetLibraryInfo & {
+                       return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+                     });
+        }
       }
     }
   }

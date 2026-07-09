@@ -18,6 +18,7 @@
 
 namespace seahorn
 {
+  class HornifyModule;
   using namespace llvm;
 
   class HoudiniPass : public llvm::ModulePass
@@ -29,6 +30,7 @@ namespace seahorn
     virtual ~HoudiniPass() {}
 
     virtual bool runOnModule (Module &M) override;
+    bool runImpl (Module &M, HornifyModule &hm);
     virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
     virtual StringRef getPassName () const override {return "Houdini";}
   };

@@ -19,57 +19,60 @@ namespace seahorn
      Very imprecise/inaccurate. Only interesting for comparing with
      CLP-based analysis tools.
   */
-  class ClpOpSem : public LegacyOperationalSemantics
-  {
-    TrackLevel m_trackLvl;
+class ClpOpSem : public LegacyOperationalSemantics {
+  TrackLevel m_trackLvl;
 
-    const DataLayout *m_td;
-    const CanFail *m_canFail;
+  const DataLayout *m_td;
+  const CanFail *m_canFail;
 
-    Expr zero;
-    Expr one;
+  Expr zero;
+  Expr one;
 
-  public:
-    ClpOpSem (ExprFactory &efac, const CanFail *canFail, const DataLayout &dl,
-		     TrackLevel trackLvl = MEM) :
-      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl),
-      m_canFail (canFail)
-    {
-      zero = mkTerm<expr::mpz_class>(0UL, m_efac);
-      one  = mkTerm<expr::mpz_class>(1UL, m_efac);
-    }
+public:
+  ClpOpSem(ExprFactory &efac, const CanFail *canFail, const DataLayout &dl,
+           TrackLevel trackLvl = MEM)
+      : LegacyOperationalSemantics(efac), m_trackLvl(trackLvl), m_td(&dl),
+        m_canFail(canFail) {
+    zero = mkTerm<expr::mpz_class>(0UL, m_efac);
+    one = mkTerm<expr::mpz_class>(1UL, m_efac);
+  }
 
-    ClpOpSem (const ClpOpSem& o) :
-      LegacyOperationalSemantics (o), m_trackLvl (o.m_trackLvl),
-      m_td (o.m_td), m_canFail (o.m_canFail) {}
+  ClpOpSem(const ClpOpSem &o)
+      : LegacyOperationalSemantics(o), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
+        m_canFail(o.m_canFail) {}
 
-    Expr errorFlag (const BasicBlock &BB) override;
-    virtual Expr memStart (unsigned id) override { assert (false); return Expr (); }
-    virtual Expr memEnd (unsigned id) override { assert (false); return Expr (); }
+  Expr errorFlag(const BasicBlock &BB) override;
+  virtual Expr memStart(unsigned id) override {
+    assert(false);
+    return Expr();
+  }
+  virtual Expr memEnd(unsigned id) override {
+    assert(false);
+    return Expr();
+  }
 
-    virtual void exec (SymStore &s, const BasicBlock &bb,
-                       ExprVector &side, Expr act) override;
+  virtual void exec(SymStore &s, const BasicBlock &bb, ExprVector &side,
+                    Expr act) override;
 
-    using LegacyOperationalSemantics::exec;
-    virtual void exec (SymStore &s, const Instruction &inst,
-                       ExprVector &side);
+  using LegacyOperationalSemantics::exec;
+  virtual void exec(SymStore &s, const Instruction &inst, ExprVector &side);
 
-    virtual void execPhi (SymStore &s, const BasicBlock &bb,
-                          const BasicBlock &from, ExprVector &side, Expr act) override;
+  virtual void execPhi(SymStore &s, const BasicBlock &bb,
+                       const BasicBlock &from, ExprVector &side,
+                       Expr act) override;
 
-    virtual void execEdg (SymStore &s, const BasicBlock &src,
-                          const BasicBlock &dst, ExprVector &side) override;
+  virtual void execEdg(SymStore &s, const BasicBlock &src,
+                       const BasicBlock &dst, ExprVector &side) override;
 
-    virtual void execBr (SymStore &s, const BasicBlock &src, const BasicBlock &dst,
-                         ExprVector &side, Expr act) override;
+  virtual void execBr(SymStore &s, const BasicBlock &src, const BasicBlock &dst,
+                      ExprVector &side, Expr act) override;
 
-    virtual Expr symb (const Value &v) override;
-    virtual const Value &conc (Expr v) const override;
-    virtual bool isTracked (const Value &v) const override;
-    virtual Expr lookup (SymStore &s, const Value &v) override;
-    Expr ptrArith (SymStore &s, llvm::GetElementPtrInst& gep);
-    unsigned storageSize (const llvm::Type *t);
-    unsigned fieldOff (const StructType *t, unsigned field);
-  };
-
+  virtual Expr symb(const Value &v) override;
+  virtual const Value &conc(Expr v) const override;
+  virtual bool isTracked(const Value &v) const override;
+  virtual Expr lookup(SymStore &s, const Value &v) override;
+  Expr ptrArith(SymStore &s, llvm::GetElementPtrInst &gep);
+  unsigned storageSize(const llvm::Type *t);
+  unsigned fieldOff(const StructType *t, unsigned field);
+};
 }

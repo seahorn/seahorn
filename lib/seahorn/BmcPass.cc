@@ -25,11 +25,11 @@
 #include "seahorn/CexHarness.hh"
 #include "seahorn/DfCoiAnalysis.hh"
 #include "seahorn/PathBmc.hh"
+#include "seahorn/SeaNewPmAnalyses.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/SolverBmc.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
-#include "seahorn/SeaNewPmAnalyses.hh"
-#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 #include "seahorn/config.h"
@@ -420,8 +420,7 @@ public:
               cex.saveCexModuleToFile(CexFileRef);
             } else {
               BmcTraceWrapper<ZBmcTraceTy> trace_wrapper(trace);
-              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli,
-                          F.getContext());
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli, F.getContext());
             }
           } else {
             WARN << "The Bmc engine only generates harnesses in bitcode "
@@ -480,13 +479,12 @@ public:
             auto const &tli = m_tliGetter(F);
             auto const &dl = F.getParent()->getDataLayout();
             if (BmcCexGen) {
-              cexGen::CexExeGenerator<SolverBmcTraceTy> cex(
-                  trace, dl, tli, F.getContext());
+              cexGen::CexExeGenerator<SolverBmcTraceTy> cex(trace, dl, tli,
+                                                            F.getContext());
               cex.saveCexModuleToFile(CexFileRef);
             } else {
               BmcTraceWrapper<SolverBmcTraceTy> trace_wrapper(trace);
-              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli,
-                          F.getContext());
+              dumpLLVMCex(trace_wrapper, CexFileRef, dl, tli, F.getContext());
             }
           } else {
             WARN << "The Bmc engine only generates harnesses in bitcode "

@@ -54,9 +54,8 @@ public:
       : LegacyOperationalSemantics(efac), m_trackLvl(trackLvl),
         m_abs_funcs(abs_fns), m_td(&dl), m_canFail(canFail) {}
   UfoOpSem(const UfoOpSem &o)
-      : LegacyOperationalSemantics(o),
-        m_trackLvl(o.m_trackLvl), m_abs_funcs(o.m_abs_funcs), m_td(o.m_td),
-        m_canFail(o.m_canFail) {}
+      : LegacyOperationalSemantics(o), m_trackLvl(o.m_trackLvl),
+        m_abs_funcs(o.m_abs_funcs), m_td(o.m_td), m_canFail(o.m_canFail) {}
 
   Expr errorFlag(const BasicBlock &BB) override;
 
@@ -181,8 +180,7 @@ class FMapUfoOpSem : public MemUfoOpSem {
 
 public:
   FMapUfoOpSem(expr::ExprFactory &efac, const CanFail *canFail,
-               const DataLayout &dl,
-               std::shared_ptr<InterMemPreProc> preproc,
+               const DataLayout &dl, std::shared_ptr<InterMemPreProc> preproc,
                TrackLevel trackLvl = MEM,
                FunctionPtrSet abs_fns = FunctionPtrSet(), ShadowMem *dsa = NULL)
       : MemUfoOpSem(efac, canFail, dl, preproc, trackLvl, abs_fns, dsa) {

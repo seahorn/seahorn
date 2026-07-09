@@ -109,9 +109,7 @@ public:
     return *m_shadowMem;
   }
 
-  SeaBuiltinsInfo &getSBI() {
-    return m_sbi;
-  }
+  SeaBuiltinsInfo &getSBI() { return m_sbi; }
 };
 } // namespace seahorn
 

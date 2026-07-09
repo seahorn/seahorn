@@ -8,8 +8,8 @@
 
 #include "seahorn/Analysis/CanFail.hh"
 #include "seahorn/Analysis/ControlDependenceAnalysis.hh"
-#include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Analysis/CutPointGraph.hh"
+#include "seahorn/Analysis/GateAnalysis.hh"
 #include "seahorn/Analysis/TopologicalOrder.hh"
 
 #include <memory>

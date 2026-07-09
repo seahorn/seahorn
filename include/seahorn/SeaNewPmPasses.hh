@@ -187,13 +187,11 @@ class BmcPassNew : public llvm::PassInfoMixin<BmcPassNew> {
   bool m_solve;
 
 public:
-  BmcPassNew(llvm::raw_ostream *out, bool solve)
-      : m_out(out), m_solve(solve) {}
+  BmcPassNew(llvm::raw_ostream *out, bool solve) : m_out(out), m_solve(solve) {}
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-class UnifyAssumesNewPass
-    : public llvm::PassInfoMixin<UnifyAssumesNewPass> {
+class UnifyAssumesNewPass : public llvm::PassInfoMixin<UnifyAssumesNewPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -205,8 +203,7 @@ public:
                               llvm::FunctionAnalysisManager &);
 };
 
-class StripLifetimeNewPass
-    : public llvm::PassInfoMixin<StripLifetimeNewPass> {
+class StripLifetimeNewPass : public llvm::PassInfoMixin<StripLifetimeNewPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };

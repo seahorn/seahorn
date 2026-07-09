@@ -1,11 +1,11 @@
 #include "seahorn/SeaNewPmPasses.hh"
-#include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/Value.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
@@ -85,9 +85,8 @@ namespace seahorn
   llvm::PreservedAnalyses
   OneAssumePerBlockNewPass::run(llvm::Module &M,
                                 llvm::ModuleAnalysisManager &) {
-    return OneAssumePerBlock().runOnModule(M)
-               ? llvm::PreservedAnalyses::none()
-               : llvm::PreservedAnalyses::all();
+    return OneAssumePerBlock().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                              : llvm::PreservedAnalyses::all();
   }
 }
 

@@ -58,8 +58,7 @@ public:
       : m_parent(parent), m_sem(m_parent.symExec()),
         m_db(m_parent.getHornClauseDB()), m_zctx(parent.getZContext()),
         m_efac(m_zctx.getExprFactory()), m_interproc(interproc),
-        m_interprocFmaps(interprocFmaps),
-        m_smp(nullptr) {}
+        m_interprocFmaps(interprocFmaps), m_smp(nullptr) {}
 
   virtual ~HornifyFunction() {}
   HornClauseDB &getHornClauseDB() { return m_db; }

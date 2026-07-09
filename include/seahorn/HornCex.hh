@@ -1,10 +1,10 @@
 #ifndef _HORN_CEX__HH_
 #define _HORN_CEX__HH_
 
-#include <functional>
 #include "seahorn/Bmc.hh"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include <functional>
 
 namespace seahorn {
 using namespace llvm;

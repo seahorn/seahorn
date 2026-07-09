@@ -122,7 +122,8 @@ bool UnifyAssumesPass::runOnFunction(Function &F) {
         return getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
       },
       [&]() -> AssumptionCache & {
-        return getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
+        return getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(
+            F);
       });
 }
 
@@ -272,8 +273,8 @@ UnifyAssumesNewPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
   Function *main = M.getFunction("main");
   if (!main)
     return llvm::PreservedAnalyses::all();
-  auto &FAM = MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M)
-                  .getManager();
+  auto &FAM =
+      MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
   SeaBuiltinsInfo SBI;
   UnifyAssumesPass P;
   bool changed = P.runImpl(

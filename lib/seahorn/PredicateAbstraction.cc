@@ -37,8 +37,7 @@ namespace seahorn
     return runImpl(M, *m_hm);
   }
 
-  bool PredicateAbstraction::runImpl (Module &M, HornifyModule &hm)
-  {
+  bool PredicateAbstraction::runImpl(Module &M, HornifyModule &hm) {
     m_hm = &hm;
     PredicateAbstractionAnalysis pabs(hm);
     Stats::resume ("Pabs solve");
@@ -121,7 +120,7 @@ namespace seahorn
     Stats::stop("Pabs solve");
     return false;
   }
-  
+
   void PredicateAbstraction::getAnalysisUsage (AnalysisUsage &AU) const
   {
     AU.addRequired<HornifyModule> ();

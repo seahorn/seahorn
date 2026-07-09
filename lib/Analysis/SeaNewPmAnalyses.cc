@@ -40,8 +40,7 @@ AnalysisKey GateAnalysisWrapper::Key;
 
 ControlDependenceAnalysisWrapper::Result
 ControlDependenceAnalysisWrapper::run(Module &M, ModuleAnalysisManager &MAM) {
-  auto &FAM =
-      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   auto res = std::make_unique<seahorn::ControlDependenceAnalysisPass>();
   for (auto &F : M)
     if (!F.isDeclaration())
@@ -52,8 +51,7 @@ ControlDependenceAnalysisWrapper::run(Module &M, ModuleAnalysisManager &MAM) {
 GateAnalysisWrapper::Result
 GateAnalysisWrapper::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &cda = MAM.getResult<ControlDependenceAnalysisWrapper>(M);
-  auto &FAM =
-      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   auto res = std::make_unique<seahorn::GateAnalysisPass>();
   for (auto &F : M)
     if (!F.isDeclaration())

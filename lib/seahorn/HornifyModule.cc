@@ -206,18 +206,20 @@ bool HornifyModule::processModule(Module &M) {
 
     m_imPreProc->runOnModule(M);
     if (InterProcMem)
-      m_sem.reset(new MemUfoOpSem(m_efac, m_canFail, M.getDataLayout(), m_imPreProc,
-                                  TL, abs_fns, m_shadowMem));
+      m_sem.reset(new MemUfoOpSem(m_efac, m_canFail, M.getDataLayout(),
+                                  m_imPreProc, TL, abs_fns, m_shadowMem));
     else if (InterProcMemFmaps)
       m_sem.reset(new FMapUfoOpSem(m_efac, m_canFail, M.getDataLayout(),
                                    m_imPreProc, TL, abs_fns, m_shadowMem));
     else // regular UfoOpSem but we add invariants about memory modification
          // in `HornifyFunction`
-      m_sem.reset(new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
+      m_sem.reset(
+          new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
   } else if (BitPrecise) {
     m_sem.reset(new BvOpSem(m_efac, *this, M.getDataLayout(), TL));
   } else {
-    m_sem.reset(new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
+    m_sem.reset(
+        new UfoOpSem(m_efac, m_canFail, M.getDataLayout(), TL, abs_fns));
   }
 
   Function *main = M.getFunction("main");

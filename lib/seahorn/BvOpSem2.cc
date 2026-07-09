@@ -3289,11 +3289,10 @@ Bv2OpSem::Bv2OpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
   LOG("dump.debug", trueE->dump(););
 }
 
-Bv2OpSem::Bv2OpSem(ExprFactory &efac, const DataLayout &dl,
-                   const CanFail *canFail,
-                   std::function<llvm::LazyValueInfo &(llvm::Function &)>
-                       lviGetter,
-                   TrackLevel trackLvl)
+Bv2OpSem::Bv2OpSem(
+    ExprFactory &efac, const DataLayout &dl, const CanFail *canFail,
+    std::function<llvm::LazyValueInfo &(llvm::Function &)> lviGetter,
+    TrackLevel trackLvl)
     : OperationalSemantics(efac), m_trackLvl(trackLvl), m_td(&dl),
       m_canFail(canFail), m_lviGetter(std::move(lviGetter)) {
   m_lvi_map = (UseLVIInferRng && m_lviGetter)

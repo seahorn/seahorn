@@ -44,29 +44,29 @@
 #endif
 
 #include "seadsa/DsaAnalysis.hh"
-#include "seadsa/SeaDsaAnalysis.hh"
 #include "seadsa/InitializePasses.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
 
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Support/Stats.hh"
 #include "seahorn/Transforms/Utils/NameValues.hh"
 
+#include "llvm_seahorn/Transforms/IPO.h"
+#include "seadsa/support/RemovePtrToInt.hh"
+#include "seahorn/SeaNewPmAnalyses.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/GitSHA1.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/Inliner.h"
-#include "seadsa/support/RemovePtrToInt.hh"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-#include "seahorn/SeaNewPmAnalyses.hh"
-#include "seahorn/SeaNewPmPasses.hh"
-#include "llvm_seahorn/Transforms/IPO.h"
 void print_seahorn_version(llvm::raw_ostream &OS) {
   OS << "SeaHorn (http://seahorn.github.io/):\n"
      << "  SeaHorn version " << SEAHORN_VERSION_INFO << "-" << g_GIT_SHA1
@@ -337,9 +337,8 @@ int main(int argc, char **argv) {
     llvm::ModulePassManager MPM;
     MPM.addPass(llvm_seahorn::SeaAnnotation2MetadataPass());
     // turn all functions internal so that we can inline them if requested
-    MPM.addPass(llvm::InternalizePass([](const llvm::GlobalValue &GV) {
-      return GV.getName() == "main";
-    }));
+    MPM.addPass(llvm::InternalizePass(
+        [](const llvm::GlobalValue &GV) { return GV.getName() == "main"; }));
     MPM.addPass(llvm::GlobalDCEPass()); // kill unused internal globals
     MPM.addPass(seahorn::GeneratePartialFnNewPass());
 
@@ -421,8 +420,8 @@ int main(int argc, char **argv) {
   // PM (its pass has no new-PM face), but nothing in the new route requires
   // the pass object. Everything else (path engine, --oll dumps, --mem-dot,
   // Boogie, CHC) stays on the legacy tail below.
-  const bool NewPmBmcRoute = Bmc &&
-                             BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
+  const bool NewPmBmcRoute =
+      Bmc && BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
   // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
   // stay on the legacy tail.
@@ -537,8 +536,7 @@ int main(int argc, char **argv) {
   pass_manager.run(*module.get());
 
   if (NewPmRoute) {
-    llvm::raw_ostream *out =
-        OutputFilename.empty() ? nullptr : &output->os();
+    llvm::raw_ostream *out = OutputFilename.empty() ? nullptr : &output->os();
     llvm::PassBuilder PB;
     llvm::LoopAnalysisManager LAM;
     llvm::FunctionAnalysisManager FAM;
@@ -554,7 +552,8 @@ int main(int argc, char **argv) {
     MAM.registerPass([] { return seadsa::DsaInfoAnalysis(); });
     MAM.registerPass([] { return seadsa::AllocSiteInfoAnalysis(); });
     MAM.registerPass([] { return seahorn::CanFailAnalysis(); });
-    MAM.registerPass([] { return seahorn::ControlDependenceAnalysisWrapper(); });
+    MAM.registerPass(
+        [] { return seahorn::ControlDependenceAnalysisWrapper(); });
     MAM.registerPass([] { return seahorn::GateAnalysisWrapper(); });
     FAM.registerPass([] { return seahorn::TopologicalOrderAnalysis(); });
     FAM.registerPass([] { return seahorn::CutPointGraphAnalysis(); });
@@ -615,12 +614,12 @@ int main(int argc, char **argv) {
         hs.runImpl(*module, hm);
         if (Cex) {
           seahorn::HornCex hc;
-          hc.runImpl(*module, hm, hs,
-                     MAM.getResult<seahorn::CanFailAnalysis>(*module).get(),
-                     [&FAM](llvm::Function &F)
-                         -> const llvm::TargetLibraryInfo & {
-                       return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
-                     });
+          hc.runImpl(
+              *module, hm, hs,
+              MAM.getResult<seahorn::CanFailAnalysis>(*module).get(),
+              [&FAM](llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+                return FAM.getResult<llvm::TargetLibraryAnalysis>(F);
+              });
         }
       }
     }

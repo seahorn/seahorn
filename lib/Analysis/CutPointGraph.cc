@@ -32,14 +32,12 @@ namespace seahorn
     AU.addRequiredTransitive<TopologicalOrder> ();
   }
 
-  bool CutPointGraph::runOnFunction (llvm::Function &F)
-  {
+  bool CutPointGraph::runOnFunction(llvm::Function &F) {
     const TopologicalOrder &topo = getAnalysis<TopologicalOrder> ();
-    return runImpl (F, topo);
+    return runImpl(F, topo);
   }
 
-  bool CutPointGraph::runImpl (llvm::Function &F, const TopologicalOrder &topo)
-  {
+  bool CutPointGraph::runImpl(llvm::Function &F, const TopologicalOrder &topo) {
 
     computeCutPoints (F, topo);
     computeFwdReach (F, topo);

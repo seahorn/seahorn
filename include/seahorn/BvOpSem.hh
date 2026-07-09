@@ -28,8 +28,7 @@ namespace seahorn
 
      Pointers are not aligned
    */
-  class BvOpSem : public LegacyOperationalSemantics
-  {
+  class BvOpSem : public LegacyOperationalSemantics {
     TrackLevel m_trackLvl;
 
     const DataLayout *m_td;
@@ -37,20 +36,19 @@ namespace seahorn
 
 
   public:
-    BvOpSem (ExprFactory &efac, Pass &pass, const DataLayout &dl,
-             TrackLevel trackLvl = MEM) :
-      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl)
-    {
+    BvOpSem(ExprFactory &efac, Pass &pass, const DataLayout &dl,
+            TrackLevel trackLvl = MEM)
+        : LegacyOperationalSemantics(efac), m_trackLvl(trackLvl), m_td(&dl) {
       m_canFail = pass.getAnalysisIfAvailable<CanFail> ();
     }
     /// new-PM construction: analyses provided explicitly
-    BvOpSem (ExprFactory &efac, const DataLayout &dl, const CanFail *canFail,
-             TrackLevel trackLvl = MEM) :
-      LegacyOperationalSemantics (efac), m_trackLvl (trackLvl), m_td(&dl),
-      m_canFail (canFail) {}
-    BvOpSem (const BvOpSem& o) :
-      LegacyOperationalSemantics (o), m_trackLvl (o.m_trackLvl),
-      m_td (o.m_td), m_canFail (o.m_canFail) {}
+    BvOpSem(ExprFactory &efac, const DataLayout &dl, const CanFail *canFail,
+            TrackLevel trackLvl = MEM)
+        : LegacyOperationalSemantics(efac), m_trackLvl(trackLvl), m_td(&dl),
+          m_canFail(canFail) {}
+    BvOpSem(const BvOpSem &o)
+        : LegacyOperationalSemantics(o), m_trackLvl(o.m_trackLvl), m_td(o.m_td),
+          m_canFail(o.m_canFail) {}
 
     Expr errorFlag (const BasicBlock &BB) override;
 

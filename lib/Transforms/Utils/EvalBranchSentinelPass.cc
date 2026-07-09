@@ -1,6 +1,6 @@
-#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
 #include "seahorn/InitializePasses.hh"
+#include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 

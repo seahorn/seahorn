@@ -18,22 +18,21 @@
 
 namespace seahorn
 {
-  class HornifyModule;
-  using namespace llvm;
+class HornifyModule;
+using namespace llvm;
 
-  class HoudiniPass : public llvm::ModulePass
-  {
-  public:
-    static char ID;
+class HoudiniPass : public llvm::ModulePass {
+public:
+  static char ID;
 
-    HoudiniPass() : ModulePass(ID) {}
-    virtual ~HoudiniPass() {}
+  HoudiniPass() : ModulePass(ID) {}
+  virtual ~HoudiniPass() {}
 
-    virtual bool runOnModule (Module &M) override;
-    bool runImpl (Module &M, HornifyModule &hm);
-    virtual void getAnalysisUsage (AnalysisUsage &AU) const override;
-    virtual StringRef getPassName () const override {return "Houdini";}
-  };
+  virtual bool runOnModule(Module &M) override;
+  bool runImpl(Module &M, HornifyModule &hm);
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  virtual StringRef getPassName() const override { return "Houdini"; }
+};
 
   class Houdini
   {

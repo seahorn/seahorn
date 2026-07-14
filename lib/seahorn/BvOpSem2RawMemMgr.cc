@@ -1,9 +1,9 @@
 #include "BvOpSem2RawMemMgr.hh"
-#include "llvm/ADT/SmallString.h"
 #include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2MemManagerMixin.hh"
 #include "BvOpSem2MemRepr.hh"
+#include "llvm/ADT/SmallString.h"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IntrinsicInst.h"

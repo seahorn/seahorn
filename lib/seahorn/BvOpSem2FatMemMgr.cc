@@ -1,9 +1,9 @@
 #include "BvOpSem2FatMemMgr.hh"
-#include "llvm/ADT/SmallString.h"
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2MemManagerMixin.hh"
 #include "BvOpSem2RawMemMgr.hh"
+#include "llvm/ADT/SmallString.h"
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/Format.h"

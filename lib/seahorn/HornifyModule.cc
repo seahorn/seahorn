@@ -4,7 +4,6 @@
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/BoostLlvmGraphTraits.hh"
-#include <optional>
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -15,6 +14,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 //#include "boost/range.hpp"
 #include "boost/scoped_ptr.hpp"

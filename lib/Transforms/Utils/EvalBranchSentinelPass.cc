@@ -1,9 +1,9 @@
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
-#include "llvm/ADT/SmallString.h"
 #include "seahorn/InitializePasses.hh"
 #include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
+#include "llvm/ADT/SmallString.h"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/BasicBlock.h"

@@ -1,6 +1,5 @@
 /* Externalize functions selected by command line */
 
-#include <optional>
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/BasicBlock.h"
@@ -17,6 +16,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"

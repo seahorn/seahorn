@@ -38,7 +38,8 @@ BmcEngine::BmcEngine(OperationalSemantics &sem, EZ3 &zctx)
   z3n_set_param(":model.compact", false);
   if (BmcSmtTactic != "default") {
     z3n_set_param(":tactic.default_tactic", BmcSmtTactic.c_str());
-    if (BmcSmtTactic == "sat" || llvm::StringRef(BmcSmtTactic).ends_with("sat)"))
+    if (BmcSmtTactic == "sat" ||
+        llvm::StringRef(BmcSmtTactic).ends_with("sat)"))
       z3n_set_param(":sat.euf", true);
   }
 }

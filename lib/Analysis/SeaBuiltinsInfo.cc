@@ -299,8 +299,8 @@ Function *SeaBuiltinsInfo::mkGetShadowMem(llvm::Module &M) {
   auto &C = M.getContext();
   auto *IntPtrTy = M.getDataLayout().getIntPtrType(C);
   auto FC = M.getOrInsertFunction(SEA_GET_SHADOWMEM,
-                                  IntPtrTy,             // return type
-                                  Type::getInt8Ty(C),   // slot number 0..255
+                                  IntPtrTy,           // return type
+                                  Type::getInt8Ty(C), // slot number 0..255
                                   PointerType::getUnqual(C) // address int8_t*
   );
   auto *FN = dyn_cast<Function>(FC.getCallee());
@@ -318,10 +318,10 @@ Function *SeaBuiltinsInfo::mkSetShadowMem(llvm::Module &M) {
   auto &C = M.getContext();
   auto *IntPtrTy = M.getDataLayout().getIntPtrType(C);
   auto FC = M.getOrInsertFunction(SEA_SET_SHADOWMEM,
-                                  Type::getVoidTy(C),    // return type
-                                  Type::getInt8Ty(C),    // slot number 0..255
+                                  Type::getVoidTy(C), // return type
+                                  Type::getInt8Ty(C), // slot number 0..255
                                   PointerType::getUnqual(C), // address int8_t*
-                                  IntPtrTy               // value to set
+                                  IntPtrTy                   // value to set
   );
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
@@ -524,9 +524,9 @@ Function *SeaBuiltinsInfo::mkMkShr(Module &M) {
 Function *SeaBuiltinsInfo::mkBorMkBor(Module &M) {
   // This consumes an owned/borowed/uniqued ptr and returns a bowrrowed ptr
   auto &C = M.getContext();
-  auto FC =
-      M.getOrInsertFunction(SEA_BOR_MKBOR, PointerType::getUnqual(C) /* return  */,
-                            PointerType::getUnqual(C) /* param */);
+  auto FC = M.getOrInsertFunction(SEA_BOR_MKBOR,
+                                  PointerType::getUnqual(C) /* return  */,
+                                  PointerType::getUnqual(C) /* param */);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotThrow();
@@ -564,9 +564,9 @@ Function *SeaBuiltinsInfo::mkBorMkSuc(Module &M) {
   // This consumes an KIND (owned/borowed/uniqued) ptr and returns a KIND ptr.
   // This ptr will not be used until ptr created by bor_mkbor dies.
   auto &C = M.getContext();
-  auto FC =
-      M.getOrInsertFunction(SEA_BOR_MKSUC, PointerType::getUnqual(C) /* return  */,
-                            PointerType::getUnqual(C) /* param */);
+  auto FC = M.getOrInsertFunction(SEA_BOR_MKSUC,
+                                  PointerType::getUnqual(C) /* return  */,
+                                  PointerType::getUnqual(C) /* param */);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotThrow();
@@ -599,9 +599,9 @@ Function *SeaBuiltinsInfo::mkBeginUnique(Module &M) {
 Function *SeaBuiltinsInfo::mkEndUnique(Module &M) {
   // This consumes a unique ptr and returns a shared ptr
   auto &C = M.getContext();
-  auto FC =
-      M.getOrInsertFunction(SEA_END_UNIQUE, PointerType::getUnqual(C) /* return  */,
-                            PointerType::getUnqual(C) /* param */);
+  auto FC = M.getOrInsertFunction(SEA_END_UNIQUE,
+                                  PointerType::getUnqual(C) /* return  */,
+                                  PointerType::getUnqual(C) /* param */);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotThrow();
@@ -618,9 +618,9 @@ Function *SeaBuiltinsInfo::mkBorMem2Reg(Module &M) {
   // borrowed ptr.
   // To mark a subsequent load as a borrow load.
   auto &C = M.getContext();
-  auto FC =
-      M.getOrInsertFunction(SEA_BOR_MEM2REG, PointerType::getUnqual(C) /* return */,
-                            PointerType::getUnqual(C) /* param 0 -- input ptr */);
+  auto FC = M.getOrInsertFunction(
+      SEA_BOR_MEM2REG, PointerType::getUnqual(C) /* return */,
+      PointerType::getUnqual(C) /* param 0 -- input ptr */);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotThrow();
@@ -669,8 +669,9 @@ Function *SeaBuiltinsInfo::mkDie(Module &M) {
 Function *SeaBuiltinsInfo::mkMove(Module &M) {
   // This consumes an owned/borowed/uniqued ptr and returns a bowrrowed ptr
   auto &C = M.getContext();
-  auto FC = M.getOrInsertFunction(SEA_MOVE, PointerType::getUnqual(C) /* return  */,
-                                  PointerType::getUnqual(C) /* param */);
+  auto FC =
+      M.getOrInsertFunction(SEA_MOVE, PointerType::getUnqual(C) /* return  */,
+                            PointerType::getUnqual(C) /* param */);
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotThrow();
@@ -684,12 +685,13 @@ Function *SeaBuiltinsInfo::mkMove(Module &M) {
 }
 Function *SeaBuiltinsInfo::mkGetFatPtrSlot(llvm::Module &M) {
   auto &C = M.getContext();
-  auto FC = M.getOrInsertFunction(SEA_GET_FATPTR_SLOT,
-                                  Type::getInt64Ty(C),   // return type
-                                  PointerType::getUnqual(C), // address int8_t* //
-                                  Type::getInt8Ty(C)     // slot number 0..255
+  auto FC =
+      M.getOrInsertFunction(SEA_GET_FATPTR_SLOT,
+                            Type::getInt64Ty(C),       // return type
+                            PointerType::getUnqual(C), // address int8_t* //
+                            Type::getInt8Ty(C)         // slot number 0..255
 
-  );
+      );
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {
     FN->setDoesNotAccessMemory();
@@ -707,8 +709,8 @@ Function *SeaBuiltinsInfo::mkSetFatPtrSlot(llvm::Module &M) {
       M.getOrInsertFunction(SEA_SET_FATPTR_SLOT,
                             PointerType::getUnqual(C), // return type is int8_t
                             PointerType::getUnqual(C), // address int8_t*
-                            Type::getInt8Ty(C),    // slot number 0..255
-                            Type::getInt64Ty(C)    // value to set
+                            Type::getInt8Ty(C),        // slot number 0..255
+                            Type::getInt64Ty(C)        // value to set
       );
   auto *FN = dyn_cast<Function>(FC.getCallee());
   if (FN) {

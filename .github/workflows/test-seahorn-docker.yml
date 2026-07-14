@@ -4,11 +4,11 @@ name: CI
 
 # Controls when the action will run.
 on:
-  # dev17 branch copy: build and test with the LLVM 17 toolchain.
+  # dev18 branch copy: build and test with the LLVM 18 toolchain.
   push:
-    branches: dev17
+    branches: dev18
   pull_request:
-    branches: dev17
+    branches: dev18
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -29,16 +29,16 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # Persist the ccache directory across runs so only changed translation
-      # units recompile. PR builds restore the dev17 cache via restore-keys.
+      # units recompile. PR builds restore the dev18 cache via restore-keys.
       - name: Restore ccache
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-llvm17-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-llvm18-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ccache-llvm17-${{ github.ref_name }}-
-            ccache-llvm17-dev17-
-            ccache-llvm17-
+            ccache-llvm18-${{ github.ref_name }}-
+            ccache-llvm18-dev18-
+            ccache-llvm18-
       - name: Build SeaHorn (ccache-backed)
         run: |
           docker run --rm \
@@ -46,15 +46,15 @@ jobs:
             -v "$(pwd)/.ccache":/ccache \
             -e CCACHE_DIR=/ccache \
             -e BUILD_TYPE=RelWithDebInfo \
-            -e LLVM_VERSION=17 \
-            ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm17 \
+            -e LLVM_VERSION=18 \
+            ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn:jammy-llvm18 \
             bash /seahorn/docker/build_seahorn.sh
           cp build/SeaHorn*.tar.gz .
           # ccache files are written by root in the container; make them
           # readable to the runner user so actions/cache can pack them.
           sudo chown -R "$(id -u):$(id -g)" .ccache
       - name: Build seahorn container
-        run: docker build . --file docker/seahorn.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --build-arg BASE_IMAGE=jammy-llvm17 --tag seahorn_container
+        run: docker build . --file docker/seahorn.Dockerfile --build-arg BUILDPACK_IMAGE=ghcr.io/${{ github.repository_owner }}/buildpack-deps-seahorn --build-arg BASE_IMAGE=jammy-llvm18 --tag seahorn_container
       - name: Run opsem tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/opsem "
       - name: Run opsem2 tests

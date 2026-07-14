@@ -26,9 +26,9 @@ bool CanAccessMemory::runOnModule(Module &M) {
       }
       if (const CallInst *CI = dyn_cast<CallInst>(&I)) {
         const Function *cf = CI->getCalledFunction();
-        if (cf && (cf->getName().startswith("llvm.memcpy") ||
-                   cf->getName().startswith("llvm.memmove") ||
-                   cf->getName().startswith("llvm.memset"))) {
+        if (cf && (cf->getName().starts_with("llvm.memcpy") ||
+                   cf->getName().starts_with("llvm.memmove") ||
+                   cf->getName().starts_with("llvm.memset"))) {
           m_must.insert(&F);
           break;
         }

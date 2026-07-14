@@ -345,7 +345,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
   }
 
   StringRef HornCexFileRef(HornCexFile);
-  if (HornCexFileRef.endswith(".ll") || HornCexFileRef.endswith(".bc")) {
+  if (HornCexFileRef.ends_with(".ll") || HornCexFileRef.ends_with(".bc")) {
     const DataLayout &dl = M.getDataLayout();
     std::unique_ptr<BmcTraceWrapper<ZBmcTraceTy>> traceW(
         new BmcTraceWrapper<ZBmcTraceTy>(trace));
@@ -353,7 +353,7 @@ bool HornCex::runOnFunction(Module &M, Function &F) {
       traceW.reset(new BmcTraceMemSim(*memSim));
     }
     dumpLLVMCex(*traceW, HornCexFileRef, dl, tli, F.getContext());
-  } else if (HornCexFileRef.endswith(".xml")) {
+  } else if (HornCexFileRef.ends_with(".xml")) {
     dumpSvCompCex(trace, HornCexFileRef);
   } else if (!HornCexFileRef.empty()) {
     errs() << "Unrecognized counter-example file suffix in " << HornCexFileRef
@@ -531,7 +531,7 @@ static void dumpLLVMBitcode(const Module &M, StringRef BcFile) {
   ToolOutputFile sliceOutput(BcFile, error_code, sys::fs::OF_None);
   assert(!error_code);
   verifyModule(M, &errs());
-  if (BcFile.endswith(".ll"))
+  if (BcFile.ends_with(".ll"))
     sliceOutput.os() << M;
   else
     WriteBitcodeToFile(M, sliceOutput.os());

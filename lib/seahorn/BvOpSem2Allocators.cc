@@ -244,9 +244,9 @@ public:
         // XXX hard-coded. should be based on use
         // XXX some functions have their address taken for llvm.used
         if (fn.getName().equals("verifier.error") ||
-            fn.getName().startswith("verifier.assume") ||
+            fn.getName().starts_with("verifier.assume") ||
             fn.getName().equals("seahorn.fail") ||
-            fn.getName().startswith("shadow.mem"))
+            fn.getName().starts_with("shadow.mem"))
           continue;
         OpSemAllocator::falloc(fn, m_mem.getAlignment(fn));
       }

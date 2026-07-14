@@ -134,7 +134,7 @@ bool PromoteVerifierCalls::runOnModule(Module &M) {
     LLVMUsed->eraseFromParent();
   }
   // re-create llvm.used
-  Type *i8PTy = Type::getInt8PtrTy(M.getContext());
+  Type *i8PTy = PointerType::getUnqual(M.getContext());
   MergedVars.push_back(
       ConstantExpr::getBitCast(cast<llvm::Constant>(m_assumeFn), i8PTy));
   MergedVars.push_back(
@@ -240,7 +240,7 @@ bool PromoteVerifierCalls::runOnFunction(Function &F) {
     if (fn && !fn->empty() && IgnoreDefinedVerifierFunctions)
       continue;
 
-    if (fn && (fn->getName().startswith("sea_nd"))) {
+    if (fn && (fn->getName().starts_with("sea_nd"))) {
       IRBuilder<> Builder(F.getContext());
       Builder.SetInsertPoint(&I);
       CallInst *ci;

@@ -56,7 +56,7 @@ bool isAssertionHandler(Function *F) {
   // --- otherwise, we consider the function an assertion handler if
   //     the function does not return.
 
-  if (F->getName().startswith("__assert") && F->doesNotReturn())
+  if (F->getName().starts_with("__assert") && F->doesNotReturn())
     return true;
 
   return false;

@@ -379,11 +379,13 @@ std::optional<size_t> SimpleMemoryCheck::getAllocSize(Value *Ptr) {
   Opts.RoundToAlign = true;
   Opts.EvalMode = llvm::ObjectSizeOpts::Mode::Max;
   ObjectSizeOffsetVisitor OSOV(*m_DL, m_TLI, *m_Ctx, Opts);
+  // LLVM 18: compute() returns SizeOffsetAPInt (knownSize/Size members)
+  // instead of a pair queried through the visitor.
   auto OffsetAlign = OSOV.compute(Ptr);
-  if (!OSOV.knownSize(OffsetAlign))
+  if (!OffsetAlign.knownSize())
     return std::nullopt;
 
-  const int64_t I = OffsetAlign.first.getSExtValue();
+  const int64_t I = OffsetAlign.Size.getSExtValue();
   assert(I >= 0);
   return size_t(I);
 }
@@ -646,7 +648,7 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
 
         // Discard vtables.
         //        if (auto *C = dyn_cast<Constant>(AS))
-        //          if (C->getName().startswith("_ZTVN"))
+        //          if (C->getName().starts_with("_ZTVN"))
         //            Interesting = false;
       }
     }
@@ -865,7 +867,7 @@ void SimpleMemoryCheck::emitMemoryInstInstrumentation(CheckContext &Candidate) {
 
   auto *BeginCandiate = IRB.CreateBitOrPointerCast(
       Candidate.Barrier, GetI8PtrTy(*m_Ctx), "begin_candidate");
-  auto *TrackedBegin = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedBegin, m_DL, "tracked_begin");
+  auto *TrackedBegin = CreateLoad(IRB, IRB.getPtrTy(), m_trackedBegin, m_DL, "tracked_begin");
   auto *Cmp = IRB.CreateICmpEQ(TrackedBegin, BeginCandiate);
   auto *Active = IRB.CreateLoad(IRB.getInt1Ty(), m_trackingEnabled, "active_tracking");
   auto *And = IRB.CreateAnd(Active, Cmp, "unsafe_condition");
@@ -908,7 +910,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
                                        "inactive_tracking");
     auto *NDVal = getNDVal(32, CSFn, IRB);
     auto *NDBool = IRB.CreateICmpEQ(NDVal, CreateIntCnst(NDVal->getType(), 0));
-    auto *TrackedEnd = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedEnd, m_DL, "loaded_end");
+    auto *TrackedEnd = CreateLoad(IRB, IRB.getPtrTy(), m_trackedEnd, m_DL, "loaded_end");
     auto *And = dyn_cast<Instruction>(IRB.CreateAnd(NotActive, NDBool));
     assert(And);
 
@@ -929,7 +931,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     // Start tracking.
     IRB.SetInsertPoint(ThenBB->getFirstNonPHI());
     CreateStore(IRB, ConstantInt::getTrue(*m_Ctx), m_trackingEnabled, m_DL);
-    auto *TrackedBegin = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedBegin, m_DL, "loaded_begin");
+    auto *TrackedBegin = CreateLoad(IRB, IRB.getPtrTy(), m_trackedBegin, m_DL, "loaded_begin");
     auto *AllocIsBegin =
         IRB.CreateICmpEQ(AllocI8, TrackedBegin, "alloc.is.begin");
     createAssume(AllocIsBegin, CSFn, IRB);
@@ -955,7 +957,7 @@ void SimpleMemoryCheck::emitAllocSiteInstrumentation(CheckContext &Candidate,
     IRB.SetInsertPoint(GetNextInst(OtherAllocInst));
     auto *OAI8 =
         IRB.CreateBitCast(OtherAllocInst, GetI8PtrTy(*m_Ctx), "other.alloc.i8");
-    auto *TrackedEnd = CreateLoad(IRB, IRB.getInt8PtrTy(), m_trackedEnd, m_DL, "loaded_end");
+    auto *TrackedEnd = CreateLoad(IRB, IRB.getPtrTy(), m_trackedEnd, m_DL, "loaded_end");
     auto *GT = IRB.CreateICmpSGT(OAI8, TrackedEnd);
     createAssume(GT, OtherAllocInst->getFunction(), IRB);
 
@@ -1041,9 +1043,9 @@ bool SimpleMemoryCheck::runImpl(
       continue;
 
     // Skip special functions.
-    if (F.getName().startswith("seahorn.") ||
-        F.getName().startswith("shadow.") ||
-        F.getName().startswith("verifier."))
+    if (F.getName().starts_with("seahorn.") ||
+        F.getName().starts_with("shadow.") ||
+        F.getName().starts_with("verifier."))
       continue;
 
     m_TLI = &getTLI(F);

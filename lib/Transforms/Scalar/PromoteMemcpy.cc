@@ -76,16 +76,9 @@ char PromoteMemcpy::ID = 0;
 
 StructType *PromoteMemcpy::recoverStructType(Value *SrcPtr, Value *DstPtr,
                                              uint64_t Size, Function &F) {
-  // -- Legacy typed pointers: the pointee type is available directly.
-  for (Value *P : {SrcPtr, DstPtr}) {
-    auto *PtrTy = cast<PointerType>(P->getType());
-    if (!PtrTy->isOpaque()) {
-      if (auto *ST =
-              dyn_cast<StructType>(PtrTy->getNonOpaquePointerElementType()))
-        if (m_DL->getTypeStoreSize(ST) == Size)
-          return ST;
-    }
-  }
+  // -- LLVM 18 removed typed pointers entirely (PointerType::isOpaque and
+  // -- getNonOpaquePointerElementType are gone), so the legacy direct-pointee
+  // -- recovery branch is gone with them.
 
   // -- Opaque pointers: the pointee type is gone. Recover it ONLY from a GEP
   // -- that indexes the very pointer copied by the memcpy, with a struct whose

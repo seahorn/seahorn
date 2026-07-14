@@ -38,7 +38,7 @@ namespace seahorn {
 
 // Declared in GeneratePartialFnPass.h
 bool isInferable(const Function &F) {
-  return F.getName().startswith(PARTIAL_FN_STUB_PREFIX);
+  return F.getName().starts_with(PARTIAL_FN_STUB_PREFIX);
 }
 
 // Declared in GeneratePartialFnPass.h

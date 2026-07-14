@@ -178,7 +178,7 @@ bool LowerGvInitializers::runOnModule(Module &M) {
   // Iterate over global variables
   for (GlobalVariable *gv : gvs) {
     // XXX: skip global variables used by seahorn for instrumentation
-    if (gv->getName().startswith("sea_"))
+    if (gv->getName().starts_with("sea_"))
       continue;
 
     // First we try to promote the global variable to a stack variable

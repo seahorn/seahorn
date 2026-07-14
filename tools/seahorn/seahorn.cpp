@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
   llvm::initializeScalarOpts(Registry);
   llvm::initializeIPO(Registry);
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  llvm::initializeCallGraphPrinterLegacyPassPass(Registry);
+  // LLVM 18 removed the legacy CallGraphPrinter pass (new-PM only now).
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);

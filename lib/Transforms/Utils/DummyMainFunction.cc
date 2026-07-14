@@ -135,7 +135,7 @@ public:
     //   LLVMUsed->eraseFromParent();
     // }
 
-    // Type *i8PTy = Type::getInt8PtrTy(ctx);
+    // Type *i8PTy = PointerType::getUnqual(ctx);
     // // Add uses for our data
     // //MergedVars.push_back (ConstantExpr::getBitCast(cast<llvm::Constant>(F),
     // i8PTy));

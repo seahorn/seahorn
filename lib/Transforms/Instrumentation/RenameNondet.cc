@@ -46,7 +46,7 @@ class RenameNondet : public ModulePass {
   bool shouldRename(const GlobalValue &GV) {
     if (!GV.isDeclaration())
       return false;
-    if (GV.getName().startswith("llvm."))
+    if (GV.getName().starts_with("llvm."))
       return false;
 
     if (!m_tli)

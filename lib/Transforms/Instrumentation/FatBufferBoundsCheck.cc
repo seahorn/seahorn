@@ -201,11 +201,13 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   Value *NeededSizeVal = ConstantInt::get(IntPtrTy, NeededSize);
   LOG("fat-bnd-check", errs() << "Instrument " << *Ptr << " for "
                               << Twine(NeededSize) << " bytes\n");
-  SizeOffsetEvalType SizeOffset = ObjSizeEval->compute(Ptr);
+  // LLVM 18: compute() returns SizeOffsetValue (bothKnown/knownSize and
+  // Size/Offset live on the value, not the evaluator).
+  SizeOffsetValue SizeOffset = ObjSizeEval->compute(Ptr);
   Value *Or;
 
   if (UseFatSlots) {
-    auto *ArgPtr = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
+    auto *ArgPtr = Builder->CreateBitCast(Ptr, Builder->getPtrTy());
     Value *RecovPtr = Builder->CreateCall(m_recoverFatPtr, ArgPtr);
     RawPtr = Builder->CreateBitCast(RecovPtr, Ptr->getType());
     Builder->CreateCall(m_seaDsaAlias, {ArgPtr, RecovPtr});
@@ -213,7 +215,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     RawPtr = Ptr;
   }
 
-  if (!ObjSizeEval->bothKnown(SizeOffset)) {
+  if (!SizeOffset.bothKnown()) {
     if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
       // stderr is usually external and ObjSizeEval refuses to determine its
       // size
@@ -243,15 +245,15 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
         is_access_bad := is_underflow or is_overflow
       */
       Value *Start = Builder->CreateCall(
-          m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+          m_getFatSlot0, Builder->CreateBitCast(Ptr, Builder->getPtrTy()));
       Value *Size = nullptr;
-      if (ObjSizeEval->knownSize(SizeOffset)) {
-        Size = SizeOffset.first;
+      if (SizeOffset.knownSize()) {
+        Size = SizeOffset.Size;
         ++ChecksKnownSize;
       } else {
         Size = Builder->CreateCall(
             m_getFatSlot1,
-            Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()));
+            Builder->CreateBitCast(Ptr, Builder->getPtrTy()));
       }
       assert(Size);
       Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);
@@ -268,7 +270,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
                                   << Twine(NeededSize) << " bytes\n";);
       auto isDerefCall = Builder->CreateCall(
           m_seaIsDereferenceable,
-          {Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy()),
+          {Builder->CreateBitCast(Ptr, Builder->getPtrTy()),
            NeededSizeVal});
       Or = Builder->CreateNot(isDerefCall);
     }
@@ -276,8 +278,8 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     // size and offest statically computed
     LOG("fat-bnd-check", errs() << "statically instrument " << *Ptr << " for "
                                 << Twine(NeededSize) << " bytes\n";);
-    Value *Size = SizeOffset.first;
-    Value *Offset = SizeOffset.second;
+    Value *Size = SizeOffset.Size;
+    Value *Offset = SizeOffset.Offset;
     ConstantInt *SizeCI = dyn_cast<ConstantInt>(Size);
 
     // three checks are required to ensure safety:
@@ -301,7 +303,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
     LOG("fat-bnd-check", errs() << "isAlloc instrument " << *Ptr << "\n";);
     auto isAllocCall = Builder->CreateCall(
         m_seaIsAllocated,
-        {Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy())});
+        {Builder->CreateBitCast(Ptr, Builder->getPtrTy())});
     Or = Builder->CreateOr(Or, Builder->CreateNot(isAllocCall));
   }
   emitBranchToTrap(Or);
@@ -334,11 +336,11 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
   // -- forward created calls. Arguments will be filled later
   // -- create a call to set slot0
   CallInst *withBase = Builder->CreateCall(
-      m_setFatSlot0, {Constant::getNullValue(Builder->getInt8PtrTy()),
+      m_setFatSlot0, {Constant::getNullValue(Builder->getPtrTy()),
                       ConstantInt::get(IntPtrTy, 0)});
   // -- create a call to set slot1
   CallInst *withSize = Builder->CreateCall(
-      m_setFatSlot1, {Constant::getNullValue(Builder->getInt8PtrTy()),
+      m_setFatSlot1, {Constant::getNullValue(Builder->getPtrTy()),
                       ConstantInt::get(IntPtrTy, 0)});
   // -- cast result of setting slot1 to same type as returned by alloca
   Value *NewPtr = Builder->CreateBitCast(withSize, AllocedTy->getPointerTo());
@@ -349,13 +351,13 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
 
   // set_fat_slot0(Ptr, Base)
   Builder->SetInsertPoint(withBase);
-  Value *argA = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
+  Value *argA = Builder->CreateBitCast(Ptr, Builder->getPtrTy());
   Value *argB = Builder->CreatePtrToInt(Ptr, IntPtrTy);
   withBase->setArgOperand(0, argA);
   withBase->setArgOperand(1, argB);
 
   // set_fat_slot1(Ptr, Size)
-  auto argC = Builder->CreateBitCast(withBase, Builder->getInt8PtrTy());
+  auto argC = Builder->CreateBitCast(withBase, Builder->getPtrTy());
   withSize->setArgOperand(0, argC);
   Builder->SetInsertPoint(withSize);
   auto size = DL.getTypeStoreSize(AllocedTy);
@@ -367,7 +369,7 @@ bool FatBufferBoundsCheck::instrumentAlloca(AllocaInst *Ptr,
   Builder->CreateCall(m_seaDsaAlias, {argA, argC});
   Builder->CreateCall(
       m_seaDsaAlias,
-      {argC, Builder->CreateBitCast(withSize, Builder->getInt8PtrTy())});
+      {argC, Builder->CreateBitCast(withSize, Builder->getPtrTy())});
 
   return true;
 }
@@ -384,7 +386,7 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
   auto *BasePtr = Ptr->getPointerOperand();
 
   Builder->SetInsertPoint(Ptr);
-  auto *ArgBasePtr = Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy());
+  auto *ArgBasePtr = Builder->CreateBitCast(BasePtr, Builder->getPtrTy());
   Value *RecovPtr = Builder->CreateCall(m_recoverFatPtr, ArgBasePtr);
 
   Builder->CreateCall(m_seaDsaAlias, {ArgBasePtr, RecovPtr});
@@ -392,8 +394,8 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
 
   Builder->SetInsertPoint(Ptr->getParent(), ++BasicBlock::iterator(Ptr));
   CallInst *SlotCopyCall = Builder->CreateCall(
-      m_copyFatSlots, {Constant::getNullValue(Builder->getInt8PtrTy()),
-                       Constant::getNullValue(Builder->getInt8PtrTy())});
+      m_copyFatSlots, {Constant::getNullValue(Builder->getPtrTy()),
+                       Constant::getNullValue(Builder->getPtrTy())});
   Value *Casted = Builder->CreateBitCast(SlotCopyCall, GepTy->getPointerTo());
   Ptr->replaceAllUsesWith(Casted);
   LOG("fat-bnd-check", errs()
@@ -401,8 +403,8 @@ bool FatBufferBoundsCheck::instrumentGep(GetElementPtrInst *Ptr,
                            << " with type " << *GepTy->getPointerTo() << "\n";);
 
   Builder->SetInsertPoint(SlotCopyCall);
-  auto *Arg0 = Builder->CreateBitCast(Ptr, Builder->getInt8PtrTy());
-  auto *Arg1 = Builder->CreateBitCast(BasePtr, Builder->getInt8PtrTy());
+  auto *Arg0 = Builder->CreateBitCast(Ptr, Builder->getPtrTy());
+  auto *Arg1 = Builder->CreateBitCast(BasePtr, Builder->getPtrTy());
   SlotCopyCall->setArgOperand(0, Arg0);
   SlotCopyCall->setArgOperand(1, Arg1);
 
@@ -452,7 +454,7 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
   if (UseFatSlots) {
     m_getFatSlot0 =
         cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT0, IntPtrTy,
-                                              Type::getInt8PtrTy(C, 0))
+                                              PointerType::getUnqual(C))
                            .getCallee());
 
     m_getFatSlot0->setDoesNotThrow();
@@ -461,23 +463,23 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
 
     m_getFatSlot1 =
         cast<Function>(M->getOrInsertFunction(SEA_GET_FAT_SLOT1, IntPtrTy,
-                                              Type::getInt8PtrTy(C, 0))
+                                              PointerType::getUnqual(C))
                            .getCallee());
     m_getFatSlot1->setDoesNotThrow();
     m_getFatSlot1->setOnlyWritesMemory();
     m_getFatSlot1->addParamAttr(0, Attribute::NoCapture);
 
     m_setFatSlot0 = cast<Function>(
-        M->getOrInsertFunction(SEA_SET_FAT_SLOT0, Type::getInt8PtrTy(C, 0),
-                               Type::getInt8PtrTy(C, 0), IntPtrTy)
+        M->getOrInsertFunction(SEA_SET_FAT_SLOT0, PointerType::getUnqual(C),
+                               PointerType::getUnqual(C), IntPtrTy)
             .getCallee());
     m_setFatSlot0->setDoesNotThrow();
     m_setFatSlot0->setOnlyWritesMemory();
     // m_setFatSlot0->addParamAttr(0, Attribute::Returned);
 
     m_setFatSlot1 = cast<Function>(
-        M->getOrInsertFunction(SEA_SET_FAT_SLOT1, Type::getInt8PtrTy(C, 0),
-                               Type::getInt8PtrTy(C, 0), IntPtrTy)
+        M->getOrInsertFunction(SEA_SET_FAT_SLOT1, PointerType::getUnqual(C),
+                               PointerType::getUnqual(C), IntPtrTy)
             .getCallee());
     m_setFatSlot1->setDoesNotThrow();
     m_setFatSlot1->setOnlyWritesMemory();
@@ -485,8 +487,8 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
 
     m_copyFatSlots =
         cast<Function>(M->getOrInsertFunction(
-                            SEA_COPY_FAT_SLOTS, Type::getInt8PtrTy(C, 0),
-                            Type::getInt8PtrTy(C, 0), Type::getInt8PtrTy(C, 0))
+                            SEA_COPY_FAT_SLOTS, PointerType::getUnqual(C),
+                            PointerType::getUnqual(C), PointerType::getUnqual(C))
                            .getCallee());
     m_copyFatSlots->setDoesNotThrow();
     m_copyFatSlots->setOnlyWritesMemory();
@@ -494,8 +496,8 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
     m_copyFatSlots->addParamAttr(1, Attribute::NoCapture);
 
     m_recoverFatPtr = cast<Function>(
-        M->getOrInsertFunction(SEA_RECOVER_FAT_PTR, Type::getInt8PtrTy(C, 0),
-                               Type::getInt8PtrTy(C, 0))
+        M->getOrInsertFunction(SEA_RECOVER_FAT_PTR, PointerType::getUnqual(C),
+                               PointerType::getUnqual(C))
             .getCallee());
     m_recoverFatPtr->setDoesNotThrow();
     m_recoverFatPtr->setOnlyWritesMemory();
@@ -503,8 +505,8 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
 
     m_seaDsaAlias =
         cast<Function>(M->getOrInsertFunction(SEA_DSA_ALIAS, Type::getVoidTy(C),
-                                              Type::getInt8PtrTy(C, 0),
-                                              Type::getInt8PtrTy(C, 0))
+                                              PointerType::getUnqual(C),
+                                              PointerType::getUnqual(C))
                            .getCallee());
   }
 

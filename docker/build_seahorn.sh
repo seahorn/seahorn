@@ -18,8 +18,8 @@ set -euo pipefail
 
 SRC_DIR=${SRC_DIR:-/seahorn}
 BUILD_TYPE=${BUILD_TYPE:-RelWithDebInfo}
-# LLVM major version; the dev16 branch builds with clang/LLVM 16.
-LLVM_VERSION=${LLVM_VERSION:-16}
+# LLVM major version; the dev17 branch builds with clang/LLVM 17.
+LLVM_VERSION=${LLVM_VERSION:-17}
 export CCACHE_DIR=${CCACHE_DIR:-/ccache}
 # Make cached files world-readable so the host runner (a different uid) can
 # pack the cache directory with actions/cache after a containerized build.

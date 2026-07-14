@@ -3,10 +3,10 @@
 # Arguments:
 #  - BUILDPACK_IMAGE: registry/owner of the buildpack-deps base image
 #                     (published to GHCR by the buildpack-deps workflow)
-#  - BASE-IMAGE: jammy-llvm16
+#  - BASE-IMAGE: jammy-llvm17
 #  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
 ARG BUILDPACK_IMAGE=ghcr.io/seahorn/buildpack-deps-seahorn
-ARG BASE_IMAGE=jammy-llvm16
+ARG BASE_IMAGE=jammy-llvm17
 FROM ${BUILDPACK_IMAGE}:${BASE_IMAGE}
 
 # Assume that docker-build is ran in the top-level SeaHorn directory

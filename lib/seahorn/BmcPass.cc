@@ -411,7 +411,7 @@ public:
         // dump to harness file
         StringRef CexFileRef(HornCexFile);
         if (CexFileRef != "") {
-          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+          if (CexFileRef.ends_with(".ll") || CexFileRef.ends_with(".bc")) {
             auto const &tli = m_tliGetter(F);
             auto const &dl = F.getParent()->getDataLayout();
             if (BmcCexGen) {
@@ -475,7 +475,7 @@ public:
         trace.print(errs());
         StringRef CexFileRef(HornCexFile);
         if (CexFileRef != "") {
-          if (CexFileRef.endswith(".ll") || CexFileRef.endswith(".bc")) {
+          if (CexFileRef.ends_with(".ll") || CexFileRef.ends_with(".bc")) {
             auto const &tli = m_tliGetter(F);
             auto const &dl = F.getParent()->getDataLayout();
             if (BmcCexGen) {

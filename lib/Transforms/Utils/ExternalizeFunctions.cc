@@ -93,7 +93,7 @@ public:
         // in C++ local names are mangled with _ZL prefix, as we make functions
         // external, also rename
         auto name = F.getName();
-        if (name.startswith("_ZL") && name.size() > 3) {
+        if (name.starts_with("_ZL") && name.size() > 3) {
           F.setName("_Z" + name.substr(3));
           LOG("extern",
               errs() << "Renaming: " << name << " to " << F.getName() << "\n";);

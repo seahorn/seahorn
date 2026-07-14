@@ -89,7 +89,7 @@ void dumpLLVMCex(BmcTraceWrapper<Trace> &trace, StringRef CexFile,
   }
   assert(!error_code);
   verifyModule(*Harness, &errs());
-  if (CexFile.endswith(".ll"))
+  if (CexFile.ends_with(".ll"))
     out.os() << *Harness;
   else
     WriteBitcodeToFile(*Harness, out.os());
@@ -219,7 +219,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
         // We want to ignore seahorn functions, but not nondet
         // functions created by strip-extern or dummyMainFunction
         if (CF->getName().find_first_of('.') != StringRef::npos &&
-            !CF->getName().startswith("verifier.nondet"))
+            !CF->getName().starts_with("verifier.nondet"))
           continue;
         if (!CF->isExternalLinkage(CF->getLinkage()))
           continue;
@@ -273,11 +273,11 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
       pRT = RT->getPointerTo();
     } else if (RT->isIntegerTy()) {
       TypeSize tsz = dl.getTypeStoreSizeInBits(RT);
-      auto bitsz = tsz.getFixedSize();
+      auto bitsz = tsz.getFixedValue();
       eRT = Type::getIntNTy(TheContext, bitsz);
       pRT = eRT->getPointerTo();
     } else {
-      pRT = Type::getInt8PtrTy(TheContext);
+      pRT = PointerType::getUnqual(TheContext);
     }
 
     ArrayType *AT = nullptr;
@@ -390,7 +390,7 @@ createCexHarness(BmcTraceWrapper<Trace> &trace, const DataLayout &dl,
   {
     Type *intTy = IntegerType::get(TheContext, 64);
     Type *intPtrTy = dl.getIntPtrType(TheContext, 0);
-    Type *i8PtrTy = Type::getInt8PtrTy(TheContext, 0);
+    Type *i8PtrTy = PointerType::getUnqual(TheContext);
 
     // Hook for gdb-like tools. Used to translate virtual addresses to
     // physical ones if that's the case. This is useful so we can

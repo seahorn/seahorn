@@ -573,7 +573,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
     }
 
-    if (F.getName().startswith("verifier.assume")) {
+    if (F.getName().starts_with("verifier.assume")) {
       Expr c = lookup(*CB.getOperand(0));
       if (F.getName().equals("verifier.assume.not"))
         c = boolop::lneg(c);
@@ -597,7 +597,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
         side(m_outMem,
              op::array::constArray(bv::bvsort(ptrSz(), m_efac), nullBv));
       }
-    } else if (F.getName().startswith("smt.extract.")) {
+    } else if (F.getName().starts_with("smt.extract.")) {
 
       auto *arg0 = dyn_cast<ConstantInt>(CB.getOperand(0));
       auto *arg1 = dyn_cast<ConstantInt>(CB.getOperand(1));
@@ -664,7 +664,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_fparams.push_back(falseE);
       m_fparams.push_back(falseE);
       m_fparams.push_back(falseE);
-    } else if (F.getName().startswith("shadow.mem") && m_sem.isTracked(I)) {
+    } else if (F.getName().starts_with("shadow.mem") && m_sem.isTracked(I)) {
       if (F.getName().equals("shadow.mem.init")) {
         m_s.havoc(symb(I));
         unsigned id = shadow_dsa::getShadowId(CB);
@@ -1234,7 +1234,7 @@ bool BvOpSem::isTracked(const Value &v) const {
     if (v.hasOneUse())
       if (const CallInst *ci = dyn_cast<const CallInst>(*v.user_begin()))
         if (const Function *fn = ci->getCalledFunction())
-          if (fn->getName().startswith("shadow.mem"))
+          if (fn->getName().starts_with("shadow.mem"))
             return false;
 
     return m_trackLvl >= PTR;

@@ -118,9 +118,9 @@ void CallSiteResolverByTypes::populateTypeAliasSets() {
       continue;
 
     // -- skip seahorn and verifier specific intrinsics
-    if (F.getName().startswith("seahorn."))
+    if (F.getName().starts_with("seahorn."))
       continue;
-    if (F.getName().startswith("verifier."))
+    if (F.getName().starts_with("verifier."))
       continue;
     // -- assume entry point is never called indirectly
     if (F.getName().equals("main"))

@@ -60,7 +60,7 @@ class KleeInternalize : public ModulePass {
     m_intptrTy = m_dl->getIntPtrType(C, 0);
 
     Type *voidTy = Type::getVoidTy(C);
-    Type *i8PtrTy = Type::getInt8PtrTy(C);
+    Type *i8PtrTy = PointerType::getUnqual(C);
     Type *i32Ty = Type::getInt32Ty(C);
 
     m_assertFailFn = M.getOrInsertFunction("__assert_fail", voidTy, i8PtrTy,
@@ -87,7 +87,7 @@ class KleeInternalize : public ModulePass {
   bool shouldInternalize(const GlobalValue &GV) {
     if (!GV.isDeclaration())
       return false;
-    if (GV.getName().startswith("llvm."))
+    if (GV.getName().starts_with("llvm."))
       return false;
 
     if (!m_tli)
@@ -132,7 +132,7 @@ class KleeInternalize : public ModulePass {
       // TODO: update callgraph with this call
       CallInst *mksym = Builder.CreateCall(
           m_kleeMkSymbolicFn,
-          {Builder.CreateBitCast(v, Builder.getInt8PtrTy()), sz,
+          {Builder.CreateBitCast(v, Builder.getPtrTy()), sz,
            Builder.CreateConstGEP2_32(fname->getValueType(), fname, 0, 0)});
 
       (void)mksym;

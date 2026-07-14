@@ -181,7 +181,7 @@ bool instruction_factory::is_tracked(const Type *ty) {
 
 bool instruction_factory::is_tracked(const Value &v) {
   // -- ignore any shadow variable created by seahorn
-  if (v.getName().startswith("shadow.mem"))
+  if (v.getName().starts_with("shadow.mem"))
     return false;
   return is_tracked(v.getType());
 }
@@ -637,7 +637,7 @@ public:
         m_bb += m_ifac.mk_error();
       } else {
         // -- ignore shadow memory functions created by seahorn
-        if (!callee->getName().startswith("shadow.mem"))
+        if (!callee->getName().starts_with("shadow.mem"))
           m_bb += m_ifac.mk_call(I);
       }
     }
@@ -939,7 +939,7 @@ public:
     for (Function &F : M) {
       m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
       // -- ignore shadow memory functions created by seahorn
-      if (F.getName().startswith("shadow.mem"))
+      if (F.getName().starts_with("shadow.mem"))
         continue;
       runOnFunction(F);
     }

@@ -55,14 +55,14 @@ public:
        { memcpy (dst, src, sz); }
      */
     m_memLoad = M.getOrInsertFunction("__seahorn_mem_load", Type::getVoidTy(C),
-                                      Type::getInt8PtrTy(C, 0),
-                                      Type::getInt8PtrTy(C, 0), m_intPtrTy);
+                                      PointerType::getUnqual(C),
+                                      PointerType::getUnqual(C), m_intPtrTy);
     /* void __sea_mem_store (void *src, void *dst, size_t sz)
        { memcpy (dst, src, sz); }
     */
     m_memStore = M.getOrInsertFunction(
-        "__seahorn_mem_store", Type::getVoidTy(C), Type::getInt8PtrTy(C, 0),
-        Type::getInt8PtrTy(C, 0), m_intPtrTy);
+        "__seahorn_mem_store", Type::getVoidTy(C), PointerType::getUnqual(C),
+        PointerType::getUnqual(C), m_intPtrTy);
 
     if (Function *Main = M.getFunction("main")) {
       FunctionCallee memInit = M.getOrInsertFunction(
@@ -89,7 +89,7 @@ public:
 
     LLVMContext &C = F.getContext();
     IRBuilder<> B(C);
-    Type *i8PtrTy = B.getInt8PtrTy();
+    Type *i8PtrTy = B.getPtrTy();
     for (BasicBlock &bb : F)
       for (Instruction &inst : bb) {
         if (LoadInst *load = dyn_cast<LoadInst>(&inst)) {

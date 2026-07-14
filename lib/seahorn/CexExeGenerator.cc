@@ -132,7 +132,7 @@ public:
     // We want to ignore seahorn functions, but not nondet
     // functions created by strip-extern or dummyMainFunction
     if (CF->getName().find_first_of('.') != StringRef::npos &&
-        !CF->getName().startswith("verifier.nondet"))
+        !CF->getName().starts_with("verifier.nondet"))
       return;
     if (!CF->isExternalLinkage(CF->getLinkage()))
       return;
@@ -180,7 +180,7 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
 
   Type *RT = func->getReturnType();
   Type *pRT =
-      RT->isIntegerTy() ? RT->getPointerTo() : Type::getInt8PtrTy(m_context);
+      RT->isIntegerTy() ? RT->getPointerTo() : PointerType::getUnqual(m_context);
   ArrayType *AT = ArrayType::get(RT, values.size());
 
   // Convert Expr to LLVM constants
@@ -259,7 +259,7 @@ void CexExeGenerator<Trace>::buildMemhavoc(const Function *func,
     LOG("cex", WARN << "memhavoc has non-void return type. Skipping...\n";);
     return;
   }
-  Type *i8PtrTy = Type::getInt8PtrTy(m_context);
+  Type *i8PtrTy = PointerType::getUnqual(m_context);
   // Convert Expr to LLVM constants
   SmallVector<Constant *, 20> LLVMarray;
   // one nested array for segments
@@ -343,7 +343,7 @@ void CexExeGenerator<Trace>::saveCexModuleToFile(llvm::StringRef CexFile) {
   llvm::ToolOutputFile out(CexFile, error_code, sys::fs::OF_None);
   assert(!error_code);
   verifyModule(*m_harness, &errs());
-  if (CexFile.endswith(".ll"))
+  if (CexFile.ends_with(".ll"))
     out.os() << *m_harness;
   else
     WriteBitcodeToFile(*m_harness, out.os());
@@ -412,7 +412,7 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
     blockWidth = sizeMpz.get_ui();
   } else {
     LOG("cex", ERR << "memhavoc: cannot get concrete size (" << *size << ")\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
@@ -424,7 +424,7 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   } else {
     LOG("cex", ERR << "memhavoc: cannot get concrete starting address: "
                    << *startAddr << "\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
@@ -432,7 +432,7 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   if (!m_map.isValid()) {
     LOG("cex",
         ERR << "memhavoc: cannot extract content from: " << *segment << "\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(m_context), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
   size_t elmWidth = m_map.getContentWidth();

@@ -89,7 +89,7 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   } else {
     LOG("cex",
         errs() << "memhavoc: cannot get concrete size (" << *size << ")\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(ctx), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
@@ -101,7 +101,7 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   } else {
     LOG("cex", errs() << "memhavoc: cannot get concrete starting address: "
                       << *startAddr << "\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(ctx), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
   // use MemMap to extract mem segment info
@@ -111,7 +111,7 @@ Constant *exprToMemSegment(Expr segment, Expr startAddr, Expr size,
   if (!m_map.isValid() || elmWidth < IntegerType::MIN_INT_BITS) {
     LOG("cex_verbose", WARN << "memhavoc: invalid memory expression: "
                             << *m_map.getRawExpr() << "\n");
-    ArrayType *placeholderT = ArrayType::get(Type::getInt8PtrTy(ctx), 0);
+    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(ctx), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
   size_t blocks = std::ceil((float)blockWidth / (float)elmWidth);

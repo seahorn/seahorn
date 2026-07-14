@@ -624,7 +624,7 @@ public:
     // -- should be handled by visitIntrinsicInst
     assert(!f->isIntrinsic());
 
-    if (f->getName().startswith("verifier.assume")) {
+    if (f->getName().starts_with("verifier.assume")) {
       visitVerifierAssumeCall(CB);
       return;
     }
@@ -635,7 +635,7 @@ public:
     }
 
     if (f->getFunctionType()->getReturnType()->isVoidTy()) {
-      if (f->getName().startswith("_ZN4core3ptr56drop_in_place")) {
+      if (f->getName().starts_with("_ZN4core3ptr56drop_in_place")) {
         // core::ptr::drop_in_place is recursive
         WARN << "Skipping a non-inlineable call to: " << f->getName();
         return;
@@ -654,7 +654,7 @@ public:
       return;
     }
 
-    if (f->getName().startswith("shadow.mem")) {
+    if (f->getName().starts_with("shadow.mem")) {
       WARN << "missing metadata on shadow.mem functions. "
               "Probably using old ShadowMem pass. "
               "Some features might not work as expected";
@@ -723,7 +723,7 @@ public:
       // The ease of adding a new instrinsic outweighs the cost of looping --
       // since the number of entries is small and not likely to grow 2x
       hana::for_each(hana::keys(funDeclStartsWithVisitorMap), [&](auto key) {
-        if (candidate.startswith(key.c_str()) && !found) {
+        if (candidate.starts_with(key.c_str()) && !found) {
           auto fnPtr = funDeclStartsWithVisitorMap[key];
           (this->*fnPtr)(CB);
           found = true;
@@ -734,11 +734,11 @@ public:
     };
 
     if (f->isDeclaration()) {
-      if (f->arg_empty() && (f->getName().startswith("nd") ||
-                             f->getName().startswith("nondet.") ||
-                             f->getName().endswith("nondet") ||
-                             f->getName().startswith("verifier.nondet") ||
-                             f->getName().startswith("__VERIFIER_nondet")))
+      if (f->arg_empty() && (f->getName().starts_with("nd") ||
+                             f->getName().starts_with("nondet.") ||
+                             f->getName().ends_with("nondet") ||
+                             f->getName().starts_with("verifier.nondet") ||
+                             f->getName().starts_with("__VERIFIER_nondet")))
         visitNondetCall(CB);
       else if (visitFunDecl(f->getName())) {
         return;
@@ -764,7 +764,7 @@ public:
 
     auto *f = getCalledFunction(CB);
     Expr res;
-    if (f->getName().startswith("smt.extract.")) {
+    if (f->getName().starts_with("smt.extract.")) {
       auto *arg0 = dyn_cast<ConstantInt>(CB.getOperand(0));
       auto *arg1 = dyn_cast<ConstantInt>(CB.getOperand(1));
       auto *val = CB.getOperand(2);
@@ -774,7 +774,7 @@ public:
             m_ctx.alu().Extract({symVal, val->getType()->getScalarSizeInBits()},
                                 arg0->getZExtValue(), arg1->getZExtValue());
       }
-    } else if (f->getName().startswith("smt.concat.")) {
+    } else if (f->getName().starts_with("smt.concat.")) {
       LOG("opsem", WARN << "Not implemented yet";);
       assert(false);
     } else {
@@ -2665,9 +2665,9 @@ public:
         // XXX hard-coded. should be based on use
         // XXX some functions have their address taken for llvm.used
         if (fn.getName().equals("verifier.error") ||
-            fn.getName().startswith("verifier.assume") ||
+            fn.getName().starts_with("verifier.assume") ||
             fn.getName().equals("seahorn.fail") ||
-            fn.getName().startswith("shadow.mem"))
+            fn.getName().starts_with("shadow.mem"))
           continue;
         if (m_sem.isSkipped(fn))
           continue;
@@ -3509,7 +3509,7 @@ bool Bv2OpSem::isSkipped(const Value &v) const {
     if (v.hasOneUse())
       if (const CallInst *ci = dyn_cast<const CallInst>(*v.user_begin()))
         if (const Function *fn = ci->getCalledFunction())
-          if (fn->getName().startswith("shadow.mem"))
+          if (fn->getName().starts_with("shadow.mem"))
             return true;
     return m_trackLvl < PTR;
   }
@@ -3875,7 +3875,8 @@ const llvm::ConstantRange Bv2OpSem::getLVIInstRng(llvm::Instruction &I) {
     if (fn) {
       auto it = m_lvi_map->find(fn);
       if (it != m_lvi_map->end()) {
-        return it->second->getConstantRange(dyn_cast<Value>(&I), &I);
+        return it->second->getConstantRange(dyn_cast<Value>(&I), &I,
+                                            /*UndefAllowed=*/false);
       }
     }
   }

@@ -546,7 +546,7 @@ public:
       LLVMUsed->eraseFromParent();
     }
 
-    Type *i8PTy = Type::getInt8PtrTy(M.getContext());
+    Type *i8PTy = PointerType::getUnqual(M.getContext());
     // for (auto &ndfn: m_ndfn)
     // 	MergedVars.push_back (ConstantExpr::getBitCast(ndfn, i8PTy));
     for (auto &kv : m_extfn)

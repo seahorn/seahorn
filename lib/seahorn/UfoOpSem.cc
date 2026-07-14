@@ -703,7 +703,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       return;
     }
 
-    if (F.getName().startswith("verifier.assume")) {
+    if (F.getName().starts_with("verifier.assume")) {
       if (isa<UndefValue>(CB.getOperand(0))) {
         WARN << "`undef` in assumption: " << CB << " in BB: " << BB.getName()
              << "\n";
@@ -799,7 +799,7 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       m_outRegions.clear();
       m_outValues.clear();
       m_regionValues.clear();
-    } else if (F.getName().startswith("shadow.mem")) {
+    } else if (F.getName().starts_with("shadow.mem")) {
       if (!m_sem.isTracked(CB))
         return;
 
@@ -1243,7 +1243,7 @@ bool UfoOpSem::isTracked(const Value &v) const {
     if (v.hasOneUse())
       if (const CallInst *ci = dyn_cast<const CallInst>(*v.user_begin()))
         if (const Function *fn = ci->getCalledFunction())
-          if (fn->getName().startswith("shadow.mem"))
+          if (fn->getName().starts_with("shadow.mem"))
             return false;
 
     return m_trackLvl >= PTR;

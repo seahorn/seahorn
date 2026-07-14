@@ -140,7 +140,7 @@ static llvm::RegisterPass<seahorn::DevirtualizeFunctionsPass>
 // --- new pass manager wrapper (local CallGraph + TLI wrapper + sea-dsa info)
 // ---
 #include "seahorn/SeaNewPmPasses.hh"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 llvm::PreservedAnalyses
 seahorn::DevirtFunctionsPass::run(llvm::Module &M,
                                   llvm::ModuleAnalysisManager &) {

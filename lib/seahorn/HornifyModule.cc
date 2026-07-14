@@ -4,7 +4,7 @@
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Support/BoostLlvmGraphTraits.hh"
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"

@@ -1,7 +1,7 @@
 #include "seahorn/Transforms/Instrumentation/SimpleMemoryCheck.hh"
 #include "seadsa/DsaAnalysis.hh"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include "seadsa/InitializePasses.hh"
 #include "seahorn/InitializePasses.hh"

@@ -252,8 +252,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
         ++ChecksKnownSize;
       } else {
         Size = Builder->CreateCall(
-            m_getFatSlot1,
-            Builder->CreateBitCast(Ptr, Builder->getPtrTy()));
+            m_getFatSlot1, Builder->CreateBitCast(Ptr, Builder->getPtrTy()));
       }
       assert(Size);
       Value *PtrAsInt = Builder->CreatePtrToInt(RawPtr, IntPtrTy);
@@ -270,8 +269,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
                                   << Twine(NeededSize) << " bytes\n";);
       auto isDerefCall = Builder->CreateCall(
           m_seaIsDereferenceable,
-          {Builder->CreateBitCast(Ptr, Builder->getPtrTy()),
-           NeededSizeVal});
+          {Builder->CreateBitCast(Ptr, Builder->getPtrTy()), NeededSizeVal});
       Or = Builder->CreateNot(isDerefCall);
     }
   } else {
@@ -302,8 +300,7 @@ bool FatBufferBoundsCheck::instrument(Value *Ptr, Value *InstVal,
   if (addIsAllocCheck) {
     LOG("fat-bnd-check", errs() << "isAlloc instrument " << *Ptr << "\n";);
     auto isAllocCall = Builder->CreateCall(
-        m_seaIsAllocated,
-        {Builder->CreateBitCast(Ptr, Builder->getPtrTy())});
+        m_seaIsAllocated, {Builder->CreateBitCast(Ptr, Builder->getPtrTy())});
     Or = Builder->CreateOr(Or, Builder->CreateNot(isAllocCall));
   }
   emitBranchToTrap(Or);
@@ -485,11 +482,11 @@ bool FatBufferBoundsCheck::runImpl(Function &F, const TargetLibraryInfo &tli,
     m_setFatSlot1->setOnlyWritesMemory();
     // m_setFatSlot1->addParamAttr(0, Attribute::Returned);
 
-    m_copyFatSlots =
-        cast<Function>(M->getOrInsertFunction(
-                            SEA_COPY_FAT_SLOTS, PointerType::getUnqual(C),
-                            PointerType::getUnqual(C), PointerType::getUnqual(C))
-                           .getCallee());
+    m_copyFatSlots = cast<Function>(
+        M->getOrInsertFunction(SEA_COPY_FAT_SLOTS, PointerType::getUnqual(C),
+                               PointerType::getUnqual(C),
+                               PointerType::getUnqual(C))
+            .getCallee());
     m_copyFatSlots->setDoesNotThrow();
     m_copyFatSlots->setOnlyWritesMemory();
     // m_copyFatSlots->addParamAttr(0, Attribute::Returned);

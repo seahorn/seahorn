@@ -179,8 +179,8 @@ void CexExeGenerator<Trace>::buildNonDetFunction(const Function *func,
           .getCallee());
 
   Type *RT = func->getReturnType();
-  Type *pRT =
-      RT->isIntegerTy() ? RT->getPointerTo() : PointerType::getUnqual(m_context);
+  Type *pRT = RT->isIntegerTy() ? RT->getPointerTo()
+                                : PointerType::getUnqual(m_context);
   ArrayType *AT = ArrayType::get(RT, values.size());
 
   // Convert Expr to LLVM constants
@@ -412,7 +412,8 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
     blockWidth = sizeMpz.get_ui();
   } else {
     LOG("cex", ERR << "memhavoc: cannot get concrete size (" << *size << ")\n");
-    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
+    ArrayType *placeholderT =
+        ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
@@ -424,7 +425,8 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   } else {
     LOG("cex", ERR << "memhavoc: cannot get concrete starting address: "
                    << *startAddr << "\n");
-    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
+    ArrayType *placeholderT =
+        ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
 
@@ -432,7 +434,8 @@ Constant *CexExeGenerator<Trace>::exprToMemSegment(Expr segment, Expr startAddr,
   if (!m_map.isValid()) {
     LOG("cex",
         ERR << "memhavoc: cannot extract content from: " << *segment << "\n");
-    ArrayType *placeholderT = ArrayType::get(PointerType::getUnqual(m_context), 0);
+    ArrayType *placeholderT =
+        ArrayType::get(PointerType::getUnqual(m_context), 0);
     return ConstantArray::get(placeholderT, LLVMValueSegment);
   }
   size_t elmWidth = m_map.getContentWidth();

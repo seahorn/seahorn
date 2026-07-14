@@ -1,4 +1,6 @@
 #include "seahorn/BvOpSem2.hh"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2FatMemMgr.hh"
 #include "BvOpSem2RawMemMgr.hh"
@@ -3623,8 +3625,8 @@ void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C,
       ConstantExprEvaluator ce(getDataLayout());
       auto gv = ce.evaluate(cv);
       assert(gv.hasValue());
-      if ((gv->IntVal.isOneValue() && br->getSuccessor(0) != &dst) ||
-          (gv->IntVal.isNullValue() && br->getSuccessor(1) != &dst)) {
+      if ((gv->IntVal.isOne() && br->getSuccessor(0) != &dst) ||
+          (gv->IntVal.isZero() && br->getSuccessor(1) != &dst)) {
         C.resetSide();
         C.addScopedSide(C.read(errorFlag(*C.getCurrBb())));
       }

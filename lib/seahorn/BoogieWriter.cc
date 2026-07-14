@@ -75,7 +75,7 @@ static bool isInteger(const Value &v) { return isInteger(v.getType()); }
 static boost::optional<int64_t> getIntConstant(const ConstantInt *CI) {
   if (CI->getType()->isIntegerTy(1)) {
     return (int64_t)CI->getZExtValue();
-  } else if (CI->getValue().getMinSignedBits() <= 64) {
+  } else if (CI->getValue().getSignificantBits() <= 64) {
     return CI->getSExtValue();
   } else {
     llvm::errs() << "Warning: " << *CI << " does not fit in int64_t.";

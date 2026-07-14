@@ -1,4 +1,5 @@
 #include "BvOpSem2WideMemMgr.hh"
+#include "llvm/ADT/SmallString.h"
 #include "BvOpSem2Allocators.hh"
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2MemManagerMixin.hh"

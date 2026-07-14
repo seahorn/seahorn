@@ -167,7 +167,7 @@ llvm::Pass *seahorn::createCrabLowerIsDerefPass() {
 #include "seahorn/SeaNewPmPasses.hh"
 #ifdef HAVE_CLAM
 #include "seadsa/TargetLibraryInfoGetter.hh"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 llvm::PreservedAnalyses
 seahorn::CrabLowerIsDerefPass::run(llvm::Module &M,
                                    llvm::ModuleAnalysisManager &) {

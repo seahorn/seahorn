@@ -1,6 +1,6 @@
 #include "seahorn/Support/SortTopo.hh"
 
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/IR/CFG.h"

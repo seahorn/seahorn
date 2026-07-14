@@ -1,6 +1,6 @@
 /* Externalize functions selected by command line */
 
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/BasicBlock.h"

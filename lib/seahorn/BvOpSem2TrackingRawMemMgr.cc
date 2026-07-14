@@ -1,4 +1,5 @@
 #include "BvOpSem2TrackingRawMemMgr.hh"
+#include "llvm/ADT/SmallString.h"
 
 namespace seahorn {
 namespace details {

@@ -1,4 +1,5 @@
 #include "BvOpSem2FatMemMgr.hh"
+#include "llvm/ADT/SmallString.h"
 #include "BvOpSem2Context.hh"
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2MemManagerMixin.hh"

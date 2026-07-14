@@ -624,19 +624,10 @@ CheckContext SimpleMemoryCheck::getUnsafeCandidates(Instruction *Inst,
       auto *BarrierPtrTy = Check.Barrier->getType();
       auto *AllocPtrTy = AS->getType();
       if (BarrierPtrTy->isPointerTy() && AllocPtrTy->isPointerTy()) {
-        // Temporary hack for CASS. Disabled for now.
-        // NOTE: getPointerElementType() is kept but moved inside the disabled
-        // branch so it is never executed -- it aborts on LLVM-15 opaque
-        // pointers (the pointee type is unavailable).
-        if (auto *Arg = dyn_cast<Argument>(Check.Barrier))
-          if (false && Arg->getName() == "this") {
-            // auto *BarrierTy = BarrierPtrTy->getPointerElementType();
-            auto *AllocTy = AllocPtrTy->getPointerElementType();
-            if (AllocTy->isStructTy() &&
-                (AllocTy->getStructName().endswith("::string") ||
-                 AllocTy->getStructName().endswith("::vector3")))
-              Interesting = false;
-          }
+        // Temporary hack for CASS, disabled since LLVM-15 opaque pointers
+        // (the pointee type is unavailable). LLVM 17 removed
+        // getPointerElementType() entirely, so the dead branch that skipped
+        // "this"-argument barriers into ::string/::vector3 allocs is gone.
 
         //        // Heap alloc tends to return i8* instead of precise type.
         //        if (!isa<CallInst>(AS) && !isa<InvokeInst>(AS)) {

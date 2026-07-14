@@ -73,42 +73,11 @@ private:
     if (!PhiTy->isPointerTy())
       return false;
 
-    Type *PointerElementType = PhiTy->getPointerElementType();
-    // The pointer stride cannot be determined if the pointer
-    // element type is not sized.
-    if (!PointerElementType->isSized())
-      return false;
-
-    // Check that the PHI is a recurrence.
-    const SCEV *PhiScev = m_se->getSCEV(Phi);
-    const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(PhiScev);
-    if (!AR) {
-      LOG("ptr-iv", errs() << "PHI is not a poly recurrence.\n");
-      return false;
-    }
-
-    // Calculate the pointer stride and check if it is consecutive.
-    const SCEV *Step = AR->getStepRecurrence(*m_se);
-    const SCEVConstant *C = dyn_cast<SCEVConstant>(Step);
-    if (!C)
-      return false;
-
-    // Calculate strided access
-    uint64_t Size = m_dl->getTypeAllocSize(PointerElementType);
-    const APInt &APStepVal = C->getValue()->getValue();
-    int64_t StepVal = APStepVal.getSExtValue();
-    int64_t Stride = StepVal / Size;
-    int64_t Rem = StepVal % Size;
-    if (Rem)
-      return false;
-
-    if (C->getValue()->equalsInt(Size)) {
-      m_inductions[Phi] = InductionInfo(Size, Stride);
-      return true;
-    } else if (C->getValue()->equalsInt(0 - Size)) {
-      LOG("ptr-iv", errs() << "Reverse pointer induction not supported");
-    }
-
+    // With opaque pointers the pointee type is unavailable (LLVM 17 removed
+    // getPointerElementType entirely), so the pointer stride cannot be
+    // computed and no pointer induction variable can be identified. This
+    // matches the pass's effective behavior since opaque pointers became
+    // the default: the old code asserted before reaching the stride check.
     return false;
   }
 

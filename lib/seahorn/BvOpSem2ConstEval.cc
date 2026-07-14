@@ -1,4 +1,5 @@
 #include "BvOpSem2Context.hh"
+#include "llvm/ADT/SmallString.h"
 
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "llvm/Support/Format.h"

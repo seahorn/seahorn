@@ -11,7 +11,7 @@ FROM buildpack-deps:$BASE_IMAGE
 # LLVM major version to install. Jammy's own archive stops at clang-15, so the
 # toolchain comes from apt.llvm.org (which also serves 15, so this works for
 # rebuilding the llvm15 image too).
-ARG LLVM_VERSION=17
+ARG LLVM_VERSION=18
 
 # Install dependencies
 ARG DEBIAN_FRONTEND=noninteractive

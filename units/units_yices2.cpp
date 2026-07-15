@@ -298,4 +298,60 @@ TEST_CASE("yices2-const-array.test") {
   CHECK(true);
 }
 
+TEST_CASE("yices2-const-array-store-select.test") {
+  // Regression test: a select over a store (or ite) chain whose base is a
+  // const-array must be solvable by yices. The marshaller can only encode a
+  // const-array as a lambda term; yices beta-reduces a direct
+  // select-over-const-array away, but a lambda under yices_update survives
+  // into the assertion and yices contexts reject lambda terms
+  // ("the context does not support lambda terms"). The yices bridge now
+  // expands such selects into ite cascades before encoding. This is the
+  // shape the tracking-mem metadata encoding produces
+  // (zero-initialized metadata memory with stores at symbolic addresses).
+  using namespace std;
+  using namespace expr;
+  using namespace seahorn;
+
+  expr::ExprFactory efac;
+
+  size_t SZ = 64;
+  Expr iTy = op::bv::bvsort(SZ, efac);
+  Expr p = op::bv::bvConst(mkTerm<string>("p", efac), SZ);
+  Expr q = op::bv::bvConst(mkTerm<string>("q", efac), SZ);
+  Expr zero = op::bv::bvnum(0, SZ, efac);
+  Expr one = op::bv::bvnum(1, SZ, efac);
+  Expr ca = op::array::constArray(iTy, zero);
+
+  // select(store(const-array(0), p, 1), q) with q != p is 0, never 1
+  Expr sel = op::array::select(op::array::store(ca, p, one), q);
+  Expr unsatE = mk<AND>(mk<EQ>(sel, one), mk<NEQ>(q, p));
+  // ... and without the disequality it is 1 exactly when q = p
+  Expr satE = mk<EQ>(sel, one);
+  // ite-of-arrays over const-array bases (the shadow-mem join shape)
+  Expr c = bind::boolConst(mkTerm<string>("c", efac));
+  Expr iteArr = boolop::lite(c, op::array::store(ca, p, one), ca);
+  Expr iteUnsatE =
+      mk<AND>(mk<EQ>(op::array::select(iteArr, q), one), mk<NEQ>(q, p));
+
+  seahorn::solver::yices_solver_impl yices_solver(efac);
+  seahorn::solver::Solver *ys = &yices_solver;
+
+  ys->push();
+  CHECK(ys->add(unsatE));
+  CHECK(ys->check() == seahorn::solver::SolverResult::UNSAT);
+  ys->pop();
+
+  ys->push();
+  CHECK(ys->add(satE));
+  CHECK(ys->check() == seahorn::solver::SolverResult::SAT);
+  ys->pop();
+
+  ys->push();
+  CHECK(ys->add(iteUnsatE));
+  CHECK(ys->check() == seahorn::solver::SolverResult::UNSAT);
+  ys->pop();
+
+  errs() << "FINISHED\n";
+}
+
 #endif

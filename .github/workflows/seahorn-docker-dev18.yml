@@ -28,7 +28,7 @@ jobs:
     # GITHUB_TOKEN needs packages:write to push images to GHCR (ghcr.io)
     permissions:
       contents: read
-      packages: read
+      packages: write
     steps:
       - name: Log manual trigger info
         if: ${{ github.event_name == 'workflow_dispatch' }}

@@ -2,11 +2,13 @@
 #include <gmp.h>
 #include "yices.h"
 
-#include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
-#include "seahorn/Expr/Smt/Yices2ModelImpl.hh"
+#include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Expr/Smt/MarshalYices.hh"
+#include "seahorn/Expr/Smt/Yices2ModelImpl.hh"
+#include "seahorn/Expr/Smt/Yices2SolverImpl.hh"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cstdlib>
 
 #include <vector>
 
@@ -66,8 +68,92 @@ yices_solver_impl::ycache_t& yices_solver_impl::get_cache(void){
   return d_cache;
 }
 
+namespace {
+/// -- true iff the array-term skeleton (stores and ites) has a const-array
+/// -- leaf, i.e. the term cannot be encoded for yices without a lambda
+bool hasConstArrayLeaf(Expr a) {
+  while (true) {
+    if (isOpX<CONST_ARRAY>(a))
+      return true;
+    if (isOpX<STORE>(a)) {
+      a = a->arg(0);
+      continue;
+    }
+    if (isOpX<ITE>(a))
+      return hasConstArrayLeaf(a->arg(1)) || hasConstArrayLeaf(a->arg(2));
+    return false;
+  }
+}
+
+/// -- push select(arr, idx) through the store/ite skeleton of arr:
+/// -- select-over-store becomes an index-equality ite, select-over-ite
+/// -- distributes into the branches, and select-over-const-array yields the
+/// -- default value. Leaves that are plain array terms keep a plain select.
+Expr expandSelectOverConstArray(Expr arr, Expr idx, ExprMap &memo) {
+  auto it = memo.find(arr);
+  if (it != memo.end())
+    return it->second;
+  Expr res;
+  if (isOpX<CONST_ARRAY>(arr))
+    res = arr->right();
+  else if (isOpX<STORE>(arr))
+    res = boolop::lite(mk<EQ>(idx, arr->arg(1)), arr->arg(2),
+                       expandSelectOverConstArray(arr->arg(0), idx, memo));
+  else if (isOpX<ITE>(arr))
+    res = boolop::lite(arr->arg(0),
+                       expandSelectOverConstArray(arr->arg(1), idx, memo),
+                       expandSelectOverConstArray(arr->arg(2), idx, memo));
+  else
+    res = op::array::select(arr, idx);
+  memo[arr] = res;
+  return res;
+}
+
+/// -- rewrite every select whose store/ite skeleton bottoms out in a
+/// -- const-array into an ite cascade. Yices contexts cannot assert lambda
+/// -- terms, which is the only encoding the marshaller has for const-arrays;
+/// -- selects over havoc'd (non-const) memories are left untouched.
+Expr rewriteConstArraySelects(Expr e, ExprMap &cache) {
+  if (e->arity() == 0)
+    return e;
+  auto it = cache.find(e);
+  if (it != cache.end())
+    return it->second;
+
+  ExprVector kids;
+  kids.reserve(e->arity());
+  bool changed = false;
+  for (auto b = e->args_begin(), be = e->args_end(); b != be; ++b) {
+    Expr kid = rewriteConstArraySelects(Expr(*b), cache);
+    changed |= (kid.get() != *b);
+    kids.push_back(kid);
+  }
+  Expr res = changed ? e->efac().mkNary(e->op(), kids.begin(), kids.end()) : e;
+  if (isOpX<SELECT>(res) && hasConstArrayLeaf(res->left())) {
+    ExprMap memo;
+    res = expandSelectOverConstArray(res->left(), res->right(), memo);
+  }
+  cache[e] = res;
+  return res;
+}
+} // namespace
 
 bool yices_solver_impl::add(expr::Expr exp){
+  ExprMap rw_cache;
+  exp = rewriteConstArraySelects(exp, rw_cache);
+  // -- debug aid: dump assertions in which a const-array survives the
+  // -- rewrite (yices cannot assert them; see rewriteConstArraySelects)
+  if (std::getenv("SEA_DEBUG_DUMP_CONST_ARRAY")) {
+    std::vector<Expr> matches;
+    expr::filter(
+        exp, [](Expr e) { return isOpX<CONST_ARRAY>(e); },
+        std::back_inserter(matches));
+    if (!matches.empty()) {
+      llvm::errs() << "=== assertion with CONST_ARRAY (" << matches.size()
+                   << ") ===\n"
+                   << *exp << "\n";
+    }
+  }
   term_t yt = marshal_yices::encode_term(exp, get_cache());
   if (yt == NULL_TERM){
     std::string str;  

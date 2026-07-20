@@ -401,6 +401,23 @@ ExtraWideMemManagerCore<T>::storeIntToMem(Expr _val,
     }
   }
   RawMemValTy rawIn = setModified(base, mem);
+  // Storing plain integer data means the cell no longer holds a pointer with a
+  // nonzero (base,offset). If it is later reloaded as a pointer, the correct
+  // value is inttoptr(data) = (data, 0). A stale offset from a prior pointer
+  // store to this location would otherwise leak: `load ptr` -> (data, stale)
+  // and ptrtoint -> data+stale (a spurious off-by-stale value).
+  //
+  // Only a pointer-sized store can be reloaded as a whole pointer and hit this,
+  // so restrict the (extra) offset-shadow clear to that case -- clearing on
+  // every narrower int store needlessly bloats memory-heavy VCs.
+  if (byteSz >= ptrSizeInBits() / 8) {
+    Expr zeroOffset = m_ctx.alu().ui(0UL, ptrSizeInBits());
+    return MemValTy(
+        m_main.storeIntToMem(_val, getAddressable(base), rawIn, byteSz, align),
+        m_offset.storeIntToMem(zeroOffset, getAddressable(base),
+                               mem.getOffset(), byteSz, align),
+        mem.getSize());
+  }
   return MemValTy(
       m_main.storeIntToMem(_val, getAddressable(base), rawIn, byteSz, align),
       mem.getOffset(), mem.getSize());

@@ -66,12 +66,14 @@ template <class T>
 Expr ExtraWideMemManagerCore<T>::ptrEq(
     ExtraWideMemManagerCore::PtrTy p1,
     ExtraWideMemManagerCore::PtrTy p2) const {
-  // NOTE: we consider two pointers to be same if their address (base and ofset)
-  //       is the same. Size is ignored. This is done to have parity with memset
-  //       like operations that zero out main memory but do not touch shadow
-  //       memory.
-  return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
-                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
+  // Two pointers are equal iff they denote the same effective address
+  // (base + offset). Comparing base and offset componentwise is strictly
+  // stronger and hence WRONG: under LLVM 18 opaque pointers, the same address
+  // can be represented as e.g. (4,-1) via `gep i8 -1` and (3,0) via inttoptr,
+  // which componentwise compares unequal while denoting address 3. That also
+  // contradicts ptrNe (below), which already uses getAddressable, so the two
+  // could report both !(a==b) and !(a!=b). Mirror ptrNe.
+  return m_main.ptrEq(getAddressable(p1), getAddressable(p2));
 }
 template <class T>
 Expr ExtraWideMemManagerCore<T>::castPtrSzToSlotSz(const Expr val) const {

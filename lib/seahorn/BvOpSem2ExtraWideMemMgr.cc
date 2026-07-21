@@ -66,12 +66,14 @@ template <class T>
 Expr ExtraWideMemManagerCore<T>::ptrEq(
     ExtraWideMemManagerCore::PtrTy p1,
     ExtraWideMemManagerCore::PtrTy p2) const {
-  // NOTE: we consider two pointers to be same if their address (base and ofset)
-  //       is the same. Size is ignored. This is done to have parity with memset
-  //       like operations that zero out main memory but do not touch shadow
-  //       memory.
-  return mk<AND>(m_main.ptrEq(p1.getBase(), p2.getBase()),
-                 m_offset.ptrEq(p1.getOffset(), p2.getOffset()));
+  // Two pointers are equal iff they denote the same effective address
+  // (base + offset). Comparing base and offset componentwise is strictly
+  // stronger and hence WRONG: under LLVM 18 opaque pointers, the same address
+  // can be represented as e.g. (4,-1) via `gep i8 -1` and (3,0) via inttoptr,
+  // which componentwise compares unequal while denoting address 3. That also
+  // contradicts ptrNe (below), which already uses getAddressable, so the two
+  // could report both !(a==b) and !(a!=b). Mirror ptrNe.
+  return m_main.ptrEq(getAddressable(p1), getAddressable(p2));
 }
 template <class T>
 Expr ExtraWideMemManagerCore<T>::castPtrSzToSlotSz(const Expr val) const {
@@ -399,6 +401,23 @@ ExtraWideMemManagerCore<T>::storeIntToMem(Expr _val,
     }
   }
   RawMemValTy rawIn = setModified(base, mem);
+  // Storing plain integer data means the cell no longer holds a pointer with a
+  // nonzero (base,offset). If it is later reloaded as a pointer, the correct
+  // value is inttoptr(data) = (data, 0). A stale offset from a prior pointer
+  // store to this location would otherwise leak: `load ptr` -> (data, stale)
+  // and ptrtoint -> data+stale (a spurious off-by-stale value).
+  //
+  // Only a pointer-sized store can be reloaded as a whole pointer and hit this,
+  // so restrict the (extra) offset-shadow clear to that case -- clearing on
+  // every narrower int store needlessly bloats memory-heavy VCs.
+  if (byteSz >= ptrSizeInBits() / 8) {
+    Expr zeroOffset = m_ctx.alu().ui(0UL, ptrSizeInBits());
+    return MemValTy(
+        m_main.storeIntToMem(_val, getAddressable(base), rawIn, byteSz, align),
+        m_offset.storeIntToMem(zeroOffset, getAddressable(base),
+                               mem.getOffset(), byteSz, align),
+        mem.getSize());
+  }
   return MemValTy(
       m_main.storeIntToMem(_val, getAddressable(base), rawIn, byteSz, align),
       mem.getOffset(), mem.getSize());

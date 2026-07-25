@@ -51,6 +51,11 @@ using namespace seahorn;
 using namespace seahorn::details;
 using gep_type_iterator = generic_gep_type_iterator<>;
 
+// Defined in sea-dsa/lib/seadsa/ShadowMem.cc. When set, ShadowMem emits loads
+// as MemDefs, which gives a load a write register and lets the opsem stamp
+// read metadata at the loaded address.
+extern llvm::cl::opt<bool> ShadowMemLoadIsDef;
+
 namespace seahorn {
 extern bool isUnifiedAssume(const Instruction &CI);
 #ifdef HAVE_CLAM
@@ -1005,9 +1010,41 @@ public:
     m_ctx.setMemWriteRegister(Expr());
   }
 
-  void visitIsRead(CallBase &CB) {}
+  void visitIsRead(CallBase &CB) {
+    if (!m_ctx.getMemReadRegister()) {
+      LOG("opsem", ERR << "No read register found - check if corresponding"
+                          "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      return;
+    }
+    Expr ptr = lookup(*CB.getOperand(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.isMetadataSet(MetadataKind::READ, ptr, memIn);
+    setValue(CB, res);
+    m_ctx.setMemReadRegister(Expr());
+  }
 
-  void visitResetRead(CallBase &CB) {}
+  void visitResetRead(CallBase &CB) {
+    if (!m_ctx.getMemReadRegister() || !m_ctx.getMemWriteRegister()) {
+      LOG("opsem",
+          ERR << "No read/write register found - check if corresponding"
+                 "shadow instruction is present.");
+      m_ctx.setMemReadRegister(Expr());
+      m_ctx.setMemWriteRegister(Expr());
+      return;
+    }
+    Expr ptr = lookup(*CB.getOperand(0));
+    auto memIn = m_ctx.read(m_ctx.getMemReadRegister());
+    OpSemMemManager &memManager = m_ctx.mem();
+    auto res = memManager.setMetadata(
+        MetadataKind::READ, ptr, memIn,
+        m_ctx.alu().num(0, memManager.getMetadataMemWordSzInBits()));
+    m_ctx.write(m_ctx.getMemWriteRegister(), res);
+
+    m_ctx.setMemReadRegister(Expr());
+    m_ctx.setMemWriteRegister(Expr());
+  }
 
   void visitIsAlloc(CallBase &CB) {
     if (!m_ctx.getMemReadRegister()) {
@@ -2469,6 +2506,20 @@ public:
     // XXX avoid reading address if current read is from a scalar
     Expr op0 = ctx.isMemScalar() ? Expr(nullptr) : lookup(addr);
     res = ctx.loadValueFromMem(op0, *ty, alignment);
+
+    // Under --horn-shadow-mem-load-is-def a load is a MemDef, so it has a
+    // write register. Stamp read metadata at the loaded address, making the
+    // address observable to sea_is_read().
+    if (ShadowMemLoadIsDef && op0 && ctx.getMemWriteRegister()) {
+      auto memIn = ctx.read(ctx.getMemReadRegister());
+      OpSemMemManager &memManager = ctx.mem();
+      auto memOut = memManager.setMetadata(
+          MetadataKind::READ, op0, memIn,
+          ctx.alu().num(1U, memManager.getMetadataMemWordSzInBits()));
+      ctx.write(ctx.getMemWriteRegister(), memOut);
+      ctx.setMemWriteRegister(Expr());
+    }
+
     ctx.setMemReadRegister(Expr());
     return res;
   }

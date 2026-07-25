@@ -50,6 +50,18 @@ extern void sea_tracking_on(void);
 extern void sea_tracking_off(void);
 /* reset modified metadata for memory pointed to by arg */
 extern void sea_reset_modified(char *);
+/* returns true if memory pointed to by arg has been read from
+ * 1. allocation OR
+ * 2. reset_read OR
+ * 3. sea_tracking_on
+ * whichever is the latest event.
+ * NOTE: loads only record read metadata under --horn-shadow-mem-load-is-def,
+ * which makes a load a MemDef. Without it this only observes reads marked
+ * explicitly via sea_set_shadowmem(TRACK_READ_MEM, ...).
+ */
+extern bool sea_is_read(char *);
+/* reset read metadata for memory pointed to by arg */
+extern void sea_reset_read(char *);
 /* Set a shadow memory slot S at addr A with value V.
  * arg0 - S. Note that 0 is main memory and should not be used.
  * arg1 - A

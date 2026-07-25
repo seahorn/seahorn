@@ -12,10 +12,10 @@ namespace seahorn {
 
 void DfCoiAnalysis::analyze(User &user) {
   constexpr auto shadowStoreSucc = boost::hana::make_set(
-      "sea.reset_modified", "sea.free", "sea.set_shadowmem");
+      "sea.reset_modified", "sea.reset_read", "sea.free", "sea.set_shadowmem");
 
   constexpr auto shadowLoadSucc = boost::hana::make_set(
-      "sea.is_modified", "sea.is_alloc", "sea.get_shadowmem");
+      "sea.is_modified", "sea.is_read", "sea.is_alloc", "sea.get_shadowmem");
 
   if (m_coi.count(&user))
     return;

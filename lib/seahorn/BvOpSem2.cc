@@ -2507,15 +2507,25 @@ public:
     Expr op0 = ctx.isMemScalar() ? Expr(nullptr) : lookup(addr);
     res = ctx.loadValueFromMem(op0, *ty, alignment);
 
-    // Under --horn-shadow-mem-load-is-def a load is a MemDef, so it has a
-    // write register. Stamp read metadata at the loaded address, making the
-    // address observable to sea_is_read().
-    if (ShadowMemLoadIsDef && op0 && ctx.getMemWriteRegister()) {
-      auto memIn = ctx.read(ctx.getMemReadRegister());
-      OpSemMemManager &memManager = ctx.mem();
-      auto memOut = memManager.setMetadata(
-          MetadataKind::READ, op0, memIn,
-          ctx.alu().num(1U, memManager.getMetadataMemWordSzInBits()));
+    // Under --horn-shadow-mem-load-is-def a load is emitted as a MemDef, so it
+    // has a write register. Stamp read metadata at the loaded address, making
+    // the address observable to sea_is_read().
+    //
+    // Once that write register exists it MUST be defined on every path: it
+    // names a fresh memory version that later instructions read. Leaving it
+    // undefined makes the version unconstrained, so subsequent loads return
+    // arbitrary values and already-verified programs report spurious
+    // counterexamples. A scalar access has no address to stamp (op0 is null);
+    // define the new version as an unchanged copy rather than skipping it.
+    if (ShadowMemLoadIsDef && ctx.getMemWriteRegister()) {
+      Expr memIn = ctx.read(ctx.getMemReadRegister());
+      Expr memOut = memIn;
+      if (op0) {
+        OpSemMemManager &memManager = ctx.mem();
+        memOut = memManager.setMetadata(
+            MetadataKind::READ, op0, memIn,
+            ctx.alu().num(1U, memManager.getMetadataMemWordSzInBits()));
+      }
       ctx.write(ctx.getMemWriteRegister(), memOut);
       ctx.setMemWriteRegister(Expr());
     }

@@ -299,6 +299,15 @@ public:
 
   RawPtrTy getAddressable(PtrTy p) const;
 
+  /// \brief Pointer at which metadata of \p kind for \p p is stored.
+  ///
+  /// READ is keyed by the addressable pointer (base+offset) so that distinct
+  /// elements of one object are distinguished -- an address channel needs to
+  /// know *which* element was read. Every other kind is keyed by the base, so
+  /// that e.g. sea_is_modified(p) keeps meaning "was anything in this object
+  /// modified" regardless of which member the store targeted.
+  RawPtrTy metadataPtr(MetadataKind kind, PtrTy p) const;
+
   bool isPtrTyVal(Expr e) const;
 
   bool isMemVal(Expr e) const;

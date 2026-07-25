@@ -662,8 +662,8 @@ typename ExtraWideMemManagerCore<T>::MemValTy
 ExtraWideMemManagerCore<T>::memsetMetadata(
     MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr, unsigned int len,
     ExtraWideMemManagerCore::MemValTy memIn, unsigned int val) {
-  auto rawOut =
-      m_main.memsetMetadata(kind, ptr.getBase(), len, memIn.getRaw(), val);
+  auto rawOut = m_main.memsetMetadata(kind, metadataPtr(kind, ptr), len,
+                                      memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
 }
 template <class T>
@@ -671,16 +671,23 @@ typename ExtraWideMemManagerCore<T>::MemValTy
 ExtraWideMemManagerCore<T>::memsetMetadata(
     MetadataKind kind, ExtraWideMemManagerCore::PtrTy ptr, Expr len,
     ExtraWideMemManagerCore::MemValTy memIn, unsigned int val) {
-  auto rawOut =
-      m_main.memsetMetadata(kind, ptr.getBase(), len, memIn.getRaw(), val);
+  auto rawOut = m_main.memsetMetadata(kind, metadataPtr(kind, ptr), len,
+                                      memIn.getRaw(), val);
   return MemValTy(rawOut, memIn.getOffset(), memIn.getSize());
+}
+
+template <class T>
+typename ExtraWideMemManagerCore<T>::RawPtrTy
+ExtraWideMemManagerCore<T>::metadataPtr(MetadataKind kind, PtrTy p) const {
+  return kind == MetadataKind::READ ? getAddressable(p) : p.getBase();
 }
 
 template <class T>
 Expr ExtraWideMemManagerCore<T>::getMetadata(MetadataKind kind, PtrTy ptr,
                                              MemValTy memIn,
                                              unsigned int byteSz) {
-  return m_main.getMetadata(kind, ptr.getBase(), memIn.getRaw(), byteSz);
+  return m_main.getMetadata(kind, metadataPtr(kind, ptr), memIn.getRaw(),
+                            byteSz);
 }
 
 template <class T>
@@ -702,7 +709,8 @@ ExtraWideMemManagerCore<T>::setMetadata(MetadataKind kind,
              << "\n";);
     return mem;
   }
-  auto rawOut = m_main.setMetadata(kind, ptr.getBase(), mem.getRaw(), val);
+  auto rawOut =
+      m_main.setMetadata(kind, metadataPtr(kind, ptr), mem.getRaw(), val);
   return MemValTy(rawOut, mem.getOffset(), mem.getSize());
   ;
 }

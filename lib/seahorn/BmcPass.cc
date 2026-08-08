@@ -99,15 +99,19 @@ public:
   std::function<const llvm::TargetLibraryInfo &(Function &)> m_tliGetter;
   std::function<llvm::LazyValueInfo &(Function &)> m_lviGetter;
   std::function<GateAnalysis &(Function &)> m_gsaGetter;
+  /// shadow-mem instrumentation for the new-PM route, where there is no pass
+  /// object for Bv2OpSem to query; only the crab options need it
+  seadsa::ShadowMem *m_shadowMem;
 
   static char ID;
 
   void setFailureAnalysis(CanFail *cf) { m_failure_analysis = cf; }
 
   BmcPass(BmcEngineKind engine = BmcEngineKind::mono_bmc,
-          raw_ostream *out = nullptr, bool solve = true)
+          raw_ostream *out = nullptr, bool solve = true,
+          seadsa::ShadowMem *shadowMem = nullptr)
       : llvm::ModulePass(ID), m_engine(engine), m_out(out), m_solve(solve),
-        m_failure_analysis(nullptr) {}
+        m_failure_analysis(nullptr), m_shadowMem(shadowMem) {}
 
   virtual bool runOnModule(Module &M) override {
     m_failure_analysis = getAnalysisIfAvailable<CanFail>();
@@ -123,6 +127,11 @@ public:
     m_gsaGetter = [this](Function &F) -> GateAnalysis & {
       return getAnalysis<GateAnalysisPass>().getGateAnalysis(F);
     };
+#ifdef HAVE_CLAM
+    // -- processModule builds Bv2OpSem the same way on both routes (with no
+    // -- pass object), so the crab options need the instrumentation here too
+    m_shadowMem = &getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+#endif
     return processModule(M);
   }
 
@@ -223,10 +232,17 @@ public:
 
     if (m_engine == BmcEngineKind::mono_bmc) {
       std::unique_ptr<OperationalSemantics> sem;
-      if (HornBv2)
-        sem = std::make_unique<Bv2OpSem>(efac, F.getParent()->getDataLayout(),
-                                         m_failure_analysis, m_lviGetter, MEM);
-      else
+      if (HornBv2) {
+        auto bv2Sem = std::make_unique<Bv2OpSem>(
+            efac, F.getParent()->getDataLayout(), m_failure_analysis,
+            m_lviGetter, MEM);
+#ifdef HAVE_CLAM
+        // -- no pass object on this route, so hand the instrumentation over
+        // -- explicitly; required by the --horn-bv2-crab-* options
+        bv2Sem->setShadowMem(m_shadowMem);
+#endif
+        sem = std::move(bv2Sem);
+      } else
         sem = std::make_unique<BvOpSem>(efac, F.getParent()->getDataLayout(),
                                         m_failure_analysis, MEM);
 
@@ -539,7 +555,10 @@ llvm::PreservedAnalyses BmcPassNew::run(llvm::Module &M,
                                         llvm::ModuleAnalysisManager &MAM) {
   auto &FAM =
       MAM.getResult<llvm::FunctionAnalysisManagerModuleProxy>(M).getManager();
-  BmcPass P(BmcPass::BmcEngineKind::mono_bmc, m_out, m_solve);
+  // -- the sink was filled when ShadowMemNewPmPass ran earlier in the pipeline
+  seadsa::ShadowMem *shadowMem =
+      m_shadowMemSink ? m_shadowMemSink->get() : nullptr;
+  BmcPass P(BmcPass::BmcEngineKind::mono_bmc, m_out, m_solve, shadowMem);
   P.setFailureAnalysis(MAM.getResult<CanFailAnalysis>(M).get());
   P.m_cpgGetter = [&FAM](Function &F) -> const CutPointGraph & {
     return *FAM.getResult<CutPointGraphAnalysis>(F);

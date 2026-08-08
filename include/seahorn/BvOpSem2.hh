@@ -25,6 +25,10 @@ class CrabBuilderManager;
 class InterGlobalClam;
 } // namespace clam
 
+namespace seadsa {
+class ShadowMem;
+} // namespace seadsa
+
 namespace seahorn {
 namespace details {
 class Bv2OpSemContext;
@@ -60,6 +64,14 @@ class Bv2OpSem : public OperationalSemantics {
   std::unique_ptr<clam::CrabBuilderManager> m_cfg_builder_man;
   //// \brief crab instance to solve alloc bounds
   std::unique_ptr<clam::InterGlobalClam> m_crab_rng_solver;
+  /// \brief new-PM: the shadow-mem instrumentation that ran on this module.
+  /// Must be the very instance that instrumented it, since clam maps the
+  /// shadow.mem calls in the IR back to its dsa cells. Null under legacy-PM
+  /// construction, where it comes from m_pass instead.
+  seadsa::ShadowMem *m_shadowMem = nullptr;
+  /// \brief new-PM: TLI wrapper owned here, because clam's CrabBuilderManager
+  /// takes the legacy pass type and no such pass object exists in the new PM
+  std::unique_ptr<llvm::TargetLibraryInfoWrapperPass> m_tliWrapper;
 #endif
 
 public:
@@ -188,6 +200,10 @@ public:
   void unhandledValue(const Value &v, seahorn::details::Bv2OpSemContext &ctx);
 
 #ifdef HAVE_CLAM
+  /// \brief Supplies the shadow-mem instrumentation for new-PM construction.
+  /// Required before any --horn-bv2-crab-* option can be honoured; the legacy
+  /// constructor takes it from the pass manager instead.
+  void setShadowMem(seadsa::ShadowMem *sm) { m_shadowMem = sm; }
   /// \brief Creates a crab's cfg builder manager
   void initCrabAnalysis(const llvm::Module &M);
   /// \brief Run crab analysis

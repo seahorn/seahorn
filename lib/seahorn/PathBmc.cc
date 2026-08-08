@@ -292,7 +292,7 @@ void PathBmcEngine::loadCrabInvariants(
     std::optional<clam::varset_t> live_vars = cfgBuilder->getLiveSymbols(&bb);
     if (live_vars.has_value()) {
       std::vector<clam::var_t> proj_vars(live_vars.value().begin(),
-					 live_vars.value().end());
+                                         live_vars.value().end());
       pre.project(proj_vars);
     }
 

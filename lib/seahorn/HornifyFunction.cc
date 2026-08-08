@@ -61,7 +61,7 @@ void HornifyFunction::extractFunctionInfo(const BasicBlock &BB) {
   SymStore s(m_efac);
   auto addCellSymb = [&](CellExprMap &m, const CallInst &ci, Expr e) {
     auto opt_c = shadowMem->getShadowMemCell(ci);
-    assert(opt_c.hasValue());
+    assert(opt_c.has_value());
     m.insert({impp->cellToPair(opt_c.value()), s.read(e)});
   };
 

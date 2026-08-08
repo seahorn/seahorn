@@ -1505,7 +1505,7 @@ bool MemUfoOpSem::hasOrigMemS(const Cell &c, MemOpt ao) {
 void MemUfoOpSem::addCIMemS(CallInst *CI, Expr A, MemOpt ao) {
 
   auto opt_c = m_shadowDsa->getShadowMemCell(*CI);
-  assert(opt_c.hasValue());
+  assert(opt_c.has_value());
   addMemS(opt_c.value(), A, ao);
 }
 
@@ -1768,7 +1768,7 @@ Expr FMapUfoOpSem::symb(const Value &I) {
 
         if (const CallInst *CI = dyn_cast<const CallInst>(&I)) {
           auto opt_c = m_shadowDsa->getShadowMemCell(*CI);
-          assert(opt_c.hasValue());
+          assert(opt_c.has_value());
           const Cell &c = opt_c.value();
           if (m_preproc->isSafeNodeFunc(*const_cast<Node *>(c.getNode()), F)) {
             unsigned nKs = m_preproc->getNumKeys(c, F);
@@ -1820,7 +1820,7 @@ Expr FMapUfoOpSem::symb(const Value &I) {
 Cell FMapUfoOpSem::getCellValue(const Value *v) {
   if (const CallInst *CI = dyn_cast<const CallInst>(v)) {
     auto opt_c = m_shadowDsa->getShadowMemCell(*CI);
-    assert(opt_c.hasValue());
+    assert(opt_c.has_value());
     return opt_c.value();
   } else if (const PHINode *PI = dyn_cast<const PHINode>(v))
     return getCellValue(PI->getIncomingValue(0));
@@ -2071,7 +2071,7 @@ Expr FMapUfoOpSem::fmVariant(Expr e, const Cell &c, const ExprVector &keys) {
   assert(keys.size() > 0);
 
   auto cid_a = m_shadowDsa->getCellId(c);
-  assert(cid_a.hasValue());
+  assert(cid_a.has_value());
   unsigned cid = cid_a.value();
 
   Expr name = fmap::mkCellTag(cid, m_preproc->getOffset(c), m_efac);
@@ -2284,7 +2284,7 @@ void FMapUfoOpSem::storeSymInitInstruction(Instruction *I, CellExprMap &nim,
   ci = dyn_cast<CallInst>(I);
   assert(ci);
   auto opt_c = m_shadowDsa->getShadowMemCell(*ci);
-  assert(opt_c.hasValue());
+  assert(opt_c.has_value());
   const Cell &c = opt_c.value();
   nim.insert({cellToPair(c), memE});
 }

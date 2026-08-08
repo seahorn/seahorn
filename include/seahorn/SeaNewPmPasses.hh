@@ -7,6 +7,12 @@
 /// the same core transformation helpers.
 #include "llvm/IR/PassManager.h"
 
+#include <memory>
+
+namespace seadsa {
+class ShadowMem;
+} // namespace seadsa
+
 namespace seahorn {
 
 class PromoteSeahornAssumePass
@@ -181,13 +187,22 @@ public:
 
 /// New-PM mono-engine BMC. Consumes CanFailAnalysis, CutPointGraphAnalysis,
 /// GateAnalysisWrapper (under --horn-gsa) and stock TLI/LVI from the FAM.
-/// ShadowMem instrumentation must have run beforehand (legacy pre-step).
+/// ShadowMem instrumentation must have run beforehand.
+///
+/// \p shadowMemSink is the sink filled by seadsa::ShadowMemNewPmPass earlier in
+/// the pipeline. Only the --horn-bv2-crab-* options need the instrumentation
+/// object itself (plain BMC just reads the shadow.mem calls off the IR), so it
+/// may be null; it is read at run() time because the sink is still empty when
+/// this pass is constructed.
 class BmcPassNew : public llvm::PassInfoMixin<BmcPassNew> {
   llvm::raw_ostream *m_out;
   bool m_solve;
+  std::unique_ptr<seadsa::ShadowMem> *m_shadowMemSink;
 
 public:
-  BmcPassNew(llvm::raw_ostream *out, bool solve) : m_out(out), m_solve(solve) {}
+  BmcPassNew(llvm::raw_ostream *out, bool solve,
+             std::unique_ptr<seadsa::ShadowMem> *shadowMemSink = nullptr)
+      : m_out(out), m_solve(solve), m_shadowMemSink(shadowMemSink) {}
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 

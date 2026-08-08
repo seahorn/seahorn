@@ -416,10 +416,11 @@ int main(int argc, char **argv) {
   }
   // SEAHORN: new-PM BMC route (batch C2c). The mono BMC engine runs as
   // BmcPassNew in a ModulePassManager, consuming the seahorn analyses from
-  // the analysis managers. ShadowMem instrumentation still runs in the legacy
-  // PM (its pass has no new-PM face), but nothing in the new route requires
-  // the pass object. Everything else (path engine, --oll dumps, --mem-dot,
-  // Boogie, CHC) stays on the legacy tail below.
+  // the analysis managers. ShadowMem instrumentation runs as ShadowMemNewPmPass
+  // in the same MPM; its instrumentation object is kept alive and handed to
+  // BmcPassNew, because the --horn-bv2-crab-* options need it (see below).
+  // Everything else (path engine, --oll dumps, --mem-dot, Boogie, CHC) stays on
+  // the legacy tail below.
   const bool NewPmBmcRoute =
       Bmc && BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
@@ -558,8 +559,12 @@ int main(int argc, char **argv) {
     FAM.registerPass([] { return seahorn::TopologicalOrderAnalysis(); });
     FAM.registerPass([] { return seahorn::CutPointGraphAnalysis(); });
     llvm::ModulePassManager MPM;
-    // -- shadow-mem instrumentation, same position as the legacy tail
-    MPM.addPass(seadsa::ShadowMemNewPmPass());
+    // -- shadow-mem instrumentation, same position as the legacy tail. Keep the
+    // -- instrumentation object alive past the pass: BmcPassNew hands it to the
+    // -- operational semantics, which needs this very instance to run crab
+    // -- (--horn-bv2-crab-*). Declared outside MPM so it outlives MPM.run().
+    std::unique_ptr<seadsa::ShadowMem> shadowMem;
+    MPM.addPass(seadsa::ShadowMemNewPmPass(&shadowMem));
     if (UnifyAssumes)
       MPM.addPass(seahorn::UnifyAssumesNewPass());
     MPM.addPass(seahorn::CanReadUndefPass());
@@ -582,7 +587,7 @@ int main(int argc, char **argv) {
       MPM.addPass(llvm::PrintModulePass(asmOutput->os()));
     }
     if (NewPmBmcRoute)
-      MPM.addPass(seahorn::BmcPassNew(out, Solve));
+      MPM.addPass(seahorn::BmcPassNew(out, Solve, &shadowMem));
     MPM.run(*module, MAM);
 
     if (NewPmChcRoute) {

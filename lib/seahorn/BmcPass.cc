@@ -233,9 +233,9 @@ public:
     if (m_engine == BmcEngineKind::mono_bmc) {
       std::unique_ptr<OperationalSemantics> sem;
       if (HornBv2) {
-        auto bv2Sem = std::make_unique<Bv2OpSem>(
-            efac, F.getParent()->getDataLayout(), m_failure_analysis,
-            m_lviGetter, MEM);
+        auto bv2Sem =
+            std::make_unique<Bv2OpSem>(efac, F.getParent()->getDataLayout(),
+                                       m_failure_analysis, m_lviGetter, MEM);
 #ifdef HAVE_CLAM
         // -- no pass object on this route, so hand the instrumentation over
         // -- explicitly; required by the --horn-bv2-crab-* options

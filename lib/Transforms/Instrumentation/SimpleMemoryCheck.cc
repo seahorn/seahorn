@@ -131,7 +131,7 @@ struct CheckContext {
       if (!DsaGraph)
         return;
       auto optAS = DsaGraph->getAllocSite(v);
-      assert(optAS.hasValue());
+      assert(optAS.has_value());
       seadsa::DsaAllocSite &AS = **optAS;
       if (AS.hasCallPaths())
         AS.printCallPaths(OS);

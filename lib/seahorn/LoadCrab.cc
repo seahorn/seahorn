@@ -512,11 +512,11 @@ Expr LoadCrab::CrabInvToExpr(llvm::BasicBlock &B, const CfgBuilder *cfgBuilder,
   Expr e = mk<TRUE>(efac);
 
   std::optional<clam_abstract_domain> absOpt = m_clam.getPre(&B, false);
-  if (!absOpt.hasValue()) {
+  if (!absOpt.has_value()) {
     return e;
   }
 
-  auto abs = absOpt.getValue();
+  auto abs = absOpt.value();
   if (m_params.dom.isDisjunctive()) {
     DisjunctiveLinConsToExpr t(cfgBuilder, fn);
     e = t.toExpr(abs.to_disjunctive_linear_constraint_system(), efac, live);

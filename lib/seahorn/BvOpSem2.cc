@@ -2,6 +2,7 @@
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2FatMemMgr.hh"
 #include "BvOpSem2RawMemMgr.hh"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
@@ -3308,7 +3309,13 @@ OpSemContextPtr Bv2OpSem::mkContext(SymStore &values, ExprVector &side) {
 
 Bv2OpSem::Bv2OpSem(const Bv2OpSem &o)
     : OperationalSemantics(o), m_pass(o.m_pass), m_trackLvl(o.m_trackLvl),
-      m_td(o.m_td), m_canFail(o.m_canFail), m_lviGetter(o.m_lviGetter) {}
+      m_td(o.m_td), m_canFail(o.m_canFail), m_lviGetter(o.m_lviGetter) {
+#ifdef HAVE_CLAM
+  // -- carry the new-PM shadow mem across; without it a copied semantics
+  // -- would silently lose the ability to run the crab analysis
+  m_shadowMem = o.m_shadowMem;
+#endif
+}
 
 Expr Bv2OpSem::errorFlag(const BasicBlock &BB) {
   // -- if BB belongs to a function that cannot fail, errorFlag is always false
@@ -3792,13 +3799,31 @@ std::optional<APInt> Bv2OpSem::vec(Type *vecTy,
 
 #ifdef HAVE_CLAM
 void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
-  // Get seadsa -- pointer analysis
-  assert(m_pass && "clam analysis requires legacy-PM construction");
-  auto &dsa_pass = m_pass->getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
-  auto &dsa = dsa_pass.getDsaAnalysis();
+  // Get seadsa -- pointer analysis. Under the legacy PM both the shadow-mem
+  // instrumentation and TLI come from the pass manager; under the new PM there
+  // is no pass object, so the pipeline hands the shadow mem in (see
+  // setShadowMem) and TLI is built here from the module triple.
+  seadsa::ShadowMem *shadowMem = m_shadowMem;
+  TargetLibraryInfoWrapperPass *tliWrapper = nullptr;
+  if (m_pass) {
+    shadowMem = &m_pass->getAnalysis<seadsa::ShadowMemPass>().getShadowMem();
+    tliWrapper = &m_pass->getAnalysis<TargetLibraryInfoWrapperPass>();
+  } else {
+    if (!m_tliWrapper)
+      m_tliWrapper = std::make_unique<TargetLibraryInfoWrapperPass>(
+          Triple(M.getTargetTriple()));
+    tliWrapper = m_tliWrapper.get();
+  }
 
-  // XXX: use of legacy operational semantics
-  auto &tli = m_pass->getAnalysis<TargetLibraryInfoWrapperPass>();
+  if (!shadowMem) {
+    ERR << "Crab-based range inference requires the shadow-mem "
+           "instrumentation, which was not provided to the operational "
+           "semantics. Skipping the crab analysis.";
+    return;
+  }
+
+  auto &dsa = shadowMem->getDsaAnalysis();
+  auto &tli = *tliWrapper;
 
   clam::SeaDsaHeapAbstractionParams params;
   params.is_context_sensitive =
@@ -3827,6 +3852,10 @@ void Bv2OpSem::initCrabAnalysis(const llvm::Module &M) {
 }
 
 void Bv2OpSem::runCrabAnalysis() {
+  // initCrabAnalysis bailed out (no shadow mem); nothing to run
+  if (!m_crab_rng_solver)
+    return;
+
   /// Set Crab parameters
   clam::AnalysisParams aparams;
   aparams.dom = CrabDom;

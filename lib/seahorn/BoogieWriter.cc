@@ -980,10 +980,10 @@ public:
         //   continue;
         // }
         auto absDomOpt = m_clam->getPre(&B);
-        if (absDomOpt.hasValue()) {
+        if (absDomOpt.has_value()) {
           crab::crab_string_os out;
           clam::lin_cst_sys_t csts =
-              absDomOpt.getValue().to_linear_constraint_system();
+              absDomOpt.value().to_linear_constraint_system();
           typename clam::lin_cst_sys_t::iterator it = csts.begin();
           typename clam::lin_cst_sys_t::iterator et = csts.end();
           for (; it != et;) {

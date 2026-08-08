@@ -79,10 +79,8 @@ if (GIT_FOUND)
     ${GIT_EXECUTABLE} clone ${SEAHORN_LLVM_REPO} ${CMAKE_SOURCE_DIR}/llvm-seahorn -b dev17)
   add_custom_target (sea-dsa-git
     ${GIT_EXECUTABLE} clone ${SEA_DSA_REPO} ${CMAKE_SOURCE_DIR}/sea-dsa -b dev17)
-  # clam is not ported to LLVM 16 (WITH_CLAM=OFF); keep cloning its dev15
-  # branch so the `extra` target still resolves.
   add_custom_target (clam-git
-    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev15)
+    ${GIT_EXECUTABLE} clone ${CLAM_REPO} ${CMAKE_SOURCE_DIR}/clam -b dev17)
   add_custom_target (extra
     ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_LIST_FILE}
     DEPENDS
@@ -416,7 +414,7 @@ else()
   return()
 endif()
 
-# Clam/Crab is not yet ported to LLVM 15; allow building SeaHorn without it.
+# Allow building SeaHorn without Clam/Crab.
 # When OFF, the clam subdirectory is not added (no `crab` target) and HAVE_CLAM
 # stays undefined, so all clam/crab code is compiled out (see HAVE_CLAM guards).
 option(WITH_CLAM "Build with Clam/Crab support" ON)

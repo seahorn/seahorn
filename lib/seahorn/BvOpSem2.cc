@@ -3685,7 +3685,7 @@ void Bv2OpSem::intraBr(seahorn::details::Bv2OpSemContext &C,
     if (const Constant *cv = dyn_cast<const Constant>(&c)) {
       ConstantExprEvaluator ce(getDataLayout());
       auto gv = ce.evaluate(cv);
-      assert(gv.hasValue());
+      assert(gv.has_value());
       if ((gv->IntVal.isOne() && br->getSuccessor(0) != &dst) ||
           (gv->IntVal.isZero() && br->getSuccessor(1) != &dst)) {
         C.resetSide();

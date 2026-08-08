@@ -359,7 +359,7 @@ void InterMemPreProc::recProcessNode(const Cell &cFrom,
       const Cell cFromField(cFrom, field.getFirst());
       const Cell &cToField = smCS.get(cFromField);
       std::optional<unsigned> opt_cellId = m_shadowDsa.getCellId(cToField);
-      assert(opt_cellId.hasValue());
+      assert(opt_cellId.has_value());
 
       CellInfo &ci = cim[cellToPair(cToField)];
       ci.m_ks.push_back(fmap::tagCell(

@@ -280,19 +280,19 @@ void PathBmcEngine::loadCrabInvariants(
 
     // -- Get crab invariants
     std::optional<clam::clam_abstract_domain> preOpt = crab.getPre(&bb);
-    if (!preOpt.hasValue()) {
+    if (!preOpt.has_value()) {
       continue;
     }
-    if (preOpt.getValue().is_top()) {
+    if (preOpt.value().is_top()) {
       continue;
     }
-    clam::clam_abstract_domain pre = preOpt.getValue();
+    clam::clam_abstract_domain pre = preOpt.value();
 
     // -- Cleanup of the crab invariants by removing dead variables.
     std::optional<clam::varset_t> live_vars = cfgBuilder->getLiveSymbols(&bb);
-    if (live_vars.hasValue()) {
-      std::vector<clam::var_t> proj_vars(live_vars.getValue().begin(),
-					 live_vars.getValue().end());
+    if (live_vars.has_value()) {
+      std::vector<clam::var_t> proj_vars(live_vars.value().begin(),
+					 live_vars.value().end());
       pre.project(proj_vars);
     }
 

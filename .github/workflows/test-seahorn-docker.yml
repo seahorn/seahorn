@@ -73,14 +73,22 @@ jobs:
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 -D cex_bmc_opts=--horn-bmc-cexgen test/cex"
       - name: Run devirtualization tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/devirt"
-      # Crab tests are disabled: clam/crab is not yet ported to LLVM 15, so the
-      # build uses WITH_CLAM=OFF and crab functionality is compiled out. Re-add
-      # this step once clam is ported.
+      # The crab and BMC(opsem) suites are deliberately not run here.
+      #
+      # Clam/crab is ported to LLVM 15 and 16, so these steps could be enabled.
+      # They stay off by choice: the build uses WITH_CLAM=OFF so that Clam
+      # remains an optional dependency and SeaHorn still compiles against a new
+      # LLVM before Clam has been ported to it. Testing Clam here would turn
+      # that soft dependency into a hard one.
+      #
+      # Because WITH_CLAM=OFF leaves HAVE_CLAM undefined, crab is compiled out
+      # and neither suite can pass as configured. test/bmc needs Clam for a
+      # second reason: every test also exercises --bmc=path, whose PathBmc is a
+      # stub without HAVE_CLAM. Mono-BMC stays covered by the opsem/opsem2 steps.
+      #
+      # To run them, build with WITH_CLAM=ON -- which also needs the `crab`
+      # target, since `extra` does not clone the crab library -- and uncomment:
       # - name: Run Crab tests
       #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/crab"
-      # BMC tests are disabled: each test also exercises the path-based BMC
-      # engine (--bmc=path), which is clam-gated (PathBmc.cc is a stub without
-      # HAVE_CLAM). Mono-BMC is still covered via the opsem/opsem2 steps. Re-add
-      # once clam is ported to LLVM 15.
       # - name: Run BMC(opsem) tests
       #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/bmc"

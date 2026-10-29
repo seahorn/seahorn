@@ -16,6 +16,7 @@
 
 extern int nd1();
 extern int nd2();
+extern int nd3();
 
 extern bool infer(int k);
 bool PARTIAL_FN inv(int k) { return infer(k); }

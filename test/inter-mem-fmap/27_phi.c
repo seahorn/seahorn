@@ -22,7 +22,7 @@ void g(int *h, char i, char *v) {
   switch (i) {
   case 3:
     *v = l;
-    k(h, 9, m);
+    k(h, 9, (char *)m);
   default:
     p(j);
     if (n)

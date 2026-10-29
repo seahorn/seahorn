@@ -509,6 +509,8 @@ class Seapp(sea.LimitedCmd):
             for l in args.dsa_log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run (args, argv)
 
 class MixedSem(sea.LimitedCmd):
@@ -568,6 +570,8 @@ class MixedSem(sea.LimitedCmd):
 
         if args.llvm_asm: argv.append ('-S')
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run (args, argv)
 
 class CrabPP(sea.LimitedCmd):
@@ -621,6 +625,8 @@ class CrabPP(sea.LimitedCmd):
             argv.append('--seapp-stats')
 
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run(args, argv)
 
 class NdcInst(sea.LimitedCmd):
@@ -670,6 +676,8 @@ class NdcInst(sea.LimitedCmd):
             for l in args.dsa_log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run(args, argv)
 
 class SimpleMemoryChecks(sea.LimitedCmd):
@@ -738,6 +746,8 @@ class SimpleMemoryChecks(sea.LimitedCmd):
             for l in args.dsa_log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run(args, argv)
 
 
@@ -821,6 +831,8 @@ class WrapMem(sea.LimitedCmd):
             argv.append ('--wrap-mem')
             if args.llvm_asm: argv.append ('-S')
             argv.extend (args.in_files)
+            # -- pass sea-dsa options through: seapp links sea-dsa
+            argv.extend (filter (_is_sea_dsa_opt, extra))
             return self.seappCmd.run (args, argv)
 
 class CutLoops(sea.LimitedCmd):
@@ -874,6 +886,8 @@ class CutLoops(sea.LimitedCmd):
             for l in args.log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run (args, argv)
 
 
@@ -1040,6 +1054,8 @@ class FatBoundsCheck(sea.LimitedCmd):
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run (args, argv)
 
 class AddBranchSentinel(sea.LimitedCmd):
@@ -1079,6 +1095,8 @@ class AddBranchSentinel(sea.LimitedCmd):
         if args.log is not None:
             for l in args.log.split (':'): argv.extend (['-log', l])
 
+        # -- pass sea-dsa options through: seapp links sea-dsa
+        argv.extend (filter (_is_sea_dsa_opt, extra))
         return self.seappCmd.run (args, argv)
 
 
@@ -1145,8 +1163,13 @@ class Unroll(sea.LimitedCmd):
         if args.llvm_asm: argv.append ('-S')
         return self.seaoptCmd.run (args, argv)
 
+def _is_sea_dsa_opt (x):
+    '''sea-dsa options (--sea-dsa-*). The bare --sea-dsa= is not one of them:
+    sea sets it itself from --dsa.'''
+    return x.startswith ('-') and x.lstrip ('-').startswith ('sea-dsa-')
+
 def _is_seahorn_opt (x):
-    prefixes = ['horn-', 'crab', 'sea-opsem']
+    prefixes = ['horn-', 'crab', 'sea-opsem', 'sea-dsa-']
     if x.startswith ('-'):
         y = x.strip ('-')
         return any((y.startswith(p) for p in prefixes))
@@ -1206,7 +1229,10 @@ class Seahorn(sea.LimitedCmd):
                          help='Heap analysis used by \'mem\' encoding: '
                          'sea-flat (flat memory SeaHorn Dsa), '
                          'sea-ci (context-insensitive SeaHorn Dsa), and '
-                         'sea-cs (context-sensitive SeaHorn Dsa)',
+                         'sea-cs (context-sensitive SeaHorn Dsa). '
+                         'Other sea-dsa options (--sea-dsa-*, e.g. '
+                         '--sea-dsa-trust-byte-storage) are passed through '
+                         'to seapp and seahorn',
                          choices=['sea-flat','sea-ci','sea-cs', 'sea-ci-t', 'sea-cs-t'],
                          dest='dsa', default='sea-ci')
         ap.add_argument ('--mem-dot',

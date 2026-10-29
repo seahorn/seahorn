@@ -26,7 +26,7 @@ def add_bool_argument(parser, name, default=False,
                              type=lambda v: not(str2bool(v)),
                              nargs='?', const=False,
                              help=argparse.SUPPRESS, **kwargs)
-    parser.set_defaults(dest_name=default)
+    parser.set_defaults(**{dest_name: default})
 
 
 def isexec (fpath):
@@ -171,9 +171,14 @@ class CliCmd (object):
 
     def main (self, argv):
         import argparse
+        # -- no abbreviations: every stage parses the full command line with
+        # -- parse_known_args, and an option that is a prefix of one of the
+        # -- stage's own (e.g. --sea-dsa=cs vs --sea-dsa-log) would be consumed
+        # -- by the stage instead of being passed on to the tools.
         ap = argparse.ArgumentParser (prog=self.name,
                                       description=self.help,
-                                      add_help=False)
+                                      add_help=False,
+                                      allow_abbrev=False)
         ap = self.mk_arg_parser (ap)
 
         if self.allow_extra:
@@ -214,7 +219,8 @@ class AgregateCmd (CliCmd):
         for c in self.cmds:
             deduped[c.name] = c
         for c in deduped.values():
-            sp = sb.add_parser(c.name, help=c.help, add_help=False)
+            sp = sb.add_parser(c.name, help=c.help, add_help=False,
+                               allow_abbrev=False)
             sp = c.mk_arg_parser(sp)
             sp.set_defaults(func = c.run)
         return argp

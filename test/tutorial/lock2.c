@@ -5,6 +5,8 @@
 // RUN: %shorntest %t-harness3.ll %t-debug3 %s -O3 | filecheck %s
 // CHECK: {{^unsat$}}
 
+extern void __VERIFIER_error(void);
+
 #define sassert(X)                                                             \
   if (!(X))                                                                    \
   __VERIFIER_error()

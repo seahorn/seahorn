@@ -6,6 +6,7 @@
 // CHECK: {{^unsat$}}
 
 #include "seahorn/seahorn.h"
+#include <stdio.h>
 
 extern int nd(void);
 

@@ -5,7 +5,7 @@
 
 struct b {
   _Bool *c;
-  void *d
+  void *d;
 };
 int *e;
 char am, an, ao;
@@ -14,7 +14,7 @@ int f() {
   int g;
   return g;
 }
-void h(j) {}
+void h(int j) {}
 __attribute__((noinline))
 void i(int *j, char k, char *q) {
   long l, o, p;
@@ -39,7 +39,7 @@ void r(int *j, char k, char *q) {
   e = j;
   switch (k) {
   case 0:
-    s(j, 2, ag);
+    s(j, 2, (char *)(long)ag);
   default:
     if (ah)
       if (ai)
@@ -51,7 +51,7 @@ struct b a = {i, r};
 int main() {
   char aq;
   void *ar;
-  i(ar, aq, am);
-  r(ar, an, ao);
+  i(ar, aq, (char *)(long)am);
+  r(ar, an, (char *)(long)ao);
   __VERIFIER_error();
 }

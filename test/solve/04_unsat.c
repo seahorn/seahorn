@@ -1772,7 +1772,7 @@ long ldv_is_err_or_null(void const   *ptr )
     tmp___0 = 1;
   } else {
 #line 29
-    tmp = ldv_is_err((unsigned long )ptr);
+    tmp = ldv_is_err((void const *)(unsigned long )ptr);
 #line 29
     if (tmp) {
 #line 29

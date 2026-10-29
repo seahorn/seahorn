@@ -1,0 +1,11 @@
+false :- main_verifier_error_split.
+verifier_error(0,0,0) :- true.
+verifier_error(0,1,1) :- true.
+verifier_error(1,0,1) :- true.
+verifier_error(1,1,1) :- true.
+main_entry :- true.
+main_verifier_error(VAR_1,VAR_2) :- ((((main_entry,(Main_loop_bound_0=0)),(Main__1_0=0)),(VAR_1=1)),(VAR_2=0)).
+main__lr_ph(VAR_1,VAR_2,Main_loop_bound_0) :- ((((main_entry,(Main_loop_bound_0=0)),((Main__1_0<0);(Main__1_0>0))),(VAR_1=0)),(VAR_2=1)).
+main_verifier_error(VAR_1,VAR_2) :- (((main__lr_ph(Main__0_i3_0,Main__01_i2_0,Main_loop_bound_0),(Main__4_0=Main_loop_bound_0)),(VAR_1=(Main__0_i3_0+Main__01_i2_0))),(VAR_2=(Main__0_i3_0+1))).
+main__lr_ph(VAR_1,VAR_2,Main_loop_bound_0) :- (((main__lr_ph(Main__0_i3_0,Main__01_i2_0,Main_loop_bound_0),((Main__4_0<Main_loop_bound_0);(Main__4_0>Main_loop_bound_0))),(VAR_1=(Main__0_i3_0+1))),(VAR_2=(Main__0_i3_0+Main__01_i2_0))).
+main_verifier_error_split :- (main_verifier_error(Main__01_i_lcssa_0,Main__0_i_lcssa_0),(Main__01_i_lcssa_0<Main__0_i_lcssa_0)).

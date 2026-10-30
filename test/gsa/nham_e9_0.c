@@ -7,6 +7,8 @@
 // RUN:           --horn-gsa "%s" 2>&1 | filecheck %s
 // CHECK: {{^unsat$}}
 
+#include <stdio.h>
+
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 extern void __VERIFIER_assume(int);
 

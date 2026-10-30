@@ -12,14 +12,6 @@ add_lit_testsuite(test-all "Run all the tests"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-fat-ptr "Run fat ptr tests"
-  -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
-  )
-
 add_lit_testsuite(test-fat-ptr-sym "Run fat ptr symbolic tests"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic
@@ -92,14 +84,6 @@ add_lit_testsuite(test-opsem-widemem "Regression tests for Operational Semantics
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn 
-  )
-
-add_lit_testsuite(test-inc "Regression tests for Inconsistency Analysis"
-  -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/inc
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-dsa "Regression tests for DSA"
@@ -225,7 +209,6 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-solve install)
   add_dependencies(pred-abs install)
   add_dependencies(test-smc install)
-  add_dependencies(test-inc install)
   add_dependencies(test-devirt install)
   add_dependencies(test-mcfuzz install)
   add_dependencies(test-memssa install)

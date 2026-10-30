@@ -7184,11 +7184,11 @@ void ib_uverbs_release_ucq(struct ib_uverbs_file *file , struct ib_uverbs_event_
 #line 157
     __mptr = (struct list_head  const  *)uobj->comp_list.next;
 #line 157
-    evt = (struct ib_uverbs_event *)__mptr + 0xffffffffffffffe0UL;
+    evt = (struct ib_uverbs_event *)((char *)__mptr - 32UL);
 #line 157
     __mptr___0 = (struct list_head  const  *)evt->obj_list.next;
 #line 157
-    tmp = (struct ib_uverbs_event *)__mptr___0 + 0xffffffffffffffe0UL;
+    tmp = (struct ib_uverbs_event *)((char *)__mptr___0 - 32UL);
 #line 157
     goto ldv_32192;
     ldv_32191: 
@@ -7201,7 +7201,7 @@ void ib_uverbs_release_ucq(struct ib_uverbs_file *file , struct ib_uverbs_event_
 #line 157
     __mptr___1 = (struct list_head  const  *)tmp->obj_list.next;
 #line 157
-    tmp = (struct ib_uverbs_event *)__mptr___1 + 0xffffffffffffffe0UL;
+    tmp = (struct ib_uverbs_event *)((char *)__mptr___1 - 32UL);
     ldv_32192: ;
 #line 157
     if ((unsigned long )(& evt->obj_list) != (unsigned long )(& uobj->comp_list)) {
@@ -7222,11 +7222,11 @@ void ib_uverbs_release_ucq(struct ib_uverbs_file *file , struct ib_uverbs_event_
 #line 167
   __mptr___2 = (struct list_head  const  *)uobj->async_list.next;
 #line 167
-  evt = (struct ib_uverbs_event *)__mptr___2 + 0xffffffffffffffe0UL;
+  evt = (struct ib_uverbs_event *)((char *)__mptr___2 - 32UL);
 #line 167
   __mptr___3 = (struct list_head  const  *)evt->obj_list.next;
 #line 167
-  tmp = (struct ib_uverbs_event *)__mptr___3 + 0xffffffffffffffe0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___3 - 32UL);
 #line 167
   goto ldv_32201;
   ldv_32200: 
@@ -7239,7 +7239,7 @@ void ib_uverbs_release_ucq(struct ib_uverbs_file *file , struct ib_uverbs_event_
 #line 167
   __mptr___4 = (struct list_head  const  *)tmp->obj_list.next;
 #line 167
-  tmp = (struct ib_uverbs_event *)__mptr___4 + 0xffffffffffffffe0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___4 - 32UL);
   ldv_32201: ;
 #line 167
   if ((unsigned long )(& evt->obj_list) != (unsigned long )(& uobj->async_list)) {
@@ -7269,11 +7269,11 @@ void ib_uverbs_release_uevent(struct ib_uverbs_file *file , struct ib_uevent_obj
 #line 180
   __mptr = (struct list_head  const  *)uobj->event_list.next;
 #line 180
-  evt = (struct ib_uverbs_event *)__mptr + 0xffffffffffffffe0UL;
+  evt = (struct ib_uverbs_event *)((char *)__mptr - 32UL);
 #line 180
   __mptr___0 = (struct list_head  const  *)evt->obj_list.next;
 #line 180
-  tmp = (struct ib_uverbs_event *)__mptr___0 + 0xffffffffffffffe0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___0 - 32UL);
 #line 180
   goto ldv_32216;
   ldv_32215: 
@@ -7286,7 +7286,7 @@ void ib_uverbs_release_uevent(struct ib_uverbs_file *file , struct ib_uevent_obj
 #line 180
   __mptr___1 = (struct list_head  const  *)tmp->obj_list.next;
 #line 180
-  tmp = (struct ib_uverbs_event *)__mptr___1 + 0xffffffffffffffe0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___1 - 32UL);
   ldv_32216: ;
 #line 180
   if ((unsigned long )(& evt->obj_list) != (unsigned long )(& uobj->event_list)) {
@@ -7412,11 +7412,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 209
   __mptr = (struct list_head  const  *)context->ah_list.next;
 #line 209
-  uobj = (struct ib_uobject *)__mptr + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr - 24UL);
 #line 209
   __mptr___0 = (struct list_head  const  *)uobj->list.next;
 #line 209
-  tmp = (struct ib_uobject *)__mptr___0 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___0 - 24UL);
 #line 209
   goto ldv_32247;
   ldv_32246: 
@@ -7433,7 +7433,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 209
   __mptr___1 = (struct list_head  const  *)tmp->list.next;
 #line 209
-  tmp = (struct ib_uobject *)__mptr___1 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___1 - 24UL);
   ldv_32247: ;
 #line 209
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->ah_list)) {
@@ -7445,11 +7445,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 218
   __mptr___2 = (struct list_head  const  *)context->mw_list.next;
 #line 218
-  uobj = (struct ib_uobject *)__mptr___2 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___2 - 24UL);
 #line 218
   __mptr___3 = (struct list_head  const  *)uobj->list.next;
 #line 218
-  tmp = (struct ib_uobject *)__mptr___3 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___3 - 24UL);
 #line 218
   goto ldv_32257;
   ldv_32256: 
@@ -7466,7 +7466,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 218
   __mptr___4 = (struct list_head  const  *)tmp->list.next;
 #line 218
-  tmp = (struct ib_uobject *)__mptr___4 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___4 - 24UL);
   ldv_32257: ;
 #line 218
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->mw_list)) {
@@ -7478,11 +7478,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 226
   __mptr___5 = (struct list_head  const  *)context->rule_list.next;
 #line 226
-  uobj = (struct ib_uobject *)__mptr___5 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___5 - 24UL);
 #line 226
   __mptr___6 = (struct list_head  const  *)uobj->list.next;
 #line 226
-  tmp = (struct ib_uobject *)__mptr___6 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___6 - 24UL);
 #line 226
   goto ldv_32267;
   ldv_32266: 
@@ -7499,7 +7499,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 226
   __mptr___7 = (struct list_head  const  *)tmp->list.next;
 #line 226
-  tmp = (struct ib_uobject *)__mptr___7 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___7 - 24UL);
   ldv_32267: ;
 #line 226
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->rule_list)) {
@@ -7511,11 +7511,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 234
   __mptr___8 = (struct list_head  const  *)context->qp_list.next;
 #line 234
-  uobj = (struct ib_uobject *)__mptr___8 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___8 - 24UL);
 #line 234
   __mptr___9 = (struct list_head  const  *)uobj->list.next;
 #line 234
-  tmp = (struct ib_uobject *)__mptr___9 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___9 - 24UL);
 #line 234
   goto ldv_32280;
   ldv_32279: 
@@ -7546,7 +7546,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 234
   __mptr___11 = (struct list_head  const  *)tmp->list.next;
 #line 234
-  tmp = (struct ib_uobject *)__mptr___11 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___11 - 24UL);
   ldv_32280: ;
 #line 234
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->qp_list)) {
@@ -7558,11 +7558,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 250
   __mptr___12 = (struct list_head  const  *)context->srq_list.next;
 #line 250
-  uobj = (struct ib_uobject *)__mptr___12 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___12 - 24UL);
 #line 250
   __mptr___13 = (struct list_head  const  *)uobj->list.next;
 #line 250
-  tmp = (struct ib_uobject *)__mptr___13 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___13 - 24UL);
 #line 250
   goto ldv_32293;
   ldv_32292: 
@@ -7585,7 +7585,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 250
   __mptr___15 = (struct list_head  const  *)tmp->list.next;
 #line 250
-  tmp = (struct ib_uobject *)__mptr___15 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___15 - 24UL);
   ldv_32293: ;
 #line 250
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->srq_list)) {
@@ -7597,11 +7597,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 261
   __mptr___16 = (struct list_head  const  *)context->cq_list.next;
 #line 261
-  uobj = (struct ib_uobject *)__mptr___16 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___16 - 24UL);
 #line 261
   __mptr___17 = (struct list_head  const  *)uobj->list.next;
 #line 261
-  tmp = (struct ib_uobject *)__mptr___17 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___17 - 24UL);
 #line 261
   goto ldv_32307;
   ldv_32306: 
@@ -7626,7 +7626,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 261
   __mptr___19 = (struct list_head  const  *)tmp->list.next;
 #line 261
-  tmp = (struct ib_uobject *)__mptr___19 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___19 - 24UL);
   ldv_32307: ;
 #line 261
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->cq_list)) {
@@ -7638,11 +7638,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 273
   __mptr___20 = (struct list_head  const  *)context->mr_list.next;
 #line 273
-  uobj = (struct ib_uobject *)__mptr___20 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___20 - 24UL);
 #line 273
   __mptr___21 = (struct list_head  const  *)uobj->list.next;
 #line 273
-  tmp = (struct ib_uobject *)__mptr___21 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___21 - 24UL);
 #line 273
   goto ldv_32317;
   ldv_32316: 
@@ -7659,7 +7659,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 273
   __mptr___22 = (struct list_head  const  *)tmp->list.next;
 #line 273
-  tmp = (struct ib_uobject *)__mptr___22 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___22 - 24UL);
   ldv_32317: ;
 #line 273
   if ((unsigned long )uobj != (unsigned long )context) {
@@ -7673,11 +7673,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 282
   __mptr___23 = (struct list_head  const  *)context->xrcd_list.next;
 #line 282
-  uobj = (struct ib_uobject *)__mptr___23 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___23 - 24UL);
 #line 282
   __mptr___24 = (struct list_head  const  *)uobj->list.next;
 #line 282
-  tmp = (struct ib_uobject *)__mptr___24 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___24 - 24UL);
 #line 282
   goto ldv_32330;
   ldv_32329: 
@@ -7698,7 +7698,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 282
   __mptr___26 = (struct list_head  const  *)tmp->list.next;
 #line 282
-  tmp = (struct ib_uobject *)__mptr___26 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___26 - 24UL);
   ldv_32330: ;
 #line 282
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->xrcd_list)) {
@@ -7712,11 +7712,11 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 293
   __mptr___27 = (struct list_head  const  *)context->pd_list.next;
 #line 293
-  uobj = (struct ib_uobject *)__mptr___27 + 0xffffffffffffffe8UL;
+  uobj = (struct ib_uobject *)((char *)__mptr___27 - 24UL);
 #line 293
   __mptr___28 = (struct list_head  const  *)uobj->list.next;
 #line 293
-  tmp = (struct ib_uobject *)__mptr___28 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___28 - 24UL);
 #line 293
   goto ldv_32340;
   ldv_32339: 
@@ -7733,7 +7733,7 @@ static int ib_uverbs_cleanup_ucontext(struct ib_uverbs_file *file , struct ib_uc
 #line 293
   __mptr___29 = (struct list_head  const  *)tmp->list.next;
 #line 293
-  tmp = (struct ib_uobject *)__mptr___29 + 0xffffffffffffffe8UL;
+  tmp = (struct ib_uobject *)((char *)__mptr___29 - 24UL);
   ldv_32340: ;
 #line 293
   if ((unsigned long )(& uobj->list) != (unsigned long )(& context->pd_list)) {
@@ -7881,7 +7881,7 @@ static ssize_t ib_uverbs_event_read(struct file *filp , char *buf , size_t count
 #line 340
   __mptr = (struct list_head  const  *)file->event_list.next;
 #line 340
-  event = (struct ib_uverbs_event *)__mptr + 0xfffffffffffffff0UL;
+  event = (struct ib_uverbs_event *)((char *)__mptr - 16UL);
 #line 342
   if (file->is_async != 0) {
 #line 343
@@ -7998,11 +7998,11 @@ static int ib_uverbs_event_close(struct inode *inode , struct file *filp )
 #line 402
   __mptr = (struct list_head  const  *)file->event_list.next;
 #line 402
-  entry = (struct ib_uverbs_event *)__mptr + 0xfffffffffffffff0UL;
+  entry = (struct ib_uverbs_event *)((char *)__mptr - 16UL);
 #line 402
   __mptr___0 = (struct list_head  const  *)entry->list.next;
 #line 402
-  tmp = (struct ib_uverbs_event *)__mptr___0 + 0xfffffffffffffff0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___0 - 16UL);
 #line 402
   goto ldv_32398;
   ldv_32397: ;
@@ -8020,7 +8020,7 @@ static int ib_uverbs_event_close(struct inode *inode , struct file *filp )
 #line 402
   __mptr___1 = (struct list_head  const  *)tmp->list.next;
 #line 402
-  tmp = (struct ib_uverbs_event *)__mptr___1 + 0xfffffffffffffff0UL;
+  tmp = (struct ib_uverbs_event *)((char *)__mptr___1 - 16UL);
   ldv_32398: ;
 #line 402
   if ((unsigned long )(& entry->list) != (unsigned long )(& file->event_list)) {
@@ -8255,7 +8255,7 @@ void ib_uverbs_event_handler(struct ib_event_handler *handler , struct ib_event 
 #line 538
   __mptr = (struct ib_event_handler  const  *)handler;
 #line 538
-  file = (struct ib_uverbs_file *)__mptr + 0xffffffffffffff48UL;
+  file = (struct ib_uverbs_file *)((char *)__mptr - 184UL);
 #line 540
   ib_uverbs_async_handler(file, (__u64 )event->element.port_num, (__u64 )event->event,
                           (struct list_head *)0, (u32 *)0U);
@@ -8643,7 +8643,7 @@ static int ib_uverbs_open(struct inode *inode , struct file *filp )
 #line 745
   __mptr = (struct cdev  const  *)inode->__annonCompField68.i_cdev;
 #line 745
-  dev = (struct ib_uverbs_device *)__mptr + 0xffffffffffffff80UL;
+  dev = (struct ib_uverbs_device *)((char *)__mptr - 128UL);
 #line 746
   if ((unsigned long )dev != (unsigned long )((struct ib_uverbs_device *)0)) {
 #line 747
@@ -10929,7 +10929,7 @@ static void release_uobj(struct kref *kref )
 #line 99
   __mptr = (struct kref  const  *)kref;
 #line 99
-  kfree((void const   *)((struct ib_uobject *)__mptr + 0xffffffffffffffd4UL));
+  kfree((void const   *)((struct ib_uobject *)((char *)__mptr - 44UL)));
 #line 101
   return;
 }

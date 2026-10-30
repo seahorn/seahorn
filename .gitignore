@@ -27,3 +27,5 @@
 .ccls-root
 CMakeUserPresets.json
 compile_commands.json
+# Z3 debug-tracing builds drop these in the working directory
+.z3-trace

@@ -85,6 +85,12 @@ jobs:
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/gsa"
       - name: Run MemSSA tests
         run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/memssa"
+      - name: Run tutorial tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/tutorial"
+      - name: Run DSA tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/dsa"
+      - name: Run inter-mem tests
+        run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/inter-mem"
       # The crab and BMC(opsem) suites are deliberately not run here.
       #
       # Clam/crab is ported to LLVM 15 through 18, so these steps could be

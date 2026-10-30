@@ -1,5 +1,6 @@
 // Symbolic execution (loosely) based on semantics used in UFO
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 
 #include "seahorn/Transforms/Instrumentation/ShadowMemDsa.hh"
 #include "seahorn/UfoOpSem.hh"
@@ -334,6 +335,42 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     }
   }
 
+  void visitMinMax(MinMaxIntrinsic &I) {
+    Expr lhs = havoc(I);
+    Expr op0 = lookup(*I.getLHS());
+    Expr op1 = lookup(*I.getRHS());
+    if (!(lhs && op0 && op1))
+      return;
+
+    // -- c holds iff op0 is the result
+    Expr c;
+    switch (I.getIntrinsicID()) {
+    case Intrinsic::smax:
+      c = mk<GEQ>(op0, op1);
+      break;
+    case Intrinsic::smin:
+      c = mk<LEQ>(op0, op1);
+      break;
+    case Intrinsic::umax:
+      c = mk<ITE>(mk<EQ>(op0, op1), trueE, mkUnsignedLT(op1, op0));
+      break;
+    case Intrinsic::umin:
+      c = mk<ITE>(mk<EQ>(op0, op1), trueE, mkUnsignedLT(op0, op1));
+      break;
+    default:
+      return;
+    }
+    side(lhs, mk<ITE>(c, op0, op1));
+  }
+
+  void visitAbs(IntrinsicInst &I) {
+    Expr lhs = havoc(I);
+    Expr op0 = lookup(*I.getArgOperand(0));
+    if (!(lhs && op0))
+      return;
+    side(lhs, mk<ITE>(mk<GEQ>(op0, zeroE), op0, mk<MINUS>(zeroE, op0)));
+  }
+
   void visitBinaryOperator(BinaryOperator &I) {
     if (!m_sem.isTracked(I))
       return;
@@ -417,8 +454,12 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     } break;
     case BinaryOperator::Or:
       // 0 | x = x
+      // x | y = 0 implies x = 0 and y = 0 (InstCombine folds
+      // x == 0 && y == 0 into (x | y) == 0)
       res = mk<AND>(mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
-                    mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)));
+                    mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)),
+                    mk<IMPL>(mk<EQ>(lhs, zeroE),
+                             mk<AND>(mk<EQ>(op0, zeroE), mk<EQ>(op1, zeroE))));
       break;
     case BinaryOperator::LShr:
       if (const ConstantInt *ci = dyn_cast<ConstantInt>(&v1))
@@ -696,6 +737,18 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
 
     const Function &F = *f;
     const Function &PF = *CB.getParent()->getParent();
+
+    // -- InstCombine canonicalizes icmp+select into these intrinsics
+    if (auto *MM = dyn_cast<MinMaxIntrinsic>(&CB)) {
+      visitMinMax(*MM);
+      return;
+    }
+    if (auto *II = dyn_cast<IntrinsicInst>(&CB)) {
+      if (II->getIntrinsicID() == Intrinsic::abs) {
+        visitAbs(*II);
+        return;
+      }
+    }
 
     // skip intrinsic functions, except for memory-related ones
     if (F.isIntrinsic() && !isa<MemIntrinsic>(&CB)) {

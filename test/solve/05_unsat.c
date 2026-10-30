@@ -6282,7 +6282,7 @@ static int cx8802_restart_queue(struct cx8802_dev *dev , struct cx88_dmaqueue *q
 #line 256
     __mptr = (struct list_head  const  *)q->queued.next;
 #line 256
-    buf = (struct cx88_buffer *)__mptr + 0xffffffffffffffc0UL;
+    buf = (struct cx88_buffer *)((char *)__mptr - 64UL);
 #line 257
     if ((unsigned long )prev == (unsigned long )((struct cx88_buffer *)0)) {
 #line 258
@@ -6352,7 +6352,7 @@ static int cx8802_restart_queue(struct cx8802_dev *dev , struct cx88_dmaqueue *q
 #line 285
   __mptr___0 = (struct list_head  const  *)q->active.next;
 #line 285
-  buf = (struct cx88_buffer *)__mptr___0 + 0xffffffffffffffc0UL;
+  buf = (struct cx88_buffer *)((char *)__mptr___0 - 64UL);
 #line 286
   if (debug > 1U) {
 #line 286
@@ -6366,7 +6366,7 @@ static int cx8802_restart_queue(struct cx8802_dev *dev , struct cx88_dmaqueue *q
 #line 289
   __mptr___1 = (struct list_head  const  *)q->active.next;
 #line 289
-  buf = (struct cx88_buffer *)__mptr___1 + 0xffffffffffffffc0UL;
+  buf = (struct cx88_buffer *)((char *)__mptr___1 - 64UL);
 #line 289
   goto ldv_39194;
   ldv_39193: 
@@ -6379,7 +6379,7 @@ static int cx8802_restart_queue(struct cx8802_dev *dev , struct cx88_dmaqueue *q
 #line 289
   __mptr___2 = (struct list_head  const  *)buf->vb.queue.next;
 #line 289
-  buf = (struct cx88_buffer *)__mptr___2 + 0xffffffffffffffc0UL;
+  buf = (struct cx88_buffer *)((char *)__mptr___2 - 64UL);
   ldv_39194: 
 #line 289
   __builtin_prefetch((void const   *)buf->vb.queue.next);
@@ -6536,7 +6536,7 @@ void cx8802_buf_queue(struct cx8802_dev *dev , struct cx88_buffer *buf )
 #line 350
     __mptr = (struct list_head  const  *)cx88q->active.prev;
 #line 350
-    prev = (struct cx88_buffer *)__mptr + 0xffffffffffffffc0UL;
+    prev = (struct cx88_buffer *)((char *)__mptr - 64UL);
 #line 351
     list_add_tail(& buf->vb.queue, & cx88q->active);
 #line 352
@@ -6585,7 +6585,7 @@ static void do_cancel_buffers(struct cx8802_dev *dev , char const   *reason , in
 #line 370
   __mptr = (struct list_head  const  *)q->active.next;
 #line 370
-  buf = (struct cx88_buffer *)__mptr + 0xffffffffffffffc0UL;
+  buf = (struct cx88_buffer *)((char *)__mptr - 64UL);
 #line 371
   list_del(& buf->vb.queue);
 #line 372
@@ -7156,7 +7156,7 @@ struct cx8802_driver *cx8802_get_driver(struct cx8802_dev *dev , enum cx88_board
 #line 637
   __mptr = (struct list_head  const  *)dev->drvlist.next;
 #line 637
-  d = (struct cx8802_driver *)__mptr + 0xfffffffffffffff8UL;
+  d = (struct cx8802_driver *)((char *)__mptr - 8UL);
 #line 637
   goto ldv_39296;
   ldv_39295: ;
@@ -7170,7 +7170,7 @@ struct cx8802_driver *cx8802_get_driver(struct cx8802_dev *dev , enum cx88_board
 #line 637
   __mptr___0 = (struct list_head  const  *)d->drvlist.next;
 #line 637
-  d = (struct cx8802_driver *)__mptr___0 + 0xfffffffffffffff8UL;
+  d = (struct cx8802_driver *)((char *)__mptr___0 - 8UL);
   ldv_39296: 
 #line 637
   __builtin_prefetch((void const   *)d->drvlist.next);
@@ -7480,11 +7480,11 @@ int cx8802_unregister_driver(struct cx8802_driver *drv )
 #line 789
   __mptr___0 = (struct list_head  const  *)dev->drvlist.next;
 #line 789
-  d = (struct cx8802_driver *)__mptr___0 + 0xfffffffffffffff8UL;
+  d = (struct cx8802_driver *)((char *)__mptr___0 - 8UL);
 #line 789
   __mptr___1 = (struct list_head  const  *)d->drvlist.next;
 #line 789
-  dtmp = (struct cx8802_driver *)__mptr___1 + 0xfffffffffffffff8UL;
+  dtmp = (struct cx8802_driver *)((char *)__mptr___1 - 8UL);
 #line 789
   goto ldv_39351;
   ldv_39350: ;
@@ -7514,7 +7514,7 @@ int cx8802_unregister_driver(struct cx8802_driver *drv )
 #line 789
   __mptr___2 = (struct list_head  const  *)dtmp->drvlist.next;
 #line 789
-  dtmp = (struct cx8802_driver *)__mptr___2 + 0xfffffffffffffff8UL;
+  dtmp = (struct cx8802_driver *)((char *)__mptr___2 - 8UL);
   ldv_39351: ;
 #line 789
   if ((unsigned long )(& d->drvlist) != (unsigned long )(& dev->drvlist)) {
@@ -7660,11 +7660,11 @@ static void cx8802_remove(struct pci_dev *pci_dev )
 #line 877
     __mptr = (struct list_head  const  *)dev->drvlist.next;
 #line 877
-    drv = (struct cx8802_driver *)__mptr + 0xfffffffffffffff8UL;
+    drv = (struct cx8802_driver *)((char *)__mptr - 8UL);
 #line 877
     __mptr___0 = (struct list_head  const  *)drv->drvlist.next;
 #line 877
-    tmp___0 = (struct cx8802_driver *)__mptr___0 + 0xfffffffffffffff8UL;
+    tmp___0 = (struct cx8802_driver *)((char *)__mptr___0 - 8UL);
 #line 877
     goto ldv_39380;
     ldv_39379: 
@@ -7686,7 +7686,7 @@ static void cx8802_remove(struct pci_dev *pci_dev )
 #line 877
     __mptr___1 = (struct list_head  const  *)tmp___0->drvlist.next;
 #line 877
-    tmp___0 = (struct cx8802_driver *)__mptr___1 + 0xfffffffffffffff8UL;
+    tmp___0 = (struct cx8802_driver *)((char *)__mptr___1 - 8UL);
     ldv_39380: ;
 #line 877
     if ((unsigned long )(& drv->drvlist) != (unsigned long )(& dev->drvlist)) {

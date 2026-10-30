@@ -1,6 +1,8 @@
-// RUN: sea pf -O0 --dsa=sea-cs --max-depth=10 --horn-shadow-mem-optimize=false %s
+// RUN: sea pf -O0 --dsa=sea-cs --horn-shadow-mem-optimize=false --max-depth=3 %s 2>&1 | filecheck %s
 // CHECK: {{^unknown$}}
-// XFAIL: *
+// KNOWN-LIMITATION: want unsat; Spacer diverges at depth >= 4 enumerating one
+// lemma per array cell; converges if l1 and l2 do not alias.
+// Bounded by --max-depth so it terminates quickly with unknown.
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>

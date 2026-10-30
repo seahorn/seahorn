@@ -3791,12 +3791,12 @@ __inline static dma_addr_t dma_map_single_attrs(struct device *dev , void *ptr ,
 #line 20
   tmp___2 = __phys_addr((unsigned long )ptr);
 #line 20
-  addr = (*(ops->map_page))(dev, 0xffffea0000000000UL + (tmp___2 >> 12), (unsigned long )ptr & 4095UL,
+  addr = (*(ops->map_page))(dev, (struct page *)(0xffffea0000000000UL + (tmp___2 >> 12)), (unsigned long )ptr & 4095UL,
                             size, dir, attrs);
 #line 23
   tmp___3 = __phys_addr((unsigned long )ptr);
 #line 23
-  debug_dma_map_page(dev, 0xffffea0000000000UL + (tmp___3 >> 12), (unsigned long )ptr & 4095UL,
+  debug_dma_map_page(dev, (struct page *)(0xffffea0000000000UL + (tmp___3 >> 12)), (unsigned long )ptr & 4095UL,
                      size, (int )dir, addr, 1);
 #line 26
   return (addr);
@@ -5036,7 +5036,7 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q , struct videobuf_buf
 #line 418
     tmp___4 = __phys_addr(pos);
 #line 418
-    page = 0xffffea0000000000UL + (tmp___4 >> 12);
+    page = (struct page *)(0xffffea0000000000UL + (tmp___4 >> 12));
 #line 419
     if ((unsigned long )page == (unsigned long )((struct page *)0)) {
 #line 420

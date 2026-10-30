@@ -7,9 +7,15 @@
 ; CHECK: Module before shadow insertion:
 ; CHECK: ret i32 42
 
-; CHECK: MemSSA optimizer: 2 use(s) solved.
+; a and b alias. The load of a[0] already uses its def (the store to
+; b[0]); the load of a[1] is solved past it to the store to a[1].
+; CHECK: MemSSA optimizer: 1 use(s) solved.
 
 ; CHECK: Module after shadow insertion:
+; CHECK: %sm1 = call i32 @shadow.mem.store(i32 0, i32 %sm, ptr null), !shadow.mem
+; CHECK: %sm2 = call i32 @shadow.mem.store(i32 0, i32 %sm1, ptr null), !shadow.mem
+; CHECK: call void @shadow.mem.load(i32 0, i32 %sm2, ptr null), !shadow.mem
+; CHECK: call void @shadow.mem.load(i32 0, i32 %sm1, ptr null), !shadow.mem
 ; CHECK: ret i32 42
 
 ; ModuleID = '/tmp/sea-JwPcwz/memssa-array-1.pp.ms.o.ul.cut.o.bc'

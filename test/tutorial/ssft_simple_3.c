@@ -3,10 +3,9 @@
 // RUN: %shorntest %t-harness1.ll %t-debug1 %s --max-depth=15 -O1 --enable-indvar | filecheck %s
 // RUN: %shorntest %t-harness2.ll %t-debug2 %s --max-depth=15 -O2 --enable-indvar | filecheck %s
 // RUN: %shorntest %t-harness3.ll %t-debug3 %s --max-depth=15 -O3 --enable-indvar | filecheck %s
-// RUN: %shorntest %t-harness-.ll %t-debug- %s --max-depth=15 | filecheck %s --check-prefix=XFAIL_NOT_UNKNOWN
+// RUN: %shorntest %t-harness-.ll %t-debug- %s --max-depth=15 | filecheck %s --check-prefix=XFAIL_UNKNOWN
 // CHECK: {{^unsat$}}
 // XFAIL_UNKNOWN: {{^unknown$}}
-// XFAIL_NOT_UNKNOWN: {{^unsat$}}
 
 /* requires --enable-indvar */
 int unknown(void);

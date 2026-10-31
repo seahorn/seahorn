@@ -879,6 +879,39 @@ void Exporter::exportCall(const CallBase &CB) {
       name == "verifier.error" || name.starts_with("llvm.lifetime.") ||
       name.starts_with("llvm.dbg."))
     return; // no effect on the VC (the error path ends at the return)
+  // Modification tracking: markers (sea-apply-tracking makes the updates
+  // between them `tracked`); queries and resets name their memory version
+  // (from the shadow.mem.load / shadow.mem.store before them).
+  if (name == "sea.tracking_on" || name == "sea.tracking_off") {
+    os << "  sea." << name.drop_front(4) << l << "\n";
+    return;
+  }
+  if (name == "sea.is_modified") {
+    auto m = takeUse(CB);
+    auto p = val(CB.getArgOperand(0), CB);
+    if (!m || !p)
+      return;
+    if (!CB.getType()->isIntegerTy(1)) {
+      error("sea.is_modified must return i1", &CB);
+      return;
+    }
+    std::string r = fresh();
+    os << "  " << r << " = sea.mem.is_modified " << *m << "[" << *p
+       << "] : " << memTy << l << "\n";
+    names[&CB] = r;
+    return;
+  }
+  if (name == "sea.reset_modified") {
+    auto d = takeDef(CB);
+    auto p = val(CB.getArgOperand(0), CB);
+    if (!d || !p)
+      return;
+    std::string r = fresh();
+    os << "  " << r << " = sea.mem.reset_modified " << d->first << "[" << *p
+       << "] inplace : " << memTy << l << "\n";
+    names[d->second] = r;
+    return;
+  }
   if (name == "sea.is_dereferenceable") {
     // the bounds check's assertion (or a harness's): [p, p+n) in p's object
     if (!CB.getType()->isIntegerTy(1)) {

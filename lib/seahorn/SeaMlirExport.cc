@@ -798,6 +798,12 @@ void Exporter::exportCall(const CallBase &CB) {
     names[&CB] = n;
     return;
   }
+  // LLVM's alignment promise, in bytes (sea `align`; 1 says nothing).
+  auto align = [](MaybeAlign a, const char *kw = " align ") -> std::string {
+    if (!a || a->value() == 1)
+      return "";
+    return kw + std::to_string(a->value());
+  };
   if (auto *ms = dyn_cast<MemSetInst>(&CB)) {
     auto d = takeDef(CB);
     auto p = val(ms->getDest(), CB), v = val(ms->getValue(), CB),
@@ -806,7 +812,8 @@ void Exporter::exportCall(const CallBase &CB) {
       return;
     std::string r = fresh();
     os << "  " << r << " = sea.memset " << d->first << "[" << *p << "], " << *v
-       << ", " << *n << " inplace : " << memTy << l << "\n";
+       << ", " << *n << " inplace" << align(ms->getDestAlign()) << " : "
+       << memTy << l << "\n";
     names[d->second] = r;
     return;
   }
@@ -826,7 +833,9 @@ void Exporter::exportCall(const CallBase &CB) {
     // disjointness precondition is a sea-mlir pass.
     std::string r = fresh();
     os << "  " << r << " = sea.memmove " << d->first << "[" << *dp << "], "
-       << src << "[" << *sp << "], " << *n << " inplace : " << memTy << l
+       << src << "[" << *sp << "], " << *n << " inplace"
+       << align(mt->getDestAlign())
+       << align(mt->getSourceAlign(), " src_align ") << " : " << memTy << l
        << "\n";
     names[d->second] = r;
     return;
@@ -1163,6 +1172,10 @@ void Exporter::exportInst(const Instruction &I) {
     error("loads and stores of aggregates are not supported yet", &I);
     return;
   }
+  // LLVM's alignment promise, in bytes (sea `align`; 1 says nothing).
+  auto align = [](Align a) -> std::string {
+    return a.value() == 1 ? "" : " align " + std::to_string(a.value());
+  };
   if (auto *ld = dyn_cast<LoadInst>(&I)) {
     auto m = takeUse(I);
     auto p = val(ld->getPointerOperand(), I);
@@ -1173,14 +1186,16 @@ void Exporter::exportInst(const Instruction &I) {
       // i1 and friends occupy whole bytes in memory
       unsigned w = t->getIntegerBitWidth(), bw = (w + 7) / 8 * 8;
       std::string b = fresh();
-      os << "  " << b << " = sea.load " << *m << "[" << *p << "] : " << memTy
+      os << "  " << b << " = sea.load " << *m << "[" << *p << "]"
+         << align(ld->getAlign()) << " : " << memTy
          << " -> i" << bw << l << "\n";
       def("sea.trunc " + b + " : i" + std::to_string(bw) + " to i" +
           std::to_string(w));
       return;
     }
     if (auto ty = type(t, &I))
-      def("sea.load " + *m + "[" + *p + "] : " + memTy + " -> " + *ty);
+      def("sea.load " + *m + "[" + *p + "]" + align(ld->getAlign()) + " : " +
+          memTy + " -> " + *ty);
     return;
   }
   if (auto *st = dyn_cast<StoreInst>(&I)) {
@@ -1203,7 +1218,8 @@ void Exporter::exportInst(const Instruction &I) {
     }
     std::string r = fresh();
     os << "  " << r << " = sea.store " << d->first << "[" << *p << "], "
-       << value << " inplace : " << memTy << ", " << vty << l << "\n";
+       << value << " inplace" << align(st->getAlign()) << " : " << memTy
+       << ", " << vty << l << "\n";
     names[d->second] = r;
     return;
   }

@@ -940,10 +940,38 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
 void Exporter::exportCall(const CallBase &CB) {
   const Function *f = calledFunction(CB);
   if (!f) {
-    if (auto *ia = dyn_cast<InlineAsm>(CB.getCalledOperand()))
+    if (auto *ia = dyn_cast<InlineAsm>(CB.getCalledOperand())) {
       exportInlineAsm(CB, *ia);
-    else
-      error("indirect calls are not supported", &CB);
+      return;
+    }
+    // An indirect call SeaHorn's devirtualization left: an unknown function,
+    // as BvOpSem2 treats it (no effect, nondet result); one that defines
+    // memory is not supported.
+    if (pendingDef) {
+      error("indirect call that defines memory; not supported", &CB);
+      return;
+    }
+    pendingUse.reset();
+    if (CB.getType()->isVoidTy() || CB.use_empty()) {
+      warnOnce("indirect", "indirect call treated as a no-op");
+      return;
+    }
+    warnOnce("indirect", "indirect call treated as a no-op returning a "
+                         "nondet value");
+    auto t = type(CB.getType(), &CB);
+    if (!t)
+      return;
+    if (CB.getType()->isPointerTy()) {
+      std::string n = fresh();
+      os << "  " << n << " = sea.ptr.nondet \"indirect\" [" << site(&CB)
+         << "] : " << ptrTy << loc(CB) << "\n";
+      names[&CB] = n;
+      return;
+    }
+    std::string n = fresh();
+    os << "  " << n << " = sea.nondet \"indirect\" [" << site(&CB) << "] : "
+       << *t << loc(CB) << "\n";
+    names[&CB] = n;
     return;
   }
   StringRef name = f->getName();

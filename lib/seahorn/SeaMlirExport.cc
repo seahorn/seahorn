@@ -143,6 +143,11 @@ private:
   // -- names and types
   std::string fresh() { return "%v" + std::to_string(next++); }
   std::optional<std::string> type(Type *t, const Value *at);
+  std::optional<std::string> vectorConstant(const llvm::Constant *c,
+                                            const Instruction &at);
+  std::string
+  concatParts(ArrayRef<std::pair<std::string, unsigned>> parts,
+              const std::string &l);
   std::string loc(const Instruction &I);
   std::string blockName(const BasicBlock *BB) {
     auto it = blocks.find(BB);
@@ -182,6 +187,8 @@ private:
 
   // -- instructions
   void exportBlock(const BasicBlock &BB);
+  bool vectorOk(const Instruction &I);
+  void exportVectorElement(const Instruction &I);
   void exportInst(const Instruction &I);
   void exportCall(const CallBase &CB);
   void exportShadow(const CallBase &CB, StringRef name);
@@ -234,6 +241,15 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
     return "i" + std::to_string(it->getBitWidth());
   if (t->isPointerTy())
     return ptrTy;
+  // A vector of integers is one bit-vector, lane i at bits [i*K, (i+1)*K), as
+  // in SeaHorn (BvOpSem2.cc:2065-2130); only lane-agnostic instructions are
+  // exported on it (vectorOk).
+  if (auto *vt = dyn_cast<FixedVectorType>(t)) {
+    if (auto *et = dyn_cast<IntegerType>(vt->getElementType()))
+      return "i" + std::to_string(et->getBitWidth() * vt->getNumElements());
+    error("vectors of non-integers are not supported", at);
+    return std::nullopt;
+  }
   // First-class aggregates (structs, arrays) are register structs; packing
   // does not matter: they have no layout in registers.
   if (isa<StructType, ArrayType>(t)) {
@@ -354,12 +370,84 @@ std::optional<std::string> Exporter::constant(const Constant *c,
   }
   if (isa<StructType, ArrayType>(c->getType()))
     return aggregate(c, at);
+  if (isa<FixedVectorType>(c->getType()))
+    return vectorConstant(c, at);
   if (isa<UndefValue>(c)) {
     error("undef/poison operands are not supported", &at);
     return std::nullopt;
   }
   error("unsupported constant", c);
   return std::nullopt;
+}
+
+/// \p parts (value, width), lowest first, as one bit-vector (sea.concat).
+std::string Exporter::concatParts(
+    ArrayRef<std::pair<std::string, unsigned>> parts, const std::string &l) {
+  std::string acc = parts[0].first;
+  unsigned w = parts[0].second;
+  for (auto [v, pw] : parts.drop_front()) {
+    std::string r = fresh();
+    os << "  " << r << " = sea.concat " << v << ", " << acc << " : i" << pw
+       << ", i" << w << " -> i" << (w + pw) << l << "\n";
+    acc = r;
+    w += pw;
+  }
+  return acc;
+}
+
+/// A vector constant as one integer; undef / poison lanes are nondet bits
+/// (sea has no undef: one explicit nondet of the vector's width; its undef
+/// lanes are extracted and concatenated with the defined ones).
+std::optional<std::string> Exporter::vectorConstant(const Constant *c,
+                                                    const Instruction &at) {
+  std::string l = loc(at);
+  auto *vt = cast<FixedVectorType>(c->getType());
+  auto *et = dyn_cast<IntegerType>(vt->getElementType());
+  if (!et) {
+    error("vectors of non-integers are not supported", &at);
+    return std::nullopt;
+  }
+  unsigned k = et->getBitWidth(), n = vt->getNumElements(), w = k * n;
+  APInt bits(w, 0);
+  SmallVector<bool> undef(n, false);
+  for (unsigned i = 0; i < n; ++i) {
+    const Constant *e = c->getAggregateElement(i);
+    if (e && isa<UndefValue>(e)) {
+      undef[i] = true;
+      continue;
+    }
+    auto *ci = dyn_cast_or_null<ConstantInt>(e);
+    if (!ci) {
+      error("unsupported vector constant", c);
+      return std::nullopt;
+    }
+    bits.insertBits(ci->getValue(), i * k);
+  }
+  if (llvm::none_of(undef, [](bool u) { return u; }))
+    return emitConst(bits, l);
+  std::string t = "i" + std::to_string(w), nd = fresh();
+  os << "  " << nd << " = sea.nondet \"undef\" [" << site(&at) << "] : " << t
+     << l << "\n";
+  if (llvm::all_of(undef, [](bool u) { return u; }))
+    return nd;
+  // maximal runs of undef / defined lanes, lowest first
+  SmallVector<std::pair<std::string, unsigned>> parts;
+  for (unsigned i = 0; i < n;) {
+    unsigned j = i;
+    while (j < n && undef[j] == undef[i])
+      ++j;
+    unsigned lo = i * k, pw = (j - i) * k;
+    if (undef[i]) {
+      std::string r = fresh();
+      os << "  " << r << " = sea.extract " << nd << "[" << lo << "] : " << t
+         << " -> i" << pw << l << "\n";
+      parts.push_back({r, pw});
+    } else {
+      parts.push_back({emitConst(bits.extractBits(pw, lo), l), pw});
+    }
+    i = j;
+  }
+  return concatParts(parts, l);
 }
 
 /// True if \p c is undef / poison somewhere (itself or a leaf).
@@ -957,6 +1045,79 @@ void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,
   text += "(" + join(args, ", ") + " : " + join(types, ", ") + ")";
 }
 
+/// Vectors are bit-vectors: only instructions that do not depend on lanes
+/// (or that SeaHorn defines on bits: insert / extractelement) are exported;
+/// a lane-wise op as one wide op would be wrong (carries across lanes).
+bool Exporter::vectorOk(const Instruction &I) {
+  auto isVec = [](const Value *v) { return v->getType()->isVectorTy(); };
+  if (!isVec(&I) && llvm::none_of(I.operands(), isVec))
+    return true;
+  if (isa<ExtractElementInst, InsertElementInst, PHINode>(&I))
+    return true;
+  if (isa<BitCastInst>(&I))
+    return true; // checked by the cast export
+  if (auto *sel = dyn_cast<SelectInst>(&I); sel && !isVec(sel->getCondition()))
+    return true;
+  // in memory, lanes of whole bytes lie at increasing addresses
+  // (little-endian), as the bits of the bit-vector
+  Type *t = isa<StoreInst>(&I) ? I.getOperand(0)->getType() : I.getType();
+  if (isa<LoadInst, StoreInst>(&I) && t->getScalarSizeInBits() % 8 == 0)
+    return true;
+  error("vector operation not supported (sea vectors are bit-vectors: "
+        "only insert/extractelement, bitcast, select, phi, whole-byte "
+        "load/store)",
+        &I);
+  return false;
+}
+
+/// insert/extractelement with a constant index, on the bit-vector, as in
+/// SeaHorn (BvOpSem2.cc:2079-2087, which also rejects a variable index):
+/// sea.extract of the lane; insert = concat of the lanes above, the new
+/// lane, and the lanes below.
+void Exporter::exportVectorElement(const Instruction &I) {
+  std::string l = loc(I);
+  bool insert = isa<InsertElementInst>(&I);
+  const Value *vec = I.getOperand(0), *idx = I.getOperand(insert ? 2 : 1);
+  auto *vt = cast<FixedVectorType>(vec->getType());
+  unsigned k = vt->getScalarSizeInBits(), w = k * vt->getNumElements();
+  auto *ci = dyn_cast<ConstantInt>(idx);
+  if (!ci) {
+    error("insert/extractelement with a variable index is not supported "
+          "(nor in SeaHorn)",
+          &I);
+    return;
+  }
+  if (ci->getValue().uge(vt->getNumElements())) {
+    error("insert/extractelement index out of range (poison)", &I);
+    return;
+  }
+  unsigned off = k * ci->getZExtValue();
+  std::string t = "i" + std::to_string(w);
+  auto v = val(vec, I);
+  if (!v)
+    return;
+  auto extract = [&](unsigned lo, unsigned pw) {
+    std::string r = fresh();
+    os << "  " << r << " = sea.extract " << *v << "[" << lo << "] : " << t
+       << " -> i" << pw << l << "\n";
+    return r;
+  };
+  if (!insert) {
+    names[&I] = k == w ? *v : extract(off, k);
+    return;
+  }
+  auto x = val(I.getOperand(1), I);
+  if (!x)
+    return;
+  SmallVector<std::pair<std::string, unsigned>> parts;
+  if (off)
+    parts.push_back({extract(0, off), off});
+  parts.push_back({*x, k});
+  if (off + k < w)
+    parts.push_back({extract(off + k, w - off - k), w - off - k});
+  names[&I] = concatParts(parts, l);
+}
+
 void Exporter::exportInst(const Instruction &I) {
   std::string l = loc(I);
   auto def = [&](const std::string &text) {
@@ -982,6 +1143,12 @@ void Exporter::exportInst(const Instruction &I) {
          *type(I.getType(), &I))
             .str());
   };
+  if (!vectorOk(I))
+    return;
+  if (isa<ExtractElementInst, InsertElementInst>(&I)) {
+    exportVectorElement(I);
+    return;
+  }
   switch (I.getOpcode()) {
   case Instruction::Add:
     return bin("add");
@@ -1051,6 +1218,12 @@ void Exporter::exportInst(const Instruction &I) {
     case Instruction::BitCast:
     case Instruction::AddrSpaceCast:
       if (from == to || (from->isPointerTy() && to->isPointerTy())) {
+        names[&I] = *a;
+        return;
+      }
+      // integers and integer vectors of one width are the same bit-vector
+      if (from->isIntOrIntVectorTy() && to->isIntOrIntVectorTy() &&
+          from->getPrimitiveSizeInBits() == to->getPrimitiveSizeInBits()) {
         names[&I] = *a;
         return;
       }

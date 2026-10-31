@@ -30,6 +30,7 @@ add_llvm_library (seahorn.LIB DISABLE_LLVM_LINK_LLVM_DYLIB
   Bmc.cc
   SolverBmc.cc
   BmcPass.cc
+  SeaMlirExport.cc
   BvOpSem.cc
   # BvInt.cc
   MemSimulator.cc

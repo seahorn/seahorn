@@ -19,6 +19,13 @@
 /// - calls to external functions without a shadow-memory definition are
 ///   no-ops returning a nondet value (as BvOpSem2), with a warning per
 ///   callee;
+/// - first-class aggregates (structs, arrays) -> !sea.struct;
+///   insertvalue / extractvalue -> sea.struct.insert / extract chains along
+///   the index path; aggregate constants -> sea.struct.create; an undef
+///   aggregate (the `insertvalue undef, ...` idiom) -> sea.struct.nondet,
+///   explicit nondet initialization (sea has no undef), with the defined
+///   fields of a partly undef constant inserted; aggregate loads / stores:
+///   error;
 /// - nsw / nuw on add, sub, mul, shl become sea's no-wrap promises (the
 ///   VC ignores them, as SeaHorn does; sea-wrap-flags assumes or asserts
 ///   them);
@@ -134,6 +141,10 @@ private:
   // -- operands: emits code for constants and returns the operand's name
   std::optional<std::string> val(const Value *v, const Instruction &at);
   std::optional<std::string> constant(const Constant *c, const Instruction &at);
+  /// A struct / array constant as sea.struct.create, or, if undef
+  /// anywhere, as sea.struct.nondet plus inserts of its defined fields.
+  std::optional<std::string> aggregate(const Constant *c,
+                                       const Instruction &at);
   /// An integer operand converted to the pointer width (for sizes).
   std::optional<std::string> sizeVal(const Value *v, const Instruction &at);
   std::string emitConst(const APInt &v, const std::string &l) {
@@ -210,6 +221,31 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
     return "i" + std::to_string(it->getBitWidth());
   if (t->isPointerTy())
     return ptrTy;
+  // First-class aggregates (structs, arrays) are register structs; packing
+  // does not matter: they have no layout in registers.
+  if (isa<StructType, ArrayType>(t)) {
+    constexpr unsigned kMaxFields = 64;
+    SmallVector<Type *> fields;
+    if (auto *st = dyn_cast<StructType>(t))
+      fields.append(st->element_begin(), st->element_end());
+    else if (cast<ArrayType>(t)->getNumElements() <= kMaxFields)
+      fields.append(cast<ArrayType>(t)->getNumElements(),
+                    cast<ArrayType>(t)->getElementType());
+    if (fields.empty() || fields.size() > kMaxFields) {
+      error("aggregate values with 0 or more than 64 fields are not "
+            "supported",
+            at);
+      return std::nullopt;
+    }
+    std::vector<std::string> fs;
+    for (Type *f : fields) {
+      auto ft = type(f, at);
+      if (!ft)
+        return std::nullopt;
+      fs.push_back(*ft);
+    }
+    return "!sea.struct<" + join(fs, ", ") + ">";
+  }
   std::string s;
   raw_string_ostream ts(s);
   ts << *t;
@@ -302,12 +338,79 @@ std::optional<std::string> Exporter::constant(const Constant *c,
     if (auto *gep = dyn_cast<GEPOperator>(ce))
       return exportGep(*gep, at);
   }
+  if (isa<StructType, ArrayType>(c->getType()))
+    return aggregate(c, at);
   if (isa<UndefValue>(c)) {
     error("undef/poison operands are not supported", &at);
     return std::nullopt;
   }
   error("unsupported constant", c);
   return std::nullopt;
+}
+
+/// True if \p c is undef / poison somewhere (itself or a leaf).
+static bool hasUndef(const Constant *c) {
+  if (isa<UndefValue>(c))
+    return true;
+  if (!isa<StructType, ArrayType>(c->getType()))
+    return false;
+  for (unsigned i = 0, n = c->getNumOperands(); i < n; ++i)
+    if (const Constant *f = c->getAggregateElement(i); f && hasUndef(f))
+      return true;
+  return false;
+}
+
+std::optional<std::string> Exporter::aggregate(const Constant *c,
+                                               const Instruction &at) {
+  std::string l = loc(at);
+  auto ty = type(c->getType(), &at);
+  if (!ty)
+    return std::nullopt;
+  unsigned n = isa<StructType>(c->getType())
+                   ? cast<StructType>(c->getType())->getNumElements()
+                   : cast<ArrayType>(c->getType())->getNumElements();
+  // sea has no undef: an aggregate that is undef (anywhere) starts as an
+  // explicit nondet struct, and its defined fields are inserted into it.
+  bool undef = hasUndef(c);
+  std::string cur;
+  if (undef) {
+    cur = fresh();
+    os << "  " << cur << " = sea.struct.nondet \"undef\" [" << site(&at)
+       << "] : " << *ty << l << "\n";
+    if (isa<UndefValue>(c))
+      return cur;
+  }
+  std::vector<std::string> fields, types;
+  for (unsigned i = 0; i < n; ++i) {
+    const Constant *f = c->getAggregateElement(i);
+    if (!f) {
+      error("unsupported aggregate constant", c);
+      return std::nullopt;
+    }
+    auto ft = type(f->getType(), &at);
+    if (!ft)
+      return std::nullopt;
+    if (undef && isa<UndefValue>(f))
+      continue; // stays nondet
+    auto v = constant(f, at);
+    if (!v)
+      return std::nullopt;
+    if (undef) {
+      std::string r = fresh();
+      os << "  " << r << " = sea.struct.insert " << *v << ", " << cur << "["
+         << i << "] : " << *ft << " into " << *ty << l << "\n";
+      cur = r;
+      continue;
+    }
+    fields.push_back(*v);
+    types.push_back(*ft);
+  }
+  if (undef)
+    return cur;
+  std::string r = fresh();
+  os << "  " << r << " = sea.struct.create " << join(fields, ", ") << " : "
+     << join(types, ", ") << " -> " << *ty << l << "\n";
+  return r;
 }
 
 std::optional<std::string> Exporter::sizeVal(const Value *v,
@@ -961,14 +1064,63 @@ void Exporter::exportInst(const Instruction &I) {
   }
   if (auto *ev = dyn_cast<ExtractValueInst>(&I)) {
     auto it = overflowParts.find(ev->getAggregateOperand());
-    if (it == overflowParts.end() || ev->getNumIndices() != 1) {
-      error("extractvalue is supported only on *.with.overflow results "
-            "(struct values are not exported yet)",
-            &I);
+    if (it != overflowParts.end()) {
+      names[&I] = ev->getIndices()[0] == 0 ? it->second.first
+                                           : it->second.second;
       return;
     }
-    names[&I] = ev->getIndices()[0] == 0 ? it->second.first
-                                         : it->second.second;
+    // a chain of sea.struct.extract along the index path
+    auto cur = val(ev->getAggregateOperand(), I);
+    Type *t = ev->getAggregateOperand()->getType();
+    for (unsigned idx : ev->getIndices()) {
+      if (!cur)
+        return;
+      auto from = type(t, &I);
+      t = GetElementPtrInst::getTypeAtIndex(t, idx);
+      auto to = type(t, &I);
+      if (!from || !to)
+        return;
+      std::string n = fresh();
+      os << "  " << n << " = sea.struct.extract " << *cur << "[" << idx
+         << "] : " << *from << " -> " << *to << l << "\n";
+      cur = n;
+    }
+    if (cur)
+      names[&I] = *cur;
+    return;
+  }
+  if (auto *iv = dyn_cast<InsertValueInst>(&I)) {
+    // extract the structs along the path, insert bottom-up
+    auto agg = val(iv->getAggregateOperand(), I),
+         v = val(iv->getInsertedValueOperand(), I);
+    if (!agg || !v)
+      return;
+    ArrayRef<unsigned> path = iv->getIndices();
+    std::vector<std::string> outer{*agg};
+    std::vector<Type *> types{iv->getType()};
+    for (unsigned d = 0; d + 1 < path.size(); ++d) {
+      Type *inner = GetElementPtrInst::getTypeAtIndex(types.back(), path[d]);
+      auto from = type(types.back(), &I), to = type(inner, &I);
+      if (!from || !to)
+        return;
+      std::string n = fresh();
+      os << "  " << n << " = sea.struct.extract " << outer.back() << "["
+         << path[d] << "] : " << *from << " -> " << *to << l << "\n";
+      outer.push_back(n);
+      types.push_back(inner);
+    }
+    std::string cur = *v;
+    for (unsigned d = path.size(); d-- > 0;) {
+      Type *field = GetElementPtrInst::getTypeAtIndex(types[d], path[d]);
+      auto ft = type(field, &I), st = type(types[d], &I);
+      if (!ft || !st)
+        return;
+      std::string n = fresh();
+      os << "  " << n << " = sea.struct.insert " << cur << ", " << outer[d]
+         << "[" << path[d] << "] : " << *ft << " into " << *st << l << "\n";
+      cur = n;
+    }
+    names[&I] = cur;
     return;
   }
   if (isa<FreezeInst>(&I)) {
@@ -1004,6 +1156,11 @@ void Exporter::exportInst(const Instruction &I) {
       auto d = *takeDef(I);
       names[d.second] = d.first;
     }
+    return;
+  }
+  if (isa<LoadInst, StoreInst>(&I) &&
+      isa<StructType, ArrayType>(getLoadStoreType(const_cast<Instruction *>(&I)))) {
+    error("loads and stores of aggregates are not supported yet", &I);
     return;
   }
   if (auto *ld = dyn_cast<LoadInst>(&I)) {

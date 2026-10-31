@@ -1847,8 +1847,13 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
     }
   if (rc != 0 && !(rc == 3 && result == "unknown")) {
     ERR << "sea-mlir engine: sea-vc exited with " << rc << " " << err;
-    if (rc == 2)
-      ERR << "sea-mlir engine: sea-vc's replay disagrees with its model";
+    if (rc == 2) {
+      // a sat whose model the interpreter does not reproduce is not a
+      // verdict: a bug in sea-mlir's VC or interpreter
+      ERR << "sea-mlir engine: sea-vc's replay disagrees with its model; "
+             "no verdict";
+      result = "unknown";
+    }
   }
   outs() << result << "\n";
   return PreservedAnalyses::all();

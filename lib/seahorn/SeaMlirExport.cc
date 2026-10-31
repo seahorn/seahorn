@@ -1113,6 +1113,16 @@ void Exporter::exportCall(const CallBase &CB) {
       return "";
     return kw + std::to_string(a->value());
   };
+  // A memory intrinsic on memory in no region (sea-dsa found no cell: no
+  // shadow store / load is attached): nothing reads that memory, so it is a
+  // no-op (as a region-less memhavoc).
+  if (isa<MemSetInst, MemTransferInst>(&CB) && !pendingDef && !pendingTrsfr &&
+      !pendingUse) {
+    warnOnce("memop-no-region",
+             "memset/memcpy/memmove of memory in no region: nothing reads it "
+             "(no-op)");
+    return;
+  }
   if (auto *ms = dyn_cast<MemSetInst>(&CB)) {
     auto d = takeDef(CB);
     auto p = val(ms->getDest(), CB), v = val(ms->getValue(), CB),

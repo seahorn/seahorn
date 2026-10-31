@@ -879,6 +879,21 @@ void Exporter::exportCall(const CallBase &CB) {
       name == "verifier.error" || name.starts_with("llvm.lifetime.") ||
       name.starts_with("llvm.dbg."))
     return; // no effect on the VC (the error path ends at the return)
+  if (name == "sea.is_dereferenceable") {
+    // the bounds check's assertion (or a harness's): [p, p+n) in p's object
+    if (!CB.getType()->isIntegerTy(1)) {
+      error("sea.is_dereferenceable must return i1", &CB);
+      return;
+    }
+    auto p = val(CB.getArgOperand(0), CB), n = sizeVal(CB.getArgOperand(1), CB);
+    if (!p || !n)
+      return;
+    std::string r = fresh();
+    os << "  " << r << " = sea.ptr.dereferenceable " << *p << ", " << *n
+       << " : " << ptrTy << ", i" << W << l << "\n";
+    names[&CB] = r;
+    return;
+  }
   if (name == "verifier.assume" || name == "verifier.assume.not") {
     auto c = val(CB.getArgOperand(0), CB);
     if (!c)

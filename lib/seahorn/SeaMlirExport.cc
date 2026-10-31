@@ -298,10 +298,18 @@ std::string Exporter::loc(const Instruction &I) {
   return "";
 }
 
+/// The function a call names, also when the call's type differs from the
+/// declaration's (a C declaration without a prototype, `int nd();`, is
+/// `declare i32 @nd(...)` called as `i32 ()`: getCalledFunction() is null).
+/// Only the call site's types are used (CB.getType(), its arguments).
+static const Function *calledFunction(const CallBase &CB) {
+  return dyn_cast<Function>(CB.getCalledOperand()->stripPointerCasts());
+}
+
 void Exporter::findMemValues() {
   for (const Instruction &I : instructions(F))
     if (auto *cb = dyn_cast<CallBase>(&I))
-      if (const Function *f = cb->getCalledFunction())
+      if (const Function *f = calledFunction(*cb))
         if (f->getName().starts_with("shadow.mem.") &&
             !cb->getType()->isVoidTy())
           memValues.insert(&I);
@@ -855,7 +863,7 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
 }
 
 void Exporter::exportCall(const CallBase &CB) {
-  const Function *f = CB.getCalledFunction();
+  const Function *f = calledFunction(CB);
   if (!f) {
     if (auto *ia = dyn_cast<InlineAsm>(CB.getCalledOperand()))
       exportInlineAsm(CB, *ia);

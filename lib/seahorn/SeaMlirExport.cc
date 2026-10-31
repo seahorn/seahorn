@@ -1586,7 +1586,21 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
     return PreservedAnalyses::all();
   }
   sys::Process::SafelyCloseFileDescriptor(fd);
+  // SeaHorn's word size (--horn-bv2-word-size, by default the pointer
+  // size): sea-mlir widens, per memory, the byte memories whose accesses are
+  // all aligned whole words; the others stay bytes (sea-widen-memory).
+  unsigned word = 0;
+  {
+    auto &opts = cl::getRegisteredOptions();
+    if (auto it = opts.find("horn-bv2-word-size"); it != opts.end())
+      word = static_cast<cl::opt<unsigned> *>(it->second)->getValue();
+    if (word == 0)
+      word = M.getDataLayout().getPointerSize(0);
+  }
+  std::string widen = "--widen-memory=" + std::to_string(word);
   SmallVector<StringRef> args = {*vc, path, "--lower"};
+  if (word > 1)
+    args.push_back(widen);
   for (const std::string &a : SeaVcArgs)
     args.push_back(a);
   std::optional<StringRef> redirects[] = {std::nullopt, StringRef(outPath),

@@ -86,6 +86,19 @@ static cl::list<std::string>
               cl::desc("sea-mlir engine: an extra argument for sea-vc"));
 
 namespace seahorn {
+/// The alignment of an object (alloca, global). LLVM's is the minimum
+/// requested; SeaHorn's allocators raise every alignment to the memory
+/// manager's (BvOpSem2RawMemMgr.cc:176,194,255), which is the word size
+/// (BvOpSem2MemManager.cc:16): --horn-bv2-word-size, by default the pointer
+/// size (BvOpSem2.cc:2847). The export states what SeaHorn's VC assumes.
+static uint64_t objectAlign(llvm::Align a, unsigned ptrBytes) {
+  unsigned word = 0;
+  auto &opts = cl::getRegisteredOptions();
+  if (auto it = opts.find("horn-bv2-word-size"); it != opts.end())
+    word = static_cast<cl::opt<unsigned> *>(it->second)->getValue();
+  return std::max<uint64_t>(a.value(), word ? word : ptrBytes);
+}
+
 namespace {
 
 /// Escapes a string for an MLIR string literal.
@@ -321,7 +334,8 @@ std::optional<std::string> Exporter::constant(const Constant *c,
     std::string n = fresh();
     uint64_t size = DL.getTypeAllocSize(gv->getValueType());
     os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
-       << size << " align " << gv->getPointerAlignment(DL).value() << " : "
+       << size << " align " << objectAlign(gv->getPointerAlignment(DL), W / 8)
+       << " : "
        << ptrTy << l << "\n";
     return n;
   }
@@ -1156,7 +1170,7 @@ void Exporter::exportInst(const Instruction &I) {
     if (!size)
       return;
     def("sea.alloca " + *size + " align " +
-        std::to_string(al->getAlign().value()) + " [" +
+        std::to_string(objectAlign(al->getAlign(), W / 8)) + " [" +
         std::to_string(site(&I)) + "] : i" + std::to_string(W) + " -> " +
         ptrTy);
     // Allocation is a definition (--horn-shadow-mem-alloc-is-def): the

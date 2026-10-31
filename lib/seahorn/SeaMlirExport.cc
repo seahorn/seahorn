@@ -245,6 +245,10 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
     return "i" + std::to_string(it->getBitWidth());
   if (t->isPointerTy())
     return ptrTy;
+  // Floating point is not modeled (as in SeaHorn's BvOpSem2): a float is
+  // the bit-vector of its width; arithmetic on it is nondet (floatNondet).
+  if (t->isFloatingPointTy())
+    return "i" + std::to_string(t->getPrimitiveSizeInBits().getFixedValue());
   // A vector of integers is one bit-vector, lane i at bits [i*K, (i+1)*K), as
   // in SeaHorn (BvOpSem2.cc:2065-2130); only lane-agnostic instructions are
   // exported on it (vectorOk).
@@ -349,6 +353,8 @@ std::optional<std::string> Exporter::constant(const Constant *c,
   std::string l = loc(at);
   if (auto *ci = dyn_cast<ConstantInt>(c))
     return emitConst(ci->getValue(), l);
+  if (auto *cf = dyn_cast<ConstantFP>(c))
+    return emitConst(cf->getValueAPF().bitcastToAPInt(), l); // its bits
   if (isa<ConstantPointerNull>(c)) {
     std::string n = fresh();
     os << "  " << n << " = sea.ptr.null : " << ptrTy << l << "\n";
@@ -384,7 +390,15 @@ std::optional<std::string> Exporter::constant(const Constant *c,
     return aggregate(c, at);
   if (isa<FixedVectorType>(c->getType()))
     return vectorConstant(c, at);
-  if (isa<UndefValue>(c) && c->getType()->isIntegerTy()) {
+  if (isa<UndefValue>(c) && c->getType()->isPointerTy()) {
+    // an undef pointer: a value that can never be dereferenced
+    std::string n = fresh();
+    os << "  " << n << " = sea.ptr.nondet \"undef\" [" << site(&at) << "] : "
+       << ptrTy << l << "\n";
+    return n;
+  }
+  if (isa<UndefValue>(c) &&
+      (c->getType()->isIntegerTy() || c->getType()->isFloatingPointTy())) {
     // sea has no undef: an explicit nondet value (as for aggregates)
     std::string n = fresh();
     os << "  " << n << " = sea.nondet \"undef\" [" << site(&at) << "] : "
@@ -1179,7 +1193,7 @@ void Exporter::exportCall(const CallBase &CB) {
   }
   warnOnce("ext:" + name, "call to external function " + name +
                               " treated as a no-op returning a nondet value");
-  if (!CB.getType()->isIntegerTy()) {
+  if (!CB.getType()->isIntegerTy() && !CB.getType()->isFloatingPointTy()) {
     error("external call returning a non-integer is not supported", &CB);
     return;
   }
@@ -1310,6 +1324,23 @@ void Exporter::exportInst(const Instruction &I) {
   };
   if (!vectorOk(I))
     return;
+  // Floating point is not modeled: an op computing on floats (arithmetic,
+  // fcmp, conversions to or from floats) gives a nondet value of its
+  // result type. Loads, stores, phis, selects and same-width bitcasts
+  // carry the bits.
+  auto isFP = [](const Value *v) { return v->getType()->isFPOrFPVectorTy(); };
+  if ((isFP(&I) || llvm::any_of(I.operands(), isFP)) &&
+      !isa<LoadInst, StoreInst, PHINode, SelectInst, BitCastInst, CallBase>(
+          &I)) {
+    warnOnce("float", "floating point is not modeled: the results of float "
+                      "arithmetic, comparisons and conversions are nondet (as "
+                      "in SeaHorn)");
+    auto t = type(I.getType(), &I);
+    if (!t)
+      return;
+    def("sea.nondet \"float\" [" + std::to_string(site(&I)) + "] : " + *t);
+    return;
+  }
   if (isa<ExtractElementInst, InsertElementInst>(&I)) {
     exportVectorElement(I);
     return;
@@ -1386,8 +1417,10 @@ void Exporter::exportInst(const Instruction &I) {
         names[&I] = *a;
         return;
       }
-      // integers and integer vectors of one width are the same bit-vector
-      if (from->isIntOrIntVectorTy() && to->isIntOrIntVectorTy() &&
+      // integers, integer vectors and floats of one width are the same
+      // bit-vector
+      if ((from->isIntOrIntVectorTy() || from->isFloatingPointTy()) &&
+          (to->isIntOrIntVectorTy() || to->isFloatingPointTy()) &&
           from->getPrimitiveSizeInBits() == to->getPrimitiveSizeInBits()) {
         names[&I] = *a;
         return;

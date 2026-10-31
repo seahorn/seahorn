@@ -35,8 +35,8 @@ declare void @verifier.assert(i1)
 ; Function Attrs: nounwind ssp uwtable
 define i32 @main() local_unnamed_addr #0 {
 entry:
-  %malloc2.i = alloca [32 x i8], align 1
-  %malloc13.i = alloca [32 x i8], align 1
+  %malloc2.i = alloca [32 x i8], align 4
+  %malloc13.i = alloca [32 x i8], align 4
   %0 = bitcast [32 x i8]* %malloc2.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 32, i8* %0)
   %1 = bitcast [32 x i8]* %malloc13.i to i8*

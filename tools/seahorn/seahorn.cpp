@@ -55,6 +55,7 @@
 #include "llvm_seahorn/Transforms/IPO.h"
 #include "seadsa/support/RemovePtrToInt.hh"
 #include "seahorn/SeaNewPmAnalyses.hh"
+#include "seahorn/SeaMlirExport.hh"
 #include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/GitSHA1.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
@@ -168,14 +169,17 @@ static llvm::cl::opt<bool>
                llvm::cl::init(false));
 
 // Available BMC engines
-enum class BmcEngineKind { mono_bmc, path_bmc };
+enum class BmcEngineKind { mono_bmc, path_bmc, sea_mlir };
 
 static llvm::cl::opt<BmcEngineKind>
     BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
               llvm::cl::values(clEnumValN(BmcEngineKind::mono_bmc, "mono",
                                           "Solve a single formula"),
                                clEnumValN(BmcEngineKind::path_bmc, "path",
-                                          "Based on path enumeration")),
+                                          "Based on path enumeration"),
+                              clEnumValN(BmcEngineKind::sea_mlir, "sea-mlir",
+                                         "Export to sea-mlir and run "
+                                         "sea-vc (see --horn-sea-vc)")),
               llvm::cl::init(BmcEngineKind::mono_bmc));
 
 static llvm::cl::opt<bool>
@@ -422,7 +426,10 @@ int main(int argc, char **argv) {
   // Everything else (path engine, --oll dumps, --mem-dot, Boogie, CHC) stays on
   // the legacy tail below.
   const bool NewPmBmcRoute =
-      Bmc && BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
+      Bmc &&
+      (BmcEngine == BmcEngineKind::mono_bmc ||
+       BmcEngine == BmcEngineKind::sea_mlir) &&
+      !MemDot;
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
   // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
   // stay on the legacy tail.
@@ -586,7 +593,9 @@ int main(int argc, char **argv) {
       }
       MPM.addPass(llvm::PrintModulePass(asmOutput->os()));
     }
-    if (NewPmBmcRoute)
+    if (NewPmBmcRoute && BmcEngine == BmcEngineKind::sea_mlir)
+      MPM.addPass(seahorn::SeaMlirEnginePass(Solve));
+    else if (NewPmBmcRoute)
       MPM.addPass(seahorn::BmcPassNew(out, Solve, &shadowMem));
     MPM.run(*module, MAM);
 

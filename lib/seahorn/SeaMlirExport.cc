@@ -43,6 +43,8 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringExtras.h"
@@ -233,6 +235,8 @@ private:
   // shadow memory: pending definition and uses for the next memory op
   std::optional<std::pair<std::string, const Value *>> pendingDef;
   std::optional<std::string> pendingUse;
+  const Value *pendingUseVersion = nullptr; // its LLVM shadow value
+
   std::optional<std::string> pendingTrsfr;
 };
 
@@ -380,6 +384,13 @@ std::optional<std::string> Exporter::constant(const Constant *c,
     return aggregate(c, at);
   if (isa<FixedVectorType>(c->getType()))
     return vectorConstant(c, at);
+  if (isa<UndefValue>(c) && c->getType()->isIntegerTy()) {
+    // sea has no undef: an explicit nondet value (as for aggregates)
+    std::string n = fresh();
+    os << "  " << n << " = sea.nondet \"undef\" [" << site(&at) << "] : "
+       << *type(c->getType(), &at) << l << "\n";
+    return n;
+  }
   if (isa<UndefValue>(c)) {
     error("undef/poison operands are not supported", &at);
     return std::nullopt;
@@ -650,8 +661,10 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
   }
   if (name == "shadow.mem.load") {
     auto v = val(CB.getArgOperand(1), CB);
-    if (v)
+    if (v) {
       pendingUse = *v;
+      pendingUseVersion = CB.getArgOperand(1);
+    }
     return;
   }
   if (name == "shadow.mem.trsfr.load") {
@@ -820,12 +833,60 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   case Intrinsic::smin: op = "smin"; break;
   case Intrinsic::smax: op = "smax"; break;
   case Intrinsic::bswap: op = "bswap"; nargs = 1; break;
+  case Intrinsic::ctpop: op = "ctpop"; nargs = 1; break;
   case Intrinsic::fshl: op = "fshl"; nargs = 3; break;
   case Intrinsic::fshr: op = "fshr"; nargs = 3; break;
   case Intrinsic::expect:
     if (auto a = val(CB.getArgOperand(0), CB))
       names[&CB] = *a;
     return true;
+  case Intrinsic::experimental_noalias_scope_decl:
+    return true; // an optimizer hint: no effect on values
+  case Intrinsic::assume:
+    // false is undefined behaviour: the execution is infeasible
+    if (auto c = val(CB.getArgOperand(0), CB))
+      os << "  sea.assume " << *c << l << "\n";
+    return true;
+  case Intrinsic::uadd_sat:
+  case Intrinsic::usub_sat:
+  case Intrinsic::sadd_sat:
+  case Intrinsic::ssub_sat: {
+    // saturating: the plain result unless it overflows, then the bound
+    // (LangRef): unsigned 2^w-1 / 0; signed by the first operand's sign
+    Type *t = CB.getType();
+    if (!t->isIntegerTy()) {
+      error("vector intrinsics are not supported", &CB);
+      return true;
+    }
+    bool add = id == Intrinsic::uadd_sat || id == Intrinsic::sadd_sat;
+    bool sgn = id == Intrinsic::sadd_sat || id == Intrinsic::ssub_sat;
+    unsigned w = t->getIntegerBitWidth();
+    std::string ty = *type(t, &CB);
+    auto v = emit(add ? "add" : "sub", 2, t);
+    auto o = emit(sgn ? (add ? "saddo" : "ssubo") : (add ? "uaddo" : "usubo"),
+                  2, t);
+    auto a = val(CB.getArgOperand(0), CB);
+    if (!v || !o || !a)
+      return true;
+    std::string bound;
+    if (!sgn) {
+      bound = emitConst(add ? APInt::getAllOnes(w) : APInt::getZero(w), l);
+    } else {
+      std::string z = emitConst(APInt::getZero(w), l), neg = fresh();
+      os << "  " << neg << " = sea.icmp slt, " << *a << ", " << z << " : "
+         << ty << l << "\n";
+      std::string mn = emitConst(APInt::getSignedMinValue(w), l),
+                  mx = emitConst(APInt::getSignedMaxValue(w), l);
+      bound = fresh();
+      os << "  " << bound << " = sea.select " << neg << ", " << mn << ", " << mx
+         << " : " << ty << l << "\n";
+    }
+    std::string r = fresh();
+    os << "  " << r << " = sea.select " << *o << ", " << bound << ", " << *v
+       << " : " << ty << l << "\n";
+    names[&CB] = r;
+    return true;
+  }
   default:
     break;
   }
@@ -912,6 +973,45 @@ void Exporter::exportCall(const CallBase &CB) {
     names[d->second] = r;
     return;
   }
+  if (name == "memhavoc") {
+    // SeaHorn's ShadowMem gives memhavoc a memory use, not a definition
+    // (sea-dsa ShadowMem.cc visitMemhavoc), so mono does not havoc. Export
+    // the havoc as a new version (sea.memhavoc) and let later uses of the
+    // version see it; sea-drop-fresh-memhavoc removes the ones on a fresh
+    // allocation, where they are no-ops. Safe only if every other use of
+    // the version comes after the memhavoc.
+    if (!pendingUse) {
+      // no memory region (sea-dsa found no cell for the pointer): no load
+      // reads this memory, so there is nothing to havoc
+      warnOnce("memhavoc-no-region",
+               "memhavoc of memory in no region: nothing reads it (no-op)");
+      return;
+    }
+    const Value *ver = pendingUseVersion;
+    std::string m = *pendingUse;
+    pendingUse.reset();
+    pendingUseVersion = nullptr;
+    DominatorTree dt(const_cast<Function &>(F));
+    for (const Use &u : ver->uses()) {
+      auto *ui = dyn_cast<Instruction>(u.getUser());
+      if (!ui || ui->getNextNode() == &CB)
+        continue; // its own shadow.mem.load
+      if (!dt.dominates(&CB, u)) { // a phi's use is at its incoming edge
+        error("memhavoc: a use of the memory version it havocs is not after "
+              "it (cannot give it a new version)",
+              &CB);
+        return;
+      }
+    }
+    auto p = val(CB.getArgOperand(0), CB), n = sizeVal(CB.getArgOperand(1), CB);
+    if (!p || !n)
+      return;
+    std::string r = fresh();
+    os << "  " << r << " = sea.memhavoc " << m << "[" << *p << "], " << *n
+       << " [" << site(&CB) << "] inplace : " << memTy << l << "\n";
+    names[ver] = r;
+    return;
+  }
   if (name == "sea.is_dereferenceable") {
     // the bounds check's assertion (or a harness's): [p, p+n) in p's object
     if (!CB.getType()->isIntegerTy(1)) {
@@ -946,6 +1046,15 @@ void Exporter::exportCall(const CallBase &CB) {
       (name.starts_with("nd") || name.starts_with("nondet") ||
        name.starts_with("verifier.nondet") ||
        name.starts_with("__VERIFIER_nondet"))) {
+    if (CB.getType()->isPointerTy()) {
+      // a pointer value that can never be dereferenced (harnesses mark
+      // fields that must not be dereferenced with it)
+      std::string n = fresh();
+      os << "  " << n << " = sea.ptr.nondet " << quote(name) << " ["
+         << site(&CB) << "] : " << ptrTy << l << "\n";
+      names[&CB] = n;
+      return;
+    }
     if (!CB.getType()->isIntegerTy()) {
       error("nondet values of non-integer type are not supported", &CB);
       return;

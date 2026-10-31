@@ -29,7 +29,7 @@ declare void @verifier.assert(i1)
 ; Function Attrs: nounwind
 define i32 @main() local_unnamed_addr #0 {
 entry:
-  %malloc1.i = alloca [16 x i8], align 1
+  %malloc1.i = alloca [16 x i8], align 4
   %0 = bitcast [16 x i8]* %malloc1.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 16, i8* %0)
   call void @seahorn.fn.enter() #4

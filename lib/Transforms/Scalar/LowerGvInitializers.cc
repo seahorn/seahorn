@@ -191,6 +191,9 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         Type *ElemTy = gv->getValueType();
         AllocaInst *Alloca =
             Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
+        // Keep the global's alignment: its accesses rely on it.
+        if (MaybeAlign a = gv->getAlign(); a && *a > Alloca->getAlign())
+          Alloca->setAlignment(*a);
         Builder.CreateAlignedStore(gv->getInitializer(), Alloca,
                                    DL->getABITypeAlign(ElemTy));
         makeAllConstantUsesInstructions(gv);

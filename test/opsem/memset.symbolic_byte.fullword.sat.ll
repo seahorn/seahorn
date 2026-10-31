@@ -12,7 +12,7 @@ declare i8 @nd()
 
 define i32 @main() {
 entry:
-  %buf = alloca [8 x i8], align 1
+  %buf = alloca [8 x i8], align 4
   %ptr = getelementptr inbounds [8 x i8], [8 x i8]* %buf, i32 0, i32 0
 
   call void @llvm.memset.p0i8.i32(i8* %ptr, i8 0, i32 8, i32 4, i1 false)

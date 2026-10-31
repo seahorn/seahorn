@@ -11,7 +11,7 @@ declare void @seahorn.fail()
 
 define i32 @main() {
 entry:
-  %buf = alloca [8 x i8], align 1
+  %buf = alloca [8 x i8], align 4
   %ptr = getelementptr inbounds [8 x i8], [8 x i8]* %buf, i32 0, i32 0
   ; Start from a known zero buffer, then set 6 bytes so one full word and one
   ; 2-byte remainder are updated.

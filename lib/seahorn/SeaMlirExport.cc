@@ -1845,15 +1845,22 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
         result = first.str();
       line = rest;
     }
-  if (rc != 0 && !(rc == 3 && result == "unknown")) {
+  // Only these statuses carry a verdict (sea-vc --agent, STATUS CODES):
+  // 0 = unsat, or sat confirmed by replay; 3 = unknown. Anything else is no
+  // verdict, whatever `result:` says: 2 = the replay disagrees with the model
+  // (a bug in sea-mlir's VC or interpreter), 4 = --seam sat on an execution
+  // that leaves an object (A-INB, assumed, does not hold: inconclusive, the
+  // program has a memory-safety error), 1 = error.
+  bool verdict = rc == 0 || (rc == 3 && result == "unknown");
+  if (!verdict) {
     ERR << "sea-mlir engine: sea-vc exited with " << rc << " " << err;
-    if (rc == 2) {
-      // a sat whose model the interpreter does not reproduce is not a
-      // verdict: a bug in sea-mlir's VC or interpreter
+    if (rc == 2)
       ERR << "sea-mlir engine: sea-vc's replay disagrees with its model; "
              "no verdict";
-      result = "unknown";
-    }
+    else if (rc == 4)
+      ERR << "sea-mlir engine: sea-vc's sat needs an out-of-bounds access "
+             "(A-INB does not hold); inconclusive";
+    result = "unknown";
   }
   outs() << result << "\n";
   return PreservedAnalyses::all();

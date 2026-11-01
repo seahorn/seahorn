@@ -1843,6 +1843,10 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
       auto [first, rest] = line.split('\n');
       if (first.consume_front("result: "))
         result = first.str();
+      // sea-vc --brunch-stats (in --horn-sea-vc-arg): the statistics survive
+      // the engine
+      if (first.starts_with("BRUNCH_STAT "))
+        outs() << first << "\n";
       line = rest;
     }
   // Only these statuses carry a verdict (sea-vc --agent, STATUS CODES):

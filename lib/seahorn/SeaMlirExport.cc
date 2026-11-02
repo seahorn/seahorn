@@ -641,6 +641,16 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
     types.push_back("i" + std::to_string(iw));
     strides.push_back(W < 64 ? s.getSExtValue() : int64_t(s.getZExtValue()));
   }
+  // a constant-only inbounds GEP keeps its promise (`&t->count`; PtrIndex.md
+  // rev 7, A5): an index-free sea.ptr.index; without the flag, a ptr.add
+  if (names.empty() && gep.isInBounds() && constOff.isSignedIntN(W) &&
+      !constOff.isZero()) {
+    std::string n = fresh();
+    os << "  " << n << " = sea.ptr.index " << *base
+       << " [] strides [] offset " << constOff.trunc(W).getSExtValue()
+       << " inbounds : " << ptrTy << l << "\n";
+    return n;
+  }
   if (names.empty()) {
     if (constOff.isZero())
       return *base;

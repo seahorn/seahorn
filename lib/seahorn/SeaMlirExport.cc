@@ -585,57 +585,95 @@ std::optional<std::string> Exporter::takeUse(const Instruction &I) {
 
 std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
                                                const Instruction &at) {
+  // sea-mlir docs/design/PtrIndex.md: pointer arithmetic stays pointer
+  // arithmetic. A GEP with a dynamic index of nonzero stride is one
+  //   sea.ptr.index %base [%i..] strides [s..] offset c [inbounds]
+  // (the op sign-extends narrow indices); a constant-only GEP is a
+  // sea.ptr.add of its folded offset, as before.
   std::string l = loc(at);
   auto base = val(gep.getPointerOperand(), at);
   if (!base)
     return std::nullopt;
-  std::string cur = *base;
-  APInt constOff(W, 0);
-  auto addOffset = [&](const std::string &off) {
-    std::string n = fresh();
-    os << "  " << n << " = sea.ptr.add " << cur << ", " << off << " : "
-       << ptrTy << ", i" << W << l << "\n";
-    cur = n;
-  };
+  // The folded constant (struct offsets, constant indices) is summed
+  // exactly, in 2W bits: LLVM's inbounds promises no wrap of the partial
+  // sums in GEP order, which does not make the out-of-order constant fit
+  // (Fable's PtrIndex review, round 1, finding 6)
+  APInt constOff(2 * W, 0);
+  SmallVector<std::string> names, types;
+  SmallVector<int64_t> strides;
+  bool stridesFit = true;
   for (gep_type_iterator gti = gep_type_begin(gep), e = gep_type_end(gep);
        gti != e; ++gti) {
     const Value *idx = gti.getOperand();
     if (StructType *st = gti.getStructTypeOrNull()) {
       unsigned field = cast<ConstantInt>(idx)->getZExtValue();
-      constOff += DL.getStructLayout(st)->getElementOffset(field);
+      constOff += APInt(2 * W, DL.getStructLayout(st)->getElementOffset(field));
       continue;
     }
     uint64_t size = gti.getSequentialElementStride(DL).getFixedValue();
     if (auto *ci = dyn_cast<ConstantInt>(idx)) {
-      constOff += APInt(W, size) * ci->getValue().sextOrTrunc(W);
+      // LangRef: the index is sign-extended or truncated to the index width
+      constOff += APInt(2 * W, size) * ci->getValue().sextOrTrunc(W).sext(2 * W);
       continue;
     }
     if (!idx->getType()->isIntegerTy()) {
       error("vector GEP indices are not supported", &at);
       return std::nullopt;
     }
+    // a zero-sized element type: the index contributes nothing (the op's
+    // strides are nonzero)
+    if (size == 0)
+      continue;
     auto i = val(idx, at);
     if (!i)
       return std::nullopt;
     unsigned iw = idx->getType()->getIntegerBitWidth();
     std::string iW = *i;
-    if (iw != W) {
+    if (iw > W) {
       iW = fresh();
-      os << "  " << iW << " = sea." << (iw < W ? "sext " : "trunc ") << *i
-         << " : i" << iw << " to i" << W << l << "\n";
+      os << "  " << iW << " = sea.trunc " << *i << " : i" << iw << " to i"
+         << W << l << "\n";
+      iw = W;
     }
-    std::string off = iW;
-    if (size != 1) {
-      std::string s = emitConst(APInt(W, size), l);
-      off = fresh();
-      os << "  " << off << " = sea.mul " << iW << ", " << s << " : i" << W << l
-         << "\n";
-    }
-    addOffset(off);
+    APInt s(W, size, /*isSigned=*/false);
+    stridesFit &= APInt(128, size).isSignedIntN(W);
+    names.push_back(iW);
+    types.push_back("i" + std::to_string(iw));
+    strides.push_back(W < 64 ? s.getSExtValue() : int64_t(s.getZExtValue()));
   }
-  if (!constOff.isZero())
-    addOffset(emitConst(constOff, l));
-  return cur;
+  if (names.empty()) {
+    if (constOff.isZero())
+      return *base;
+    // emitConst writes its own line: before this one
+    std::string c = emitConst(constOff.trunc(W), l);
+    std::string n = fresh();
+    os << "  " << n << " = sea.ptr.add " << *base << ", " << c << " : "
+       << ptrTy << ", i" << W << l << "\n";
+    return n;
+  }
+  // inbounds only when its promise can be stated: the folded constant and
+  // the strides are n-bit signed values
+  bool inbounds = gep.isInBounds();
+  if (inbounds && !(constOff.isSignedIntN(W) && stridesFit)) {
+    warnOnce("gep-constant-overflow",
+             "a GEP's folded constant or stride does not fit " + Twine(W) +
+                 " signed bits: its inbounds is not exported "
+                 "[export.gep-constant-overflow]");
+    inbounds = false;
+  }
+  std::string n = fresh();
+  os << "  " << n << " = sea.ptr.index " << *base << " [";
+  for (size_t k = 0; k < names.size(); ++k)
+    os << (k ? ", " : "") << names[k];
+  os << "] strides [";
+  for (size_t k = 0; k < strides.size(); ++k)
+    os << (k ? ", " : "") << strides[k];
+  os << "] offset " << constOff.trunc(W).getSExtValue()
+     << (inbounds ? " inbounds" : "") << " : " << ptrTy;
+  for (const std::string &t : types)
+    os << ", " << t;
+  os << l << "\n";
+  return n;
 }
 
 void Exporter::exportShadow(const CallBase &CB, StringRef name) {

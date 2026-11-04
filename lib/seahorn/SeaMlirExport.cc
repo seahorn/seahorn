@@ -40,13 +40,14 @@
 ///   argument; cttz / ctlz (a zero input is the width, also with
 ///   is_zero_poison) are a binary search of selects, bitreverse a concat of
 ///   one-bit extracts (sea has no op for them);
-/// - inline assembly: only BvOpSem2's patterns (empty-body barriers, a
-///   single bswap) are recognized, here, so sea-mlir never sees assembly;
+/// - inline assembly: only BvOpSem2's patterns (empty-body and
+///   comment-only barriers, a single bswap) are recognized, here, so sea-mlir never sees assembly;
 /// - shadow.mem.in / shadow.mem.out (main only) have no effect.
 /// Anything else is an error.
 
 #include "seahorn/SeaMlirExport.hh"
 
+#include "seahorn/Support/InlineAsmBarrier.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -944,9 +945,10 @@ Exporter::exportGlobalInit(const GlobalVariable &gv, const std::string &mem,
 }
 
 void Exporter::exportInlineAsm(const CallBase &CB, const InlineAsm &IA) {
-  // Only the patterns BvOpSem2 handles (BvOpSem2.cc:794-870): an empty
-  // body that copies its input or only uses it (optimization barriers), and
-  // a single byte swap.
+  // Only the patterns BvOpSem2 handles (visitInlineAsmCall): an empty body
+  // that copies its input or only uses it (optimization barriers), a body
+  // of only assembler comments with memory / flags clobbers (a compiler
+  // barrier, isInlineAsmBarrier), and a single byte swap.
   std::string l = loc(CB);
   StringRef body = StringRef(IA.getAsmString()).trim();
   StringRef cons = IA.getConstraintString();
@@ -956,11 +958,12 @@ void Exporter::exportInlineAsm(const CallBase &CB, const InlineAsm &IA) {
       names[&CB] = *a;
     return;
   }
-  if (body.empty() && CB.getType()->isVoidTy() && cons.starts_with("r,")) {
+  if ((body.empty() && CB.getType()->isVoidTy() && cons.starts_with("r,")) ||
+      isInlineAsmBarrier(CB, IA)) {
     if (cons.contains("~{memory}"))
       warnOnce("asm-barrier",
-               "inline assembly with an empty body and a memory clobber "
-               "treated as a no-op (as BvOpSem2)");
+               "inline assembly with an empty or comment-only body and a "
+               "memory clobber treated as a no-op (as BvOpSem2)");
     return;
   }
   bool isBswap =

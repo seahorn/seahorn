@@ -11,6 +11,12 @@
 /// --horn-sea-mlir-export-only it exports and exits: status 0 and
 /// `sea-mlir-export: wrote <file>` if the export succeeded, status 1 and
 /// `sea-mlir-export: export failed ...` otherwise.
+///
+/// When the front end has decided every assertion (main removed, or a main
+/// that cannot reach seahorn.fail), the engine prints
+/// `sea-mlir-export: no main after the pipeline (...)` (or `main cannot
+/// reach seahorn.fail ...`) and writes a trivial program, `sea.assert` of
+/// true before `sea.halt`, which sea-vc answers unsat; it is not an error.
 
 #include "llvm/IR/PassManager.h"
 

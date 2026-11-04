@@ -1842,9 +1842,30 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
       exportOnlyExit(false, "");
     return PreservedAnalyses::all();
   };
+  // The front end may decide every assertion before the export: it removes
+  // main, or leaves a main that cannot reach seahorn.fail (no call to it,
+  // and no call to a defined function that could). BMC's query (reach the
+  // return block, which the pipeline makes reachable only through
+  // seahorn.fail) does not hold for such a main: exporting it as is would
+  // assert false on every path (a false sat). Then the export writes a
+  // trivial program, `sea.assert true` before the halt (sea-vc: unsat).
+  std::string decided;
   Function *main = M.getFunction("main");
-  if (!main || main->isDeclaration())
-    return fail("no main function");
+  if (!main || main->isDeclaration()) {
+    decided = "no main after the pipeline (the front end removed it: every "
+              "assertion was decided before export)";
+  } else {
+    bool canFail = false;
+    for (const Instruction &I : instructions(*main))
+      if (auto *cb = dyn_cast<CallBase>(&I))
+        if (const Function *f = calledFunction(*cb))
+          canFail |= f->getName() == "seahorn.fail" || !f->isDeclaration();
+    if (!canFail)
+      decided = "main cannot reach seahorn.fail after the pipeline (the "
+                "front end decided every assertion before export)";
+  }
+  if (!decided.empty())
+    outs() << "sea-mlir-export: " << decided << "\n";
 
   // Export.
   SmallString<128> path(SeaMlirOut);
@@ -1860,7 +1881,14 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
     raw_fd_ostream file(path, ec);
     if (ec)
       return fail(Twine("cannot write ") + path + ": " + ec.message());
-    if (!exportSeaMlir(*main, file, sites))
+    if (!decided.empty())
+      file << "// sea-mlir-export: " << decided << "\n"
+           << "sea.program @\"main\" {\n"
+           << "  %v0 = sea.const 1 : i1\n"
+           << "  sea.assert %v0\n"
+           << "  sea.halt\n"
+           << "}\n";
+    else if (!exportSeaMlir(*main, file, sites))
       return fail("export failed");
   }
   if (SeaMlirExportOnly)

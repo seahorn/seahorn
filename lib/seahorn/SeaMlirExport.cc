@@ -32,7 +32,9 @@
 /// - intrinsics with a sea op (min/max, bswap, fshl/fshr) map 1:1;
 ///   {iN, i1} = *.with.overflow becomes the plain op and a sea.uaddo / saddo / ... op,
 ///   which the extractvalues of the result pick; llvm.expect is its
-///   argument;
+///   argument; cttz / ctlz (a zero input is the width, also with
+///   is_zero_poison) are a binary search of selects, bitreverse a concat of
+///   one-bit extracts (sea has no op for them);
 /// - inline assembly: only BvOpSem2's patterns (empty-body barriers, a
 ///   single bswap) are recognized, here, so sea-mlir never sees assembly;
 /// - shadow.mem.in / shadow.mem.out (main only) have no effect.
@@ -64,6 +66,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
@@ -209,6 +212,9 @@ private:
                                               const Instruction &at);
   /// Returns false if \p CB is not an intrinsic with a sea op.
   bool exportIntrinsic(const CallBase &CB, Intrinsic::ID id);
+  /// llvm.cttz / llvm.ctlz / llvm.bitreverse, which have no sea op, in
+  /// terms of existing sea ops.
+  void exportBitIntrinsic(const CallBase &CB, Intrinsic::ID id);
   /// Emits the pointer arithmetic of \p gep; returns the result's name.
   std::optional<std::string> exportGep(const GEPOperator &gep,
                                        const Instruction &at);
@@ -879,6 +885,94 @@ void Exporter::exportInlineAsm(const CallBase &CB, const InlineAsm &IA) {
         &CB);
 }
 
+void Exporter::exportBitIntrinsic(const CallBase &CB, Intrinsic::ID id) {
+  std::string l = loc(CB);
+  auto *it = dyn_cast<IntegerType>(CB.getType());
+  if (!it) {
+    error("vector intrinsics are not supported", &CB);
+    return;
+  }
+  auto x = val(CB.getArgOperand(0), CB);
+  if (!x)
+    return;
+  unsigned w = it->getBitWidth();
+  std::string ty = "i" + std::to_string(w);
+  auto op = [&](StringRef o, const std::string &a, const std::string &b,
+                const std::string &t) {
+    std::string r = fresh();
+    os << "  " << r << " = sea." << o << " " << a << ", " << b << " : " << t
+       << l << "\n";
+    return r;
+  };
+  auto select = [&](const std::string &c, const std::string &a,
+                    const std::string &b, const std::string &t) {
+    std::string r = fresh();
+    os << "  " << r << " = sea.select " << c << ", " << a << ", " << b << " : "
+       << t << l << "\n";
+    return r;
+  };
+  if (id == Intrinsic::bitreverse) {
+    // bit i of the result is bit w-1-i of x: the w one-bit extracts,
+    // lowest result bit (x's top bit) first, concatenated
+    if (w == 1) {
+      names[&CB] = *x;
+      return;
+    }
+    SmallVector<std::pair<std::string, unsigned>> parts;
+    for (unsigned i = 0; i < w; ++i) {
+      std::string r = fresh();
+      os << "  " << r << " = sea.extract " << *x << "[" << (w - 1 - i)
+         << "] : " << ty << " -> i1" << l << "\n";
+      parts.push_back({r, 1});
+    }
+    names[&CB] = concatParts(parts, l);
+    return;
+  }
+  // cttz / ctlz: binary search on x zero-extended to a power-of-two width
+  // P (the extra high bits are zero: they do not change cttz and add P - w
+  // to ctlz). Step k = P/2, ..., 1: if the low (cttz) / high (ctlz) k bits
+  // of the current value are zero, count k and shift them out. A zero input
+  // is w, also with is_zero_poison (sea has no poison; LLVM's value with
+  // is_zero_poison = false).
+  bool trailing = id == Intrinsic::cttz;
+  unsigned P = PowerOf2Ceil(w);
+  std::string pty = "i" + std::to_string(P);
+  std::string cur = *x;
+  if (P != w) {
+    cur = fresh();
+    os << "  " << cur << " = sea.zext " << *x << " : " << ty << " to " << pty
+       << l << "\n";
+  }
+  std::string zero = emitConst(APInt::getZero(P), l);
+  std::string n = zero;
+  for (unsigned k = P / 2; k >= 1; k /= 2) {
+    // trailing: cur & (2^k - 1) == 0; leading: cur >> (P - k) == 0
+    std::string part =
+        trailing ? op("and", cur, emitConst(APInt::getLowBitsSet(P, k), l), pty)
+                 : op("lshr", cur, emitConst(APInt(P, P - k), l), pty);
+    std::string none = fresh();
+    os << "  " << none << " = sea.icmp eq, " << part << ", " << zero << " : "
+       << pty << l << "\n";
+    std::string kc = emitConst(APInt(P, k), l);
+    n = select(none, op("add", n, kc, pty), n, pty);
+    cur = select(none, op(trailing ? "lshr" : "shl", cur, kc, pty), cur, pty);
+  }
+  // n counts the zeros below / above the first set bit of a non-zero input
+  if (!trailing && P != w)
+    n = op("sub", n, emitConst(APInt(P, P - w), l), pty);
+  if (P != w) {
+    std::string t = fresh();
+    os << "  " << t << " = sea.trunc " << n << " : " << pty << " to " << ty
+       << l << "\n";
+    n = t;
+  }
+  std::string zw = emitConst(APInt::getZero(w), l), isZero = fresh();
+  os << "  " << isZero << " = sea.icmp eq, " << *x << ", " << zw << " : "
+     << ty << l << "\n";
+  std::string wc = emitConst(APInt(w, w), l);
+  names[&CB] = select(isZero, wc, n, ty);
+}
+
 bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   std::string l = loc(CB);
   auto emit = [&](const std::string &op, unsigned nargs, Type *t) {
@@ -905,6 +999,11 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   case Intrinsic::ctpop: op = "ctpop"; nargs = 1; break;
   case Intrinsic::fshl: op = "fshl"; nargs = 3; break;
   case Intrinsic::fshr: op = "fshr"; nargs = 3; break;
+  case Intrinsic::cttz:
+  case Intrinsic::ctlz:
+  case Intrinsic::bitreverse:
+    exportBitIntrinsic(CB, id);
+    return true;
   case Intrinsic::expect:
     if (auto a = val(CB.getArgOperand(0), CB))
       names[&CB] = *a;

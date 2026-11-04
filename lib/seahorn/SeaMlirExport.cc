@@ -16,8 +16,11 @@
 ///   when every byte is one value (zeroinitializer, a splat; any size),
 ///   else byte by byte, up to 16 KiB, when it is plain data (integers,
 ///   floats, arrays, structs, zeros;
-///   undef bytes stay nondet); initializers holding pointers are ignored
-///   (the global starts uninitialized), with a warning per global;
+///   undef bytes stay nondet); an initializer the export cannot write
+///   (pointers, constant expressions, larger than 16 KiB and not a splat,
+///   or a global used without a shadow.mem.global.init) is an error, or,
+///   with --horn-sea-mlir-allow-uninit-globals, a warning and the global
+///   starts uninitialized;
 /// - calls to external functions without a shadow-memory definition are
 ///   no-ops returning a nondet value (as BvOpSem2), with a warning per
 ///   callee;
@@ -95,6 +98,14 @@ static cl::opt<bool> SeaMlirExportOnly(
              "exit status is 0 if the export succeeded, 1 otherwise"),
     cl::init(false));
 
+static cl::opt<bool> SeaMlirAllowUninitGlobals(
+    "horn-sea-mlir-allow-uninit-globals",
+    cl::desc("sea-mlir export: a global initializer the export cannot "
+             "write (pointers, constant expressions, a large non-splat "
+             "initializer) is a warning, and the global starts "
+             "uninitialized (default: an error)"),
+    cl::init(false));
+
 static cl::list<std::string>
     SeaVcArgs("horn-sea-vc-arg",
               cl::desc("sea-mlir engine: an extra argument for sea-vc"));
@@ -152,6 +163,23 @@ private:
   void warnOnce(const Twine &key, const Twine &msg) {
     if (warned.insert(key.str()).second)
       WARN << "sea-mlir export: " << msg;
+  }
+  /// \p gv's initializer is not written (\p why): the global would start
+  /// uninitialized, which can make true facts unprovable and false ones
+  /// provable. An error unless --horn-sea-mlir-allow-uninit-globals (then a
+  /// warning); once per global.
+  void droppedInit(const GlobalVariable &gv, const Twine &why) {
+    std::string msg = ("the initializer of global " + gv.getName() +
+                       " is dropped (" + why +
+                       "): the global would start uninitialized")
+                          .str();
+    if (!warned.insert("init:" + gv.getName().str()).second)
+      return;
+    if (SeaMlirAllowUninitGlobals) {
+      WARN << "sea-mlir export: " << msg;
+      return;
+    }
+    error(msg + " (--horn-sea-mlir-allow-uninit-globals allows it)");
   }
 
   // -- names and types
@@ -244,6 +272,8 @@ private:
   DenseSet<const Value *> memValues;
   /// Globals whose initializer was exported (by shadow.mem.global.init).
   DenseSet<const GlobalVariable *> initializedGlobals;
+  /// Globals whose initializer exportGlobalInit could not write.
+  DenseSet<const GlobalVariable *> initFailed;
   /// The fields of {iN, i1} results of *.with.overflow intrinsics, which
   /// only extractvalue may use.
   DenseMap<const Value *, std::pair<std::string, std::string>> overflowParts;
@@ -377,9 +407,10 @@ std::optional<std::string> Exporter::constant(const Constant *c,
   }
   if (auto *gv = dyn_cast<GlobalVariable>(c)) {
     if (gv->hasInitializer() && !initializedGlobals.count(gv))
-      warnOnce("init:" + gv->getName(),
-               "the initializer of global " + gv->getName() +
-                   " is ignored: globals start uninitialized");
+      droppedInit(*gv, initFailed.count(gv)
+                           ? "it holds pointers or constant expressions"
+                           : "its memory region has no "
+                             "shadow.mem.global.init before this use");
     std::string n = fresh();
     uint64_t size = DL.getTypeAllocSize(gv->getValueType());
     os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
@@ -722,9 +753,14 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
         CB.getArgOperand(2)->stripPointerCastsAndAliases());
     if (!gv || !gv->hasInitializer())
       return;
+    // initialized from here on (exportGlobalInit's own reference to gv
+    // must not report its initializer as dropped)
+    initializedGlobals.insert(gv);
     if (auto out = exportGlobalInit(*gv, *in, CB)) {
       names[&CB] = *out;
-      initializedGlobals.insert(gv);
+    } else {
+      initializedGlobals.erase(gv);
+      initFailed.insert(gv);
     }
     return;
   }
@@ -873,15 +909,17 @@ Exporter::exportGlobalInit(const GlobalVariable &gv, const std::string &mem,
     return r;
   }
   if (!DL.isLittleEndian() || size > kMaxInitBytes) {
-    warnOnce("init-size:" + gv.getName(),
-             "the initializer of global " + gv.getName() +
-                 " is ignored (big-endian or larger than " +
-                 Twine(kMaxInitBytes) + " bytes)");
+    droppedInit(gv, DL.isLittleEndian()
+                        ? Twine(size) + " bytes, not one repeated byte, "
+                              "larger than " + Twine(kMaxInitBytes)
+                        : Twine("big-endian"));
     return std::nullopt;
   }
   SmallVector<std::optional<uint8_t>> bytes(size);
-  if (!initBytes(gv.getInitializer(), 0, DL, bytes))
-    return std::nullopt; // warned at its first use
+  if (!initBytes(gv.getInitializer(), 0, DL, bytes)) {
+    droppedInit(gv, "it holds pointers or constant expressions");
+    return std::nullopt;
+  }
   std::string l = loc(at);
   auto base = constant(&gv, at);
   if (!base)

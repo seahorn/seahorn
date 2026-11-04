@@ -1,0 +1,22 @@
+# verify-c-common profile: vacuity checking; an overlay, given after vcc (-y vcc -y vcc-vac)
+#
+# Copied from https://github.com/seahorn/verify-c-common, seahorn/sea_vac.yaml
+# (repository commit a3e6b0b, last change to the file 3a7d2d9); installed there as
+# build/seahorn/sea.vac.yaml by seahorn/CMakeLists.txt. Content kept; machine-specific
+# values are commented out (marked "shipped copy").
+# Written for SeaHorn's own BMC engine (bpf + --bmc=opsem). For exporting to
+# sea-mlir use the sea-mlir-export profile instead.
+#
+verify_options:
+  # Unify all assumes - needed for Vacuity check
+  horn-unify-assumes: true
+  # don't ignore control flow
+  horn-vcgen-only-dataflow: false
+  # don't reduce by data dependence
+  horn-bmc-coi: false
+  horn-bv2-vacuity-check: "all"
+  # unwinding assertions
+  # Note: checked only by the incremental checking during vacuity
+  assert-on-backedge: true
+  # evaluate branch sentinel intrinsic
+  eval-branch-sentinel: ''

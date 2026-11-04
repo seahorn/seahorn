@@ -13,6 +13,7 @@
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
+#include "seahorn/Support/InlineAsmBarrier.hh"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
@@ -804,6 +805,11 @@ public:
     // "r,~{memory},~{dirflag},~{fpsr},~{flags}"(i8* %7) #5, !dbg !102, !srcloc
     // !103
     // 3) Single instruction of bswap asm
+    // 4) a compiler barrier: an empty or comment-only body, register inputs
+    // only, memory / flags clobbers (isInlineAsmBarrier; the sea-mlir
+    // export accepts the same)
+    if (isInlineAsmBarrier(CB, *cast<InlineAsm>(CB.getCalledOperand())))
+      return;
 
     IntegerType *Ty = dyn_cast<IntegerType>(CB.getType());
     if ((Ty && Ty->getBitWidth() % 16 != 0) || CB.arg_size() > 1) {

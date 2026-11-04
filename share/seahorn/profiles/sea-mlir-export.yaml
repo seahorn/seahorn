@@ -1,0 +1,58 @@
+# SeaHorn profile: export a C program to sea-mlir (the "extract profile").
+#
+#   clang-18 -c -emit-llvm -D__SEAHORN__ -fdeclspec -O1 -Xclang -disable-llvm-optzns \
+#            -fgnu89-inline -m64 -g -I<sea>/include ... -o prog.bc prog.c
+#   sea yama -y sea-mlir-export [-y my.yaml] --bound=8 \
+#            --horn-sea-mlir-out=prog.mlir prog.bc
+#   sea-vc prog.mlir --lower --seam --widen-memory=4 ...
+#
+# `sea yama -y sea-mlir-export` finds this file by name (SEAHORN_PROFILE_PATH,
+# then <prefix>/share/seahorn/profiles). See docs/sea-mlir-export.md.
+#
+# Per-run options stay on the command line (or in the program's own yaml,
+# given after this profile): the unroll bound (--bound), the output
+# (--horn-sea-mlir-out), and, when the intermediate files are wanted,
+# --temp-dir=DIR --keep-temps (DIR per run; without them each run uses a
+# fresh temporary directory that is deleted at exit).
+#
+# Only options that change the exported program are here. The options of
+# SeaHorn's own BMC VC generator (horn-gsa, horn-vcgen-only-dataflow,
+# horn-bmc-coi, horn-vcgen-use-ite, horn-bv2-*, sea-opsem-allocator,
+# horn-explicit-sp0) are read only by BmcPass / VCGen / BvOpSem2, which do not
+# run with --horn-bmc-engine=sea-mlir, so they are left out.
+verify_options:
+  # the bounded pipeline: fe | unroll | cut-loops | opt | horn
+  command: bpf
+  # seaopt optimization level (also the default; stated for clarity)
+  '-O3': ''
+  # pp: inline every function into main (the export translates main only)
+  inline: ''
+  # pp: resolve indirect calls by type signature (devirtualization)
+  devirt-functions: types
+  # pp: calls through address-taken functions go through external stubs
+  externalize-addr-taken-functions: ''
+  # pp: keep variadic functions (do not replace them by nondet)
+  no-kill-vaarg: ''
+  # pp: keep llvm.*.with.overflow (the export maps them to sea.*o ops)
+  with-arith-overflow: true
+  # pp: only undefined __VERIFIER_* functions are verifier calls
+  ignore-define-verifier-fns: ''
+  # Not set: horn-promote-memcpy (pp: whole-struct memcpy to field-wise
+  # stores). verify-c-common's source sea.yaml has it since 8bd8cb3; its
+  # configured build copy, which the application harnesses used, predates
+  # that. It changes the exported program; enable it with
+  # --horn-promote-memcpy=true after evaluating it on sea-mlir.
+  # shadow memory: context-sensitive, type-aware sea-dsa; its regions become
+  # the exported memories
+  dsa: sea-cs-t
+  # BMC mode; also sets --horn-shadow-mem-alloc-is-def (the export relies on
+  # allocations being memory definitions) and --lower-gv-init-struct=false
+  bmc: opsem
+  # never unify assumes for sea-mlir: UnifyAssumes runs before the engine
+  # (tools/seahorn/seahorn.cpp) and is only for SeaHorn's gsa+dataflow+coi VC
+  horn-unify-assumes: false
+  # the engine: export to sea-mlir ...
+  horn-bmc-engine: sea-mlir
+  # ... and exit after the export, status 0 if it succeeded, 1 otherwise
+  # (no sea-vc run)
+  horn-sea-mlir-export-only: true

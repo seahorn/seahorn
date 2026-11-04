@@ -344,6 +344,12 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
     DESTINATION share/)
 endif()
 
+# named option profiles for `sea yama -y NAME` (py/sea/yama.py looks for
+# NAME.yaml in <prefix>/share/seahorn/profiles)
+install (DIRECTORY share/seahorn/profiles/
+  DESTINATION share/seahorn/profiles
+  FILES_MATCHING PATTERN "*.yaml")
+
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)
 if (NOT RT_LIB)

@@ -109,6 +109,14 @@ static llvm::cl::opt<std::string> DefaultDataLayout(
     llvm::cl::desc("data layout string to use if not specified by module"),
     llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
+// Off by default (SeaHorn's pipeline is unchanged); `sea` turns it on for
+// the sea-mlir engine (py/sea/commands.py, Seapp).
+static llvm::cl::opt<bool> LowerExpectFirst(
+    "seapp-lower-expect",
+    llvm::cl::desc("Lower llvm.expect to branch weights at the start of the "
+                   "default pre-processing pipeline"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> InlineAll("horn-inline-all",
                                      llvm::cl::desc("Inline all functions"),
                                      llvm::cl::init(false));
@@ -602,7 +610,8 @@ int main(int argc, char **argv) {
     // -- llvm.expect (__builtin_expect, FD_LIKELY) to branch weights, so
     // -- that the optimizer folds the branches it guards (a kept dead
     // -- branch can store poison through null)
-    pm_wrapper.addFunctionPass(llvm::LowerExpectIntrinsicPass());
+    if (LowerExpectFirst)
+      pm_wrapper.addFunctionPass(llvm::LowerExpectIntrinsicPass());
 
     // -- Externalize some user-selected functions
     pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());

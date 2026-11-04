@@ -241,6 +241,16 @@ int main(int argc, char **argv) {
   llvm::cl::ParseCommandLineOptions(
       argc, argv, "SeaHorn -- LLVM bitcode to Horn/SMT2 transformation\n");
 
+  // -- the sea-mlir engine turns on the pre-processing its export relies on
+  // -- (off by default, so SeaHorn's own engines are unchanged), unless the
+  // -- option is given explicitly
+  if (BmcEngine == BmcEngineKind::sea_mlir) {
+    auto &opts = llvm::cl::getRegisteredOptions();
+    auto it = opts.find("horn-lower-gv-init-keep-align");
+    if (it != opts.end() && it->second->getNumOccurrences() == 0)
+      static_cast<llvm::cl::opt<bool> *>(it->second)->setValue(true);
+  }
+
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;

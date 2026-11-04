@@ -509,8 +509,17 @@ class Seapp(sea.LimitedCmd):
             for l in args.dsa_log.split (':'): argv.extend (['-log', l])
 
         argv.extend (args.in_files)
-        # -- pass sea-dsa options through: seapp links sea-dsa
-        argv.extend (filter (_is_sea_dsa_opt, extra))
+        # -- the sea-mlir engine turns on the pre-processing its export
+        # -- relies on (off by default: SeaHorn's own engines are unchanged)
+        # -- unless given explicitly
+        passthrough = list (filter (_is_seapp_passthrough_opt, extra))
+        if _uses_sea_mlir_engine (extra):
+            for o in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align'):
+                if not any (x.lstrip ('-').split ('=', 1)[0] == o
+                            for x in passthrough):
+                    argv.append ('--' + o)
+        # -- pass sea-dsa options and the options above through
+        argv.extend (passthrough)
         return self.seappCmd.run (args, argv)
 
 class MixedSem(sea.LimitedCmd):
@@ -1167,6 +1176,27 @@ def _is_sea_dsa_opt (x):
     '''sea-dsa options (--sea-dsa-*). The bare --sea-dsa= is not one of them:
     sea sets it itself from --dsa.'''
     return x.startswith ('-') and x.lstrip ('-').startswith ('sea-dsa-')
+
+def _is_seapp_passthrough_opt (x):
+    '''Options of extra passed to seapp: sea-dsa options, and seapp's
+    sea-mlir pre-processing options.'''
+    if _is_sea_dsa_opt (x):
+        return True
+    if not x.startswith ('-'):
+        return False
+    y = x.lstrip ('-').split ('=', 1)[0]
+    return y in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align')
+
+def _uses_sea_mlir_engine (extra):
+    '''True if extra selects the sea-mlir BMC engine
+    (--horn-bmc-engine=sea-mlir or --horn-bmc-engine sea-mlir).'''
+    for i, x in enumerate (extra):
+        if x.lstrip ('-') == 'horn-bmc-engine=sea-mlir':
+            return True
+        if (x.lstrip ('-') == 'horn-bmc-engine' and i + 1 < len (extra)
+                and extra[i + 1] == 'sea-mlir'):
+            return True
+    return False
 
 def _is_seahorn_opt (x):
     prefixes = ['horn-', 'crab', 'sea-opsem', 'sea-dsa-']

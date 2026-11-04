@@ -37,6 +37,7 @@
 #include "llvm/Transforms/IPO/GlobalOpt.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/InstructionNamer.h"
@@ -598,6 +599,11 @@ int main(int argc, char **argv) {
   }
   // default pre-processing pipeline
   else {
+    // -- llvm.expect (__builtin_expect, FD_LIKELY) to branch weights, so
+    // -- that the optimizer folds the branches it guards (a kept dead
+    // -- branch can store poison through null)
+    pm_wrapper.addFunctionPass(llvm::LowerExpectIntrinsicPass());
+
     // -- Externalize some user-selected functions
     pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
 

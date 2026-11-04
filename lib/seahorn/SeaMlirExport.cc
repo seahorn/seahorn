@@ -12,8 +12,10 @@
 ///   passes make reachable only through seahorn.fail) becomes
 ///   `sea.assert false` before `sea.halt` in the return block;
 ///   `unreachable` becomes `sea.unreachable`;
-/// - shadow.mem.global.init stores a global's initializer, byte by byte,
-///   when it is plain data (integers, floats, arrays, structs, zeros;
+/// - shadow.mem.global.init stores a global's initializer: one sea.memset
+///   when every byte is one value (zeroinitializer, a splat; any size),
+///   else byte by byte, up to 16 KiB, when it is plain data (integers,
+///   floats, arrays, structs, zeros;
 ///   undef bytes stay nondet); initializers holding pointers are ignored
 ///   (the global starts uninitialized), with a warning per global;
 /// - calls to external functions without a shadow-memory definition are
@@ -805,12 +807,71 @@ static bool initBytes(const Constant *c, uint64_t off, const DataLayout &DL,
   return false;
 }
 
+/// Whether every byte of \p c is one value, merged into \p b (unset: no
+/// byte seen yet). False if \p c holds undef bytes, pointers or constant
+/// expressions. Padding (struct padding, alloc size beyond store size) is
+/// not looked at: a memset over the object also sets it, as the zero or
+/// splat padding of the emitted object file.
+static bool splatBytes(const Constant *c, const DataLayout &DL,
+                       std::optional<uint8_t> &b) {
+  auto merge = [&](uint8_t v) {
+    if (!b)
+      b = v;
+    return *b == v;
+  };
+  if (isa<ConstantAggregateZero>(c))
+    return DL.getTypeStoreSize(c->getType()) == 0 || merge(0);
+  if (auto *cds = dyn_cast<ConstantDataSequential>(c)) {
+    // the raw data (host order; a splat does not depend on it)
+    for (char v : cds->getRawDataValues())
+      if (!merge(static_cast<uint8_t>(v)))
+        return false;
+    return true;
+  }
+  std::optional<APInt> bits;
+  if (auto *ci = dyn_cast<ConstantInt>(c))
+    bits = ci->getValue();
+  else if (auto *cf = dyn_cast<ConstantFP>(c))
+    bits = cf->getValueAPF().bitcastToAPInt();
+  if (bits) {
+    uint64_t n = DL.getTypeStoreSize(c->getType());
+    APInt v = bits->zext(n * 8);
+    for (uint64_t i = 0; i < n; ++i)
+      if (!merge(v.extractBitsAsZExtValue(8, 8 * i)))
+        return false;
+    return true;
+  }
+  if (isa<ConstantStruct, ConstantArray, ConstantVector>(c)) {
+    for (unsigned i = 0, n = c->getNumOperands(); i < n; ++i)
+      if (!splatBytes(cast<Constant>(c->getOperand(i)), DL, b))
+        return false;
+    return true;
+  }
+  return false; // undef, pointers, constant expressions
+}
+
 std::optional<std::string>
 Exporter::exportGlobalInit(const GlobalVariable &gv, const std::string &mem,
                            const Instruction &at) {
   /// Above this many bytes, an initializer is left out (a store per byte).
   constexpr uint64_t kMaxInitBytes = 1 << 14;
   uint64_t size = DL.getTypeAllocSize(gv.getValueType());
+  // All zero, or one repeated byte: one sea.memset over the object, at any
+  // size (a 4 KiB zero array was 4096 stores).
+  std::optional<uint8_t> splat;
+  if (splatBytes(gv.getInitializer(), DL, splat)) {
+    if (size == 0)
+      return mem;
+    std::string l = loc(at);
+    auto base = constant(&gv, at);
+    if (!base)
+      return std::nullopt;
+    std::string v = emitConst(APInt(8, splat.value_or(0)), l);
+    std::string n = emitConst(APInt(W, size), l), r = fresh();
+    os << "  " << r << " = sea.memset " << mem << "[" << *base << "], " << v
+       << ", " << n << " inplace : " << memTy << l << "\n";
+    return r;
+  }
   if (!DL.isLittleEndian() || size > kMaxInitBytes) {
     warnOnce("init-size:" + gv.getName(),
              "the initializer of global " + gv.getName() +

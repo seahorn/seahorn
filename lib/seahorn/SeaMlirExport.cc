@@ -69,6 +69,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstdlib>
 #include <optional>
 
 using namespace llvm;
@@ -82,6 +83,12 @@ static cl::opt<std::string> SeaMlirOut(
 static cl::opt<std::string>
     SeaVcPath("horn-sea-vc", cl::desc("sea-mlir engine: the sea-vc tool"),
               cl::init("sea-vc"));
+
+static cl::opt<bool> SeaMlirExportOnly(
+    "horn-sea-mlir-export-only",
+    cl::desc("sea-mlir engine: export and exit without running sea-vc; the "
+             "exit status is 0 if the export succeeded, 1 otherwise"),
+    cl::init(false));
 
 static cl::list<std::string>
     SeaVcArgs("horn-sea-vc-arg",
@@ -1815,36 +1822,49 @@ bool exportSeaMlir(const Function &F, raw_ostream &out, SeaMlirSites &sites) {
   return Exporter(F, out, sites).run();
 }
 
+/// --horn-sea-mlir-export-only: ends the process after the export, with
+/// status 0 if it succeeded and 1 otherwise (a harness can test the status;
+/// without the option a failed export only prints errors).
+static void exportOnlyExit(bool ok, StringRef path) {
+  if (ok)
+    outs() << "sea-mlir-export: wrote " << path << "\n";
+  else
+    errs() << "sea-mlir-export: export failed (see the errors above)\n";
+  outs().flush();
+  errs().flush();
+  std::exit(ok ? 0 : 1);
+}
+
 PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
-  Function *main = M.getFunction("main");
-  if (!main || main->isDeclaration()) {
-    ERR << "sea-mlir engine: no main function";
+  auto fail = [](const Twine &msg) {
+    ERR << "sea-mlir engine: " << msg;
+    if (SeaMlirExportOnly)
+      exportOnlyExit(false, "");
     return PreservedAnalyses::all();
-  }
+  };
+  Function *main = M.getFunction("main");
+  if (!main || main->isDeclaration())
+    return fail("no main function");
 
   // Export.
   SmallString<128> path(SeaMlirOut);
   if (path.empty()) {
     int fd;
-    if (sys::fs::createTemporaryFile("sea", "mlir", fd, path)) {
-      ERR << "sea-mlir engine: cannot create a temporary file";
-      return PreservedAnalyses::all();
-    }
+    if (sys::fs::createTemporaryFile("sea", "mlir", fd, path))
+      return fail("cannot create a temporary file");
     sys::Process::SafelyCloseFileDescriptor(fd);
   }
   SeaMlirSites sites;
   {
     std::error_code ec;
     raw_fd_ostream file(path, ec);
-    if (ec) {
-      ERR << "sea-mlir engine: cannot write " << path << ": " << ec.message();
-      return PreservedAnalyses::all();
-    }
-    if (!exportSeaMlir(*main, file, sites)) {
-      ERR << "sea-mlir engine: export failed";
-      return PreservedAnalyses::all();
-    }
+    if (ec)
+      return fail(Twine("cannot write ") + path + ": " + ec.message());
+    if (!exportSeaMlir(*main, file, sites))
+      return fail("export failed");
   }
+  if (SeaMlirExportOnly)
+    exportOnlyExit(true, path);
   if (!m_solve)
     return PreservedAnalyses::all();
 

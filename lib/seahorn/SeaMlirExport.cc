@@ -2058,9 +2058,13 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
   } else {
     bool canFail = false;
     for (const Instruction &I : instructions(*main))
-      if (auto *cb = dyn_cast<CallBase>(&I))
+      if (auto *cb = dyn_cast<CallBase>(&I)) {
         if (const Function *f = calledFunction(*cb))
           canFail |= f->getName() == "seahorn.fail" || !f->isDeclaration();
+        else
+          // an indirect call may reach seahorn.fail: not decided
+          canFail |= !cb->isInlineAsm();
+      }
     if (!canFail)
       decided = "main cannot reach seahorn.fail after the pipeline (the "
                 "front end decided every assertion before export)";

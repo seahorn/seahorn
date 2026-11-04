@@ -7,6 +7,7 @@ class Yama(sea.CliCmd):
     def __init__(self):
         super().__init__('yama', 'Yama', allow_extra=False)
         self._ignore_error = False
+        self._used_profile = False
 
     def mk_arg_parser(self, argp):
         import argparse
@@ -21,6 +22,12 @@ class Yama(sea.CliCmd):
                           help='do not execute final command')
         argp.add_argument('--yforce', action='store_true', default=False,
                           help='ignore all errors')
+        argp.add_argument('--ylead-opts', dest='ylead_opts',
+                          action='store_true', default=False,
+                          help='pass on options given before the first '
+                          'non-option word (e.g. `sea yama -y P --bound=8 '
+                          'prog.bc`); without it they are dropped, except '
+                          'when a -y names a shipped profile')
         argp.add_argument('extra', nargs=argparse.REMAINDER)
         return argp
 
@@ -56,6 +63,7 @@ class Yama(sea.CliCmd):
             if os.path.isfile(path):
                 path = os.path.normpath(path)
                 print('Yama using profile {0}: {1}'.format(fname, path))
+                self._used_profile = True
                 return path
         if not self._ignore_error:
             print('Yama: no file or profile named {0} (profiles searched in: '
@@ -175,15 +183,22 @@ class Yama(sea.CliCmd):
         if args.yconfig is None:
             args.yconfig = [['sea.yaml']]
 
+        # resolve -y arguments first: naming a shipped profile turns on
+        # --ylead-opts below
+        configs = [self.resolve_config(f[0]) for f in args.yconfig]
+
         # options before the first non-option word (e.g. `sea yama -y P
         # --bound=8 prog.bc`, the sub-command coming from the profile) are
         # not part of args.extra: the top-level `sea` parser hands them over
-        # as _extra. Without this they were silently dropped.
-        extra = list(_extra) + args.extra
+        # as _extra. They are dropped (old behavior) unless --ylead-opts is
+        # given or a -y named a shipped profile.
+        extra = args.extra
+        if args.ylead_opts or self._used_profile:
+            extra = list(_extra) + args.extra
         args_dict = None
-        for f in args.yconfig:
+        for f, fname in zip(args.yconfig, configs):
             assert len(f) == 1
-            yaml_args = self.parse_yaml_options(self.resolve_config(f[0]))
+            yaml_args = self.parse_yaml_options(fname)
             if yaml_args is None:
                 continue
             if args_dict is None:

@@ -49,6 +49,14 @@ static llvm::cl::opt<bool>
     EnableDiv("horn-enable-div", llvm::cl::desc("Enable division constraints."),
               cl::init(true));
 
+// Off by default (old encoding: these intrinsics are unconstrained and
+// x | y = 0 says nothing about x and y).
+static llvm::cl::opt<bool> EncodeMinMaxOr(
+    "horn-ufo-minmax-abs-or",
+    llvm::cl::desc("Encode llvm.{s,u}{min,max} and llvm.abs, and that "
+                   "x | y = 0 implies x = 0 and y = 0"),
+    cl::init(false));
+
 static llvm::cl::opt<bool> RewriteDiv(
     "horn-rewrite-div",
     llvm::cl::desc("Rewrite division constraints to multiplications."),
@@ -456,10 +464,15 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // 0 | x = x
       // x | y = 0 implies x = 0 and y = 0 (InstCombine folds
       // x == 0 && y == 0 into (x | y) == 0)
-      res = mk<AND>(mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
-                    mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)),
-                    mk<IMPL>(mk<EQ>(lhs, zeroE),
-                             mk<AND>(mk<EQ>(op0, zeroE), mk<EQ>(op1, zeroE))));
+      if (EncodeMinMaxOr)
+        res = mk<AND>(
+            mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
+            mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)),
+            mk<IMPL>(mk<EQ>(lhs, zeroE),
+                     mk<AND>(mk<EQ>(op0, zeroE), mk<EQ>(op1, zeroE))));
+      else
+        res = mk<AND>(mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
+                      mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)));
       break;
     case BinaryOperator::LShr:
       if (const ConstantInt *ci = dyn_cast<ConstantInt>(&v1))
@@ -739,11 +752,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
     const Function &PF = *CB.getParent()->getParent();
 
     // -- InstCombine canonicalizes icmp+select into these intrinsics
-    if (auto *MM = dyn_cast<MinMaxIntrinsic>(&CB)) {
+    if (auto *MM = dyn_cast<MinMaxIntrinsic>(&CB); MM && EncodeMinMaxOr) {
       visitMinMax(*MM);
       return;
     }
-    if (auto *II = dyn_cast<IntrinsicInst>(&CB)) {
+    if (auto *II = dyn_cast<IntrinsicInst>(&CB); II && EncodeMinMaxOr) {
       if (II->getIntrinsicID() == Intrinsic::abs) {
         visitAbs(*II);
         return;

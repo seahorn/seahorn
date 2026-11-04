@@ -18,6 +18,15 @@ static llvm::cl::opt<bool>
                      llvm::cl::desc("Lower constructors in llvm.global_ctors"),
                      llvm::cl::init(true));
 
+// Off by default (old behavior: the alloca gets its type's ABI alignment);
+// `sea` turns it on for the sea-mlir engine (py/sea/commands.py, Seapp;
+// tools/seahorn/seahorn.cpp for --horn-bmc-engine=sea-mlir).
+static llvm::cl::opt<bool> LowerGvKeepAlign(
+    "horn-lower-gv-init-keep-align",
+    llvm::cl::desc("A global promoted to an alloca keeps the global's "
+                   "alignment"),
+    llvm::cl::init(false));
+
 namespace seahorn {
 char LowerGvInitializers::ID = 0;
 
@@ -192,7 +201,8 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         AllocaInst *Alloca =
             Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
         // Keep the global's alignment: its accesses rely on it.
-        if (MaybeAlign a = gv->getAlign(); a && *a > Alloca->getAlign())
+        if (MaybeAlign a = gv->getAlign();
+            LowerGvKeepAlign && a && *a > Alloca->getAlign())
           Alloca->setAlignment(*a);
         Builder.CreateAlignedStore(gv->getInitializer(), Alloca,
                                    DL->getABITypeAlign(ElemTy));

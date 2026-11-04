@@ -76,6 +76,13 @@ static llvm::cl::opt<bool>
                llvm::cl::desc("Use lambdas for array operations"),
                cl::init(false));
 
+static llvm::cl::opt<bool> AsmBarrier(
+    "horn-bv2-asm-barrier",
+    llvm::cl::desc("Accept inline asm that is only a compiler barrier "
+                   "(empty or comment-only body, memory/flags clobbers) "
+                   "silently, as the sea-mlir export does"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> UseFatMemory(
     "horn-bv2-fatmem",
     llvm::cl::desc(
@@ -808,7 +815,10 @@ public:
     // 4) a compiler barrier: an empty or comment-only body, register inputs
     // only, memory / flags clobbers (isInlineAsmBarrier; the sea-mlir
     // export accepts the same)
-    if (isInlineAsmBarrier(CB, *cast<InlineAsm>(CB.getCalledOperand())))
+    // (under --horn-bv2-asm-barrier; without it such asm is also a no-op
+    // but is reported as unsupported)
+    if (AsmBarrier &&
+        isInlineAsmBarrier(CB, *cast<InlineAsm>(CB.getCalledOperand())))
       return;
 
     IntegerType *Ty = dyn_cast<IntegerType>(CB.getType());

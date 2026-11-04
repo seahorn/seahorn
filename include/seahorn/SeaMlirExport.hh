@@ -7,7 +7,10 @@
 /// input is an error, never skipped silently.
 ///
 /// The engine (--horn-bmc-engine=sea-mlir) exports, runs sea-vc on the
-/// result, and reports sat/unsat like the mono BMC engine.
+/// result, and reports sat/unsat like the mono BMC engine. With
+/// --horn-sea-mlir-export-only it exports and exits: status 0 and
+/// `sea-mlir-export: wrote <file>` if the export succeeded, status 1 and
+/// `sea-mlir-export: export failed ...` otherwise.
 
 #include "llvm/IR/PassManager.h"
 

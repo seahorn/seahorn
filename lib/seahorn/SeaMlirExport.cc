@@ -77,6 +77,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
@@ -95,6 +96,13 @@ static cl::opt<std::string> SeaMlirOut(
     "horn-sea-mlir-out",
     cl::desc("sea-mlir engine: write the exported program to this file "
              "(default: a temporary file)"),
+    cl::init(""));
+
+static cl::opt<std::string> SeaMlirLlOut(
+    "horn-sea-mlir-ll-out",
+    cl::desc("sea-mlir engine (debugging): write the exported LLVM module to "
+             "this file and link every op's location to its instruction "
+             "there (fused<\"llvm @f %bb #i\">)"),
     cl::init(""));
 
 static cl::opt<std::string>
@@ -152,9 +160,12 @@ std::string quote(StringRef s) {
 
 class Exporter {
 public:
-  Exporter(const Function &F, raw_ostream &out, SeaMlirSites &sites)
+  Exporter(const Function &F, raw_ostream &out, SeaMlirSites &sites,
+           bool llvmLinks, StringRef mlirPath)
       : F(F), DL(F.getParent()->getDataLayout()), out(out), sites(sites),
         os(body) {
+    this->llvmLinks = llvmLinks;
+    this->mlirPath = mlirPath.str();
     W = DL.getPointerSizeInBits();
     ptrTy = "!sea.ptr<" + std::to_string(W) + ">";
     memTy = "!sea.mem<" + ptrTy + ", i8>";
@@ -212,6 +223,13 @@ private:
   /// Source paths are relative to it: the compilation directory of the
   /// module's first compile unit.
   std::string srcRoot;
+  /// --horn-sea-mlir-ll-out: link each op to its LLVM instruction.
+  bool llvmLinks = false;
+  std::string mlirPath;
+  std::string llvmLink(const Instruction &I);
+  void placePositions(std::string &text) const;
+  std::unique_ptr<ModuleSlotTracker> slots;
+  DenseMap<const Instruction *, std::string> links;
   std::string blockName(const BasicBlock *BB) {
     auto it = blocks.find(BB);
     if (it == blocks.end())
@@ -357,6 +375,69 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
   return std::nullopt;
 }
 
+/// --horn-sea-mlir-ll-out: stands for an op's position in the output
+/// (placePositions).
+static constexpr const char *kPosToken = "@@SEA_MLIR_POS@@";
+
+/// The link of \p I to the .ll file: "llvm @<function> %<block> #<i>", the
+/// block as the .ll names it (its name, else its slot number), i the
+/// instruction's 0-based ordinal in the block.
+std::string Exporter::llvmLink(const Instruction &I) {
+  auto it = links.find(&I);
+  if (it != links.end())
+    return it->second;
+  if (!slots) {
+    slots = std::make_unique<ModuleSlotTracker>(F.getParent());
+    slots->incorporateFunction(F);
+  }
+  const BasicBlock &BB = *I.getParent();
+  std::string head;
+  raw_string_ostream hs(head);
+  hs << "llvm ";
+  F.printAsOperand(hs, false, *slots);
+  hs << " ";
+  BB.printAsOperand(hs, false, *slots);
+  unsigned k = 0;
+  for (const Instruction &J : BB)
+    links[&J] = head + " #" + std::to_string(k++);
+  return links[&I];
+}
+
+/// An op without a source position gets its position in the output file:
+/// the MLIR parser gives an op without a location that position, but not an
+/// op whose location is only the llvm link. Body line n is file line n + 2
+/// (the comment and the sea.program line); the column is the op name's.
+void Exporter::placePositions(std::string &text) const {
+  std::string res;
+  size_t lineNo = 3;
+  for (StringRef rest = text; !rest.empty(); ++lineNo) {
+    auto [line, tail] = rest.split('\n');
+    rest = tail;
+    size_t at = line.find(kPosToken);
+    if (at == StringRef::npos) {
+      res += line;
+      res += '\n';
+      continue;
+    }
+    size_t col = line.find_first_not_of(' ');
+    if (line.substr(col).starts_with("%")) {
+      size_t eq = line.find(" = ", col);
+      if (eq != StringRef::npos)
+        col = eq + 3;
+    }
+    std::string pos = quote(mlirPath) + ":" + std::to_string(lineNo) + ":" +
+                      std::to_string(col + 1);
+    for (; at != StringRef::npos; at = line.find(kPosToken)) {
+      res += line.take_front(at);
+      res += pos;
+      line = line.drop_front(at + strlen(kPosToken));
+    }
+    res += line;
+    res += '\n';
+  }
+  text = std::move(res);
+}
+
 /// The path of a source file: its directory and name, relative to the
 /// compilation directory \p root when it lies under it, else absolute (or as
 /// the debug info has it).
@@ -393,6 +474,9 @@ std::string Exporter::loc(const Instruction &I, bool named) {
   std::string child;
   if (const DILocation *dl = I.getDebugLoc().get())
     child = sourceLoc(dl, srcRoot);
+  if (llvmLinks)
+    child = "fused<" + quote(llvmLink(I)) + ">[" +
+            (child.empty() ? kPosToken : child) + "]";
   if (named && I.hasName() && !generatedName(I)) {
     std::string n = quote(I.getName());
     return " loc(" + (child.empty() ? n : n + "(" + child + ")") + ")";
@@ -485,8 +569,15 @@ std::optional<std::string> Exporter::constant(const Constant *c,
     gv->getDebugInfo(dvs);
     for (DIGlobalVariableExpression *e : dvs)
       if (const DIGlobalVariable *v = e->getVariable(); v && v->getLine()) {
-        l = " loc(" + quote(sourcePath(v->getFile(), srcRoot)) + ":" +
-            std::to_string(v->getLine()) + ":0)";
+        std::string pos = quote(sourcePath(v->getFile(), srcRoot)) + ":" +
+                          std::to_string(v->getLine()) + ":0";
+        if (llvmLinks) {
+          std::string g;
+          raw_string_ostream gs(g);
+          gv->printAsOperand(gs, false, F.getParent());
+          pos = "fused<" + quote("llvm " + g) + ">[" + pos + "]";
+        }
+        l = " loc(" + pos + ")";
         break;
       }
     os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
@@ -2312,6 +2403,8 @@ bool Exporter::run() {
   out << "// Exported from SeaHorn (" << F.getParent()->getModuleIdentifier()
       << ", function " << F.getName() << ").\n";
   out << "sea.program @" << quote(F.getName()) << " {\n";
+  if (llvmLinks)
+    placePositions(body);
   out << os.str();
   out << "}\n";
   return true;
@@ -2319,8 +2412,9 @@ bool Exporter::run() {
 
 } // namespace
 
-bool exportSeaMlir(const Function &F, raw_ostream &out, SeaMlirSites &sites) {
-  return Exporter(F, out, sites).run();
+bool exportSeaMlir(const Function &F, raw_ostream &out, SeaMlirSites &sites,
+                   bool llvmLinks, StringRef mlirPath) {
+  return Exporter(F, out, sites, llvmLinks, mlirPath).run();
 }
 
 /// --horn-sea-mlir-export-only: ends the process after the export, with
@@ -2393,8 +2487,16 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
            << "  sea.assert %v0\n"
            << "  sea.halt\n"
            << "}\n";
-    else if (!exportSeaMlir(*main, file, sites))
+    else if (!exportSeaMlir(*main, file, sites, !SeaMlirLlOut.empty(), path))
       return fail("export failed");
+  }
+  // --horn-sea-mlir-ll-out: the module the links refer to, as exported
+  if (!SeaMlirLlOut.empty()) {
+    std::error_code ec;
+    raw_fd_ostream ll(SeaMlirLlOut, ec);
+    if (ec)
+      return fail(Twine("cannot write ") + SeaMlirLlOut + ": " + ec.message());
+    M.print(ll, nullptr);
   }
   if (SeaMlirExportOnly)
     exportOnlyExit(true, path);

@@ -128,6 +128,33 @@ An op's location is the C location of the LLVM instruction it comes from
 
 Locations do not change the VC: `sea-vc --smt2` gives the same query.
 
+### Debugging mode: the LLVM level
+
+For the rare case where the C program and the MLIR do not match (a new
+front end, a compiler or modelling issue), `--horn-sea-mlir-ll-out=FILE`
+(not in the profile) writes the LLVM module the export translated, after all
+of SeaHorn's passes, to FILE as `.ll`, and links every op's location to its
+instruction there:
+
+```
+%v128 = sea.nondet "nd_int" [2] : i32 loc(fused<"llvm @main %entry #5">["l.c":15:11])
+sea.assert %v138 loc(fused<"llvm @main %entry.split #1">["prog.mlir":150:3])
+%v65 = sea.global @"tab" ... loc(fused<"llvm @tab">["l.c":6:0])
+```
+
+- The FusedLoc's metadata is `llvm @<function> %<block> #<i>`: the block as
+  the `.ll` names it (its label, or its slot number when it has no name),
+  and `i` the instruction's 0-based ordinal in the block (count the lines
+  after the label). A global's link is `llvm @<global>`. All ops exported
+  from one instruction share its link.
+- To follow an op: C position (its file location) -> `.ll` instruction (the
+  link) -> MLIR op (the op itself). The `.ll` keeps SeaHorn's generated
+  names (`%_N`, `%sm<N>`), which the MLIR locations do not show.
+- An op without a source position gets its position in the `.mlir` (the
+  MLIR parser does not give one to an op that has a location): sea-vc's
+  `assert-op` and `at=` show the same as without the option. A source name
+  stays the outer NameLoc (`"x"(fused<...>[...])`), so VC symbol names and
+  the query do not change.
 ## Profiles by name
 
 `sea yama -y NAME` with a NAME that is not an existing file, has no `/` and

@@ -42,9 +42,13 @@ struct SeaMlirSites {
 };
 
 /// Prints \p F as a sea.program. Returns false after reporting errors if
-/// \p F uses something the exporter does not support.
+/// \p F uses something the exporter does not support. With \p llvmLinks,
+/// every op's location links to its LLVM instruction (fused<"llvm @f %bb
+/// #i">), and an op without a source position gets its position in the
+/// output, the file \p mlirPath (--horn-sea-mlir-ll-out).
 bool exportSeaMlir(const llvm::Function &F, llvm::raw_ostream &out,
-                   SeaMlirSites &sites);
+                   SeaMlirSites &sites, bool llvmLinks = false,
+                   llvm::StringRef mlirPath = "");
 
 /// --horn-bmc-engine=sea-mlir: export main, run sea-vc, print sat/unsat.
 class SeaMlirEnginePass : public llvm::PassInfoMixin<SeaMlirEnginePass> {

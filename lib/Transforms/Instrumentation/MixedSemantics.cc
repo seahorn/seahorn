@@ -250,7 +250,27 @@ bool MixedSemantics::runOnModule(Module &M) {
   for (auto errB : errBlocks) {
     // --- add placeholder to indicate that the function can fail
     Builder.SetInsertPoint(errB, errB->begin());
-    Builder.CreateCall(failureFn);
+    CallInst *fail = Builder.CreateCall(failureFn);
+    // The branches into the error block carry the locations of the
+    // verifier.error calls they replace. When they all carry one and the
+    // same location (a single failure site, e.g. one reach assertion),
+    // the error block takes it too: a later pass that folds the only
+    // branch into its predecessor would otherwise drop the one record of
+    // where the program fails.
+    DebugLoc dl;
+    bool same = true;
+    for (BasicBlock *pred : predecessors(errB)) {
+      const DebugLoc &d = pred->getTerminator()->getDebugLoc();
+      if (!d || (dl && d.get() != dl.get())) {
+        same = false;
+        break;
+      }
+      dl = d;
+    }
+    if (same && dl) {
+      fail->setDebugLoc(dl);
+      errB->getTerminator()->setDebugLoc(dl);
+    }
   }
 
   reduceToAncestors(

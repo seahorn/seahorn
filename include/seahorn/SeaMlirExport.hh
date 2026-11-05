@@ -50,6 +50,16 @@ bool exportSeaMlir(const llvm::Function &F, llvm::raw_ostream &out,
                    SeaMlirSites &sites, bool llvmLinks = false,
                    llvm::StringRef mlirPath = "");
 
+/// --horn-bmc-engine=sea-mlir, before the shadow memory: gives the
+/// counterexample builtin sea_memdump(label, p, n) a body that reads *p, so
+/// that the shadow memory passes the call the memory version of p's region
+/// (a shadow.mem.arg.ref use: no new version). Other flows keep it an
+/// external no-op.
+class SeaMlirPrepPass : public llvm::PassInfoMixin<SeaMlirPrepPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 /// --horn-bmc-engine=sea-mlir: export main, run sea-vc, print sat/unsat.
 class SeaMlirEnginePass : public llvm::PassInfoMixin<SeaMlirEnginePass> {
   bool m_solve;

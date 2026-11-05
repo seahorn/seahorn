@@ -55,8 +55,8 @@ and BvOpSem2, which do not run with the sea-mlir engine; the debug options
 
 `sea_printf(const char *fmt, ...)` (declare it as
 `extern __declspec(noalias) void sea_printf(const char *format, ...);`, as
-verify-c-common's `utils.h` does) is exported as sea-mlir print ops (sea-mlir
-`docs/design/Print.md`). Prints encode nothing in the VC; `sea-vc` shows them
+verify-c-common's `utils.h` does, or include `seahorn/seahorn.h`) is
+exported as sea-mlir print ops (sea-mlir `docs/design/Print.md`). Prints encode nothing in the VC; `sea-vc` shows them
 when it replays a sat model (`print:` lines after `replay:`):
 
 ```c
@@ -99,6 +99,36 @@ print: pre.inc = 9 : si32
 
 The minimal format parser skips flags, width, precision and length
 modifiers; `*` and `%n` make it give up (positional labels, `auto`).
+
+## Counterexample prints: sea_memdump
+
+`sea_memdump(const char *label, const void *p, size_t n)` (declared, with
+`sea_printf`, in `seahorn/seahorn.h`) prints the `n` bytes at `p` as a hex
+dump in a sea-mlir counterexample:
+
+```c
+sea_memdump("buf", buf, sizeof buf);
+```
+```
+print: buf = stack.4[0..8]
+print: buf +00: 60 41 41 51 41 41 41 41                         |`AAQAAAA|
+```
+
+- It is exported as a strong `sea.print.mem "<label>" %m[%p], %n :
+  !sea.mem<...>, iN -> i8 {fmt = "hexdump"}` in the memory version current
+  at the call. The count may be symbolic; sea-mlir caps it at 65536.
+- The memory version comes from the shadow memory: with
+  `--horn-bmc-engine=sea-mlir`, `SeaMlirPrepPass` (before the shadow memory)
+  gives `sea_memdump` a body that reads `*p`, so each call gets a
+  `shadow.mem.arg.ref` (a use of `p`'s region, no new version). The body is
+  never exported.
+- The label is the string literal; any other label prints as `sea_memdump`
+  (a warning). A pointer without a shadow-memory region is not printed (a
+  warning).
+- Every other flow (SeaHorn's BMC, CHC, crab) leaves it an external call
+  that is passed `p` (PromoteVerifierCalls removes a body a program gives
+  it): verdicts do not change, but the compiler keeps the dumped memory
+  alive (test/bmc/sea_memdump_verdict.c).
 
 ## Locations
 

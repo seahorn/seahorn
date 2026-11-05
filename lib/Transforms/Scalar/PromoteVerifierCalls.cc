@@ -78,9 +78,10 @@ char PromoteVerifierCalls::ID = 0;
 bool PromoteVerifierCalls::runOnModule(Module &M) {
   LOG("pvc", errs() << "Running promote-verifier-calls pass\n";);
 
-  if (auto *sea_printf = M.getFunction("sea_printf")) {
-    sea_printf->deleteBody();
-  }
+  // counterexample prints: external no-ops (the sea-mlir export prints them)
+  for (const char *name : {"sea_printf", "sea_memdump"})
+    if (auto *fn = M.getFunction(name))
+      fn->deleteBody();
   SeaBuiltinsInfo SBI;
   using SBIOp = SeaBuiltinsOp;
   m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);

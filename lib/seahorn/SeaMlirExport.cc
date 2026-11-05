@@ -71,6 +71,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -275,6 +276,7 @@ private:
   void exportShadow(const CallBase &CB, StringRef name);
   void exportInlineAsm(const CallBase &CB, const InlineAsm &IA);
   void exportPrintf(const CallBase &CB, const std::string &l);
+  void exportMemdump(const CallBase &CB, const std::string &l);
   /// Stores the initializer of \p gv into memory version \p mem; returns
   /// the new version, or std::nullopt if the initializer is not plain data.
   std::optional<std::string> exportGlobalInit(const GlobalVariable &gv,
@@ -323,6 +325,8 @@ private:
   const Value *pendingUseVersion = nullptr; // its LLVM shadow value
 
   std::optional<std::string> pendingTrsfr;
+  /// shadow.mem.arg.ref versions before a call (sea_memdump)
+  SmallVector<std::string, 1> pendingArgRefs;
 };
 
 std::optional<std::string> Exporter::type(Type *t, const Value *at) {
@@ -947,6 +951,13 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
     }
     return;
   }
+  if (name == "shadow.mem.arg.ref") {
+    // a region the next call reads: only sea_memdump has one
+    // (SeaMlirPrepPass gave it a body)
+    if (auto v = val(CB.getArgOperand(1), CB))
+      pendingArgRefs.push_back(*v);
+    return;
+  }
   if (name == "shadow.mem.trsfr.load") {
     auto v = val(CB.getArgOperand(1), CB);
     if (v)
@@ -1508,6 +1519,12 @@ void Exporter::exportCall(const CallBase &CB) {
   }
   if (name == "sea_printf")
     return exportPrintf(CB, l);
+  if (name == "sea_memdump")
+    return exportMemdump(CB, l);
+  if (!pendingArgRefs.empty()) {
+    error("shadow.mem.arg.ref before a call that is not sea_memdump", &CB);
+    return;
+  }
   if (f->isDeclaration() && CB.arg_empty() && !CB.getType()->isVoidTy() &&
       (name.starts_with("nd") || name.starts_with("nondet") ||
        name.starts_with("verifier.nondet") ||
@@ -1886,6 +1903,57 @@ void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
   }
   if (!scope.empty())
     os << "  sea.print.end " << quote(scope) << l << "\n";
+}
+
+/// sea_memdump(label, p, n) (seahorn.h) as a strong hex dump of n bytes at p
+/// in the memory version current at the call, which the shadow memory
+/// passes it (shadow.mem.arg.ref, SeaMlirPrepPass):
+///   sea.print.mem "label" %m[%p], %n : !sea.mem<...>, iN -> i8
+///       {fmt = "hexdump"}
+/// The label is the constant string (else "sea_memdump" and a warning);
+/// sea-mlir caps the count at 65536. Without a region (p has no shadow
+/// memory) nothing is printed (a warning). Prints encode nothing in the VC.
+void Exporter::exportMemdump(const CallBase &CB, const std::string &l) {
+  SmallVector<std::string, 1> refs = std::move(pendingArgRefs);
+  pendingArgRefs.clear();
+  pendingUse.reset();
+  pendingUseVersion = nullptr;
+  if (pendingDef) {
+    error("sea_memdump defines memory; not supported", &CB);
+    return;
+  }
+  std::string where;
+  if (const DebugLoc &dl = CB.getDebugLoc())
+    where = " at line " + std::to_string(dl.getLine());
+  if (CB.arg_size() != 3 || !CB.getArgOperand(1)->getType()->isPointerTy() ||
+      !CB.getArgOperand(2)->getType()->isIntegerTy()) {
+    error("sea_memdump(const char *label, const void *p, size_t n) has "
+          "another signature",
+          &CB);
+    return;
+  }
+  StringRef text;
+  std::string label = "sea_memdump";
+  if (getConstantStringInfo(CB.getArgOperand(0), text) && !text.empty())
+    label = text.str();
+  else
+    WARN << "sea-mlir export: sea_memdump" << where
+         << ": the label is not a constant string; it prints as "
+            "\"sea_memdump\"";
+  if (refs.size() != 1) {
+    WARN << "sea-mlir export: sea_memdump" << where << " (" << label
+         << "): the shadow memory gives the call " << refs.size()
+         << " memory regions, not one; it is not printed";
+    return;
+  }
+  auto p = val(CB.getArgOperand(1), CB);
+  auto n = val(CB.getArgOperand(2), CB);
+  auto nTy = type(CB.getArgOperand(2)->getType(), &CB);
+  if (!p || !n || !nTy)
+    return;
+  os << "  sea.print.mem " << quote(label) << " " << refs[0] << "[" << *p
+     << "], " << *n << " : " << memTy << ", " << *nTy
+     << " -> i8 {fmt = \"hexdump\"}" << l << "\n";
 }
 
 void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,
@@ -2430,6 +2498,26 @@ static void exportOnlyExit(bool ok, StringRef path) {
   std::exit(ok ? 0 : 1);
 }
 
+PreservedAnalyses SeaMlirPrepPass::run(Module &M, ModuleAnalysisManager &) {
+  Function *f = M.getFunction("sea_memdump");
+  if (!f || !f->isDeclaration() || f->arg_size() != 3 ||
+      !f->getArg(1)->getType()->isPointerTy())
+    return PreservedAnalyses::all();
+  // the body reads *p: the shadow memory gives each call a use of p's
+  // region (no new version); the exporter prints the call, never the body
+  LLVMContext &ctx = M.getContext();
+  BasicBlock *bb = BasicBlock::Create(ctx, "entry", f);
+  IRBuilder<> b(bb);
+  b.CreateLoad(Type::getInt8Ty(ctx), f->getArg(1), "byte");
+  if (f->getReturnType()->isVoidTy())
+    b.CreateRetVoid();
+  else
+    b.CreateRet(UndefValue::get(f->getReturnType()));
+  f->addFnAttr(Attribute::NoInline);
+  f->setLinkage(GlobalValue::InternalLinkage);
+  return PreservedAnalyses::none();
+}
+
 PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
   auto fail = [](const Twine &msg) {
     ERR << "sea-mlir engine: " << msg;
@@ -2454,7 +2542,8 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
     for (const Instruction &I : instructions(*main))
       if (auto *cb = dyn_cast<CallBase>(&I)) {
         if (const Function *f = calledFunction(*cb))
-          canFail |= f->getName() == "seahorn.fail" || !f->isDeclaration();
+          canFail |= f->getName() == "seahorn.fail" ||
+                     (!f->isDeclaration() && f->getName() != "sea_memdump");
         else
           // an indirect call may reach seahorn.fail: not decided
           canFail |= !cb->isInlineAsm();

@@ -51,6 +51,42 @@ verify-c-common's options for SeaHorn's VC generator (`horn-gsa`,
 and BvOpSem2, which do not run with the sea-mlir engine; the debug options
 (`-S`, `keep-temps`, `temp-dir`, `horn-stats`) do not change the export.
 
+## Counterexample prints: sea_printf
+
+`sea_printf(const char *fmt, ...)` (declare it as
+`extern __declspec(noalias) void sea_printf(const char *format, ...);`, as
+verify-c-common's `utils.h` does) is exported as sea-mlir print ops (sea-mlir
+`docs/design/Print.md`). Prints encode nothing in the VC; `sea-vc` shows them
+when it replays a sat model (`print:` lines after `replay:`):
+
+```c
+sea_printf("x=%d u=%u p=%p\n", x, u, p);
+```
+```
+print: x = -3 : si32
+print: u = 7 : ui32
+print: p = &stack.4[2]
+```
+
+- Each integer or pointer argument becomes one strong `sea.print` (an SSA
+  use: kept alive through sea-mlir's passes). Its label is the format's text
+  before the conversion, without spaces and `=`, `:`, `,` (`"x=%d"` gives
+  `x`); else the variable an `llvm.dbg.value` says the argument holds (with
+  `-g`); else the argument's LLVM name, unless it is SeaHorn's generated
+  `_N`; else `arg<k>`.
+- The conversion picks the format: `%d` `%i` signed, `%u` unsigned, `%x`
+  `%X` hex, `%c` a character; others (and any integer when the format is not
+  a constant string or its conversions do not match the arguments: a
+  warning) print with sea-mlir's `auto`. Pointers always print as an object
+  and an offset.
+- A string literal argument (`%s` of a constant) prints as a tag line
+  `label = "text"`; a call without arguments is a tag line with the format.
+- A floating-point, aggregate or vector argument is not printed (a warning
+  per argument).
+
+The minimal format parser skips flags, width, precision and length
+modifiers; `*` and `%n` make it give up (positional labels, `auto`).
+
 ## Profiles by name
 
 `sea yama -y NAME` with a NAME that is not an existing file, has no `/` and

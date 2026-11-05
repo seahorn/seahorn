@@ -58,6 +58,28 @@ verify-c-common's options for SeaHorn's VC generator (`horn-gsa`,
 and BvOpSem2, which do not run with the sea-mlir engine; the debug options
 (`-S`, `keep-temps`, `temp-dir`, `horn-stats`) do not change the export.
 
+## Heap allocation
+
+- `malloc(n)` is `sea.malloc n align 16`; `calloc(n, k)` is `sea.malloc`
+  of `n*k` bytes followed by a `sea.memset` to zero; `free(p)` is
+  `sea.free p`.
+- C++ `operator new` and `operator new[]` (`_Znwm`, `_Znam`, and their
+  `std::nothrow_t` and `std::align_val_t` forms) are `sea.malloc` of their
+  size argument. A constant `std::align_val_t` that is a power of two is the
+  object's alignment; any other is a warning and the alignment is 16, as for
+  `malloc`.
+- C++ `operator delete` and `operator delete[]` (`_ZdlPv`, `_ZdaPv`, their
+  sized, `std::align_val_t` and `std::nothrow_t` forms) are `sea.free` of
+  their pointer argument. `delete` of null, like `free(NULL)`, does nothing.
+  Mixing `new[]` with `delete` (or `malloc` with `delete`) is not detected.
+- `sea.malloc` always succeeds, so `malloc` and `calloc` never return null,
+  and neither do the `std::nothrow_t` forms of `operator new`. A program
+  whose correctness depends on handling allocation failure is not checked
+  on that path.
+- These names are recognized also when the module defines them (a
+  replacement `operator new`); a call that was not inlined is the
+  allocation, not the replacement's body.
+
 ## Counterexample prints: sea_printf
 
 `sea_printf(const char *fmt, ...)` (declare it as

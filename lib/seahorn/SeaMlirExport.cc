@@ -1401,6 +1401,39 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   return true;
 }
 
+/// The kind of a replaceable global C++ allocation function (Itanium
+/// mangling): operator new / new[] (size, then optional std::align_val_t,
+/// then optional const std::nothrow_t&) and operator delete / delete[]
+/// (pointer, then optional size, std::align_val_t, const std::nothrow_t&).
+/// std::size_t is m (LP64) or j (ILP32).
+enum class CxxAlloc { None, New, Delete };
+struct CxxAllocFn {
+  CxxAlloc kind = CxxAlloc::None;
+  bool aligned = false; // takes std::align_val_t (after the size / pointer)
+};
+static CxxAllocFn cxxAllocFn(StringRef name) {
+  CxxAllocFn r;
+  auto tail = [&](StringRef rest) {
+    rest.consume_back("RKSt9nothrow_t");
+    r.aligned = rest.consume_front("St11align_val_t");
+    return rest.empty();
+  };
+  if (name.consume_front("_Znw") || name.consume_front("_Zna")) {
+    if ((name.consume_front("m") || name.consume_front("j")) && tail(name))
+      r.kind = CxxAlloc::New;
+  } else if (name.consume_front("_Zdl") || name.consume_front("_Zda")) {
+    if (name.consume_front("Pv")) {
+      if (!name.consume_front("m"))
+        name.consume_front("j");
+      if (tail(name))
+        r.kind = CxxAlloc::Delete;
+    }
+  }
+  if (r.kind == CxxAlloc::None)
+    r.aligned = false;
+  return r;
+}
+
 void Exporter::exportCall(const CallBase &CB) {
   const Function *f = calledFunction(CB);
   if (!f) {
@@ -1631,11 +1664,28 @@ void Exporter::exportCall(const CallBase &CB) {
     names[d->second] = r;
     return;
   }
-  if (name == "malloc" || name == "calloc") {
+  // C++ operator new / new[] is malloc and operator delete / delete[] is
+  // free. sea.malloc never fails, so the nothrow forms never return null
+  // (as malloc). std::align_val_t gives the alignment when it is a constant
+  // power of two; otherwise (and without it) it is malloc's 16.
+  CxxAllocFn cxx = cxxAllocFn(name);
+  if (name == "malloc" || name == "calloc" || cxx.kind == CxxAlloc::New) {
     // Allocation is a definition (--horn-shadow-mem-alloc-is-def).
     std::optional<std::string> size;
-    if (name == "malloc") {
+    uint64_t alignment = 16;
+    if (name != "calloc") {
       size = sizeVal(CB.getArgOperand(0), CB);
+      if (cxx.aligned) {
+        auto *a = dyn_cast<ConstantInt>(CB.getArgOperand(1));
+        if (a && a->getValue().isPowerOf2() &&
+            a->getValue().getActiveBits() < 64)
+          alignment = a->getZExtValue();
+        else
+          warnOnce("new-align:" + name,
+                   "operator new (" + name +
+                       ") with a std::align_val_t that is not a constant "
+                       "power of two: the object is aligned to 16 only");
+      }
     } else {
       auto a = sizeVal(CB.getArgOperand(0), CB),
            b = sizeVal(CB.getArgOperand(1), CB);
@@ -1648,8 +1698,8 @@ void Exporter::exportCall(const CallBase &CB) {
     if (!size)
       return;
     std::string p = fresh();
-    os << "  " << p << " = sea.malloc " << *size << " align 16 [" << site(&CB)
-       << "] : i" << W << " -> " << ptrTy << l << "\n";
+    os << "  " << p << " = sea.malloc " << *size << " align " << alignment
+       << " [" << site(&CB) << "] : i" << W << " -> " << ptrTy << l << "\n";
     names[&CB] = p;
     if (pendingDef) {
       auto d = *takeDef(CB);
@@ -1666,7 +1716,7 @@ void Exporter::exportCall(const CallBase &CB) {
     }
     return;
   }
-  if (name == "free") {
+  if (name == "free" || cxx.kind == CxxAlloc::Delete) {
     auto p = val(CB.getArgOperand(0), CB);
     if (p)
       os << "  sea.free " << *p << " : " << ptrTy << l << "\n";

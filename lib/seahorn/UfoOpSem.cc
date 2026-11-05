@@ -49,13 +49,13 @@ static llvm::cl::opt<bool>
     EnableDiv("horn-enable-div", llvm::cl::desc("Enable division constraints."),
               cl::init(true));
 
-// Off by default (old encoding: these intrinsics are unconstrained and
-// x | y = 0 says nothing about x and y).
+// On by default: dev18 has this encoding (214e7ef3); =false is the older
+// encoding (these intrinsics unconstrained, x | y = 0 saying nothing).
 static llvm::cl::opt<bool> EncodeMinMaxOr(
     "horn-ufo-minmax-abs-or",
     llvm::cl::desc("Encode llvm.{s,u}{min,max} and llvm.abs, and that "
-                   "x | y = 0 implies x = 0 and y = 0"),
-    cl::init(false));
+                   "x | y = 0 implies x = 0 and y = 0 (default on)"),
+    cl::init(true));
 
 static llvm::cl::opt<bool> RewriteDiv(
     "horn-rewrite-div",

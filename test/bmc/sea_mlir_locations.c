@@ -15,18 +15,21 @@
 // RUN: filecheck %s --check-prefix=LINK < %t.ll.mlir
 // RUN: filecheck %s --check-prefix=LL < %t.ll
 // RUN: grep -E '^  [^ ]' %t.ll.mlir | not grep -v 'fused<"llvm @'
-// CHECK: sea.global @"tab" {{.*}} loc("{{.*}}sea_mlir_locations.c":39:0)
-// CHECK: sea.and {{.*}} loc(callsite("{{.*}}sea_mlir_locations.c":42:19 at "{{.*}}sea_mlir_locations.c":49:11))
-// CHECK: sea.print.scope "step" loc(callsite("{{.*}}sea_mlir_locations.c":43:3 at "{{.*}}sea_mlir_locations.c":49:11))
-// CHECK: sea.print "p" {{.*}} loc(callsite("{{.*}}sea_mlir_locations.c":43:3 at "{{.*}}sea_mlir_locations.c":49:11))
+// CHECK: sea.global @"tab" {{.*}} loc("{{.*}}sea_mlir_locations.c":42:0)
+// CHECK: sea.and {{.*}} loc(callsite("{{.*}}sea_mlir_locations.c":45:19 at "{{.*}}sea_mlir_locations.c":52:11))
+// CHECK: sea.print.scope "step" loc(callsite("{{.*}}sea_mlir_locations.c":46:3 at "{{.*}}sea_mlir_locations.c":52:11))
+// CHECK: sea.print "p" {{.*}} loc(callsite("{{.*}}sea_mlir_locations.c":46:3 at "{{.*}}sea_mlir_locations.c":52:11))
+// The only failure site keeps its location (MixedSemantics):
+// CHECK: sea.assert {{.*}} loc("{{.*}}sea_mlir_locations.c":53:3)
 // NONAME-NOT: loc("_{{[0-9]+}}
 // NONAME-NOT: loc("sm{{[0-9]*}}
 // NONAME-NOT: loc("shadow.mem
 // NOLINK-NOT: fused<
-// LINK: sea.global @"tab" {{.*}} loc(fused<"llvm @tab">["{{.*}}sea_mlir_locations.c":39:0])
+// LINK: sea.mem.nondet {{.*}} loc(fused<"llvm @main %{{[^ ]+}} #{{[0-9]+}}">["{{.*}}.ll.mlir":{{[0-9]+}}:9])
+// LINK: sea.global @"tab" {{.*}} loc(fused<"llvm @tab">["{{.*}}sea_mlir_locations.c":42:0])
 // LINK: sea.nondet "nd_int" {{.*}} loc(fused<"llvm @main %{{[^ ]+}} #{{[0-9]+}}">["{{.*}}sea_mlir_locations.c":
 // LINK: sea.print "p" {{.*}} loc(fused<"llvm @main %{{[^ ]+}} #{{[0-9]+}}">[callsite(
-// LINK: sea.assert {{.*}} loc(fused<"llvm @main %{{[^ ]+}} #{{[0-9]+}}">["{{.*}}.ll.mlir":[[#]]:3])
+// LINK: sea.assert {{.*}} loc(fused<"llvm @main %{{[^ ]+}} #{{[0-9]+}}">["{{.*}}sea_mlir_locations.c":53:3])
 // LL: @tab = {{.*}}global [4 x i32]
 // LL: define {{.*}}@main(
 // LL: call i32 @nd_int()

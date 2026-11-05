@@ -58,6 +58,26 @@ verify-c-common's options for SeaHorn's VC generator (`horn-gsa`,
 and BvOpSem2, which do not run with the sea-mlir engine; the debug options
 (`-S`, `keep-temps`, `temp-dir`, `horn-stats`) do not change the export.
 
+## Export errors
+
+An instruction the export does not support is an error that names the
+instruction and the reason. The export goes on, so one run shows every
+unsupported construct, but the values computed from a failed instruction
+have no definition:
+
+- At the first use of such a value, one error names the instruction that
+  failed and its reason (``operand %v is undefined because `<instruction>`
+  failed to export (<reason>)``). Further uses of values derived from the same
+  cause are not reported; a warning at the end counts them.
+- A call to a function the module defines means that the call was not
+  inlined. It is reported once per callee, naming one call site; a warning
+  counts the other call sites. The shadow memory gives such a call
+  `shadow.mem.arg.mod` / `shadow.mem.arg.new` versions, which the export
+  usually meets first; they are reported as the call that was not inlined.
+  Common causes are recursion (`std::sort`'s `__introsort_loop`) and
+  `available_externally` definitions (extern templates such as
+  `std::basic_string`), which SeaHorn does not inline.
+
 ## Heap allocation
 
 - `malloc(n)` is `sea.malloc n align 16`; `calloc(n, k)` is `sea.malloc`

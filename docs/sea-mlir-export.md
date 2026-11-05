@@ -61,19 +61,32 @@ when it replays a sat model (`print:` lines after `replay:`):
 
 ```c
 sea_printf("x=%d u=%u p=%p\n", x, u, p);
+sea_printf("pre: tx_wnd=%u inc=%d\n", w, i);
 ```
 ```
 print: x = -3 : si32
 print: u = 7 : ui32
 print: p = &stack.4[2]
+print: pre.tx_wnd = 1502 : ui32
+print: pre.inc = 9 : si32
 ```
 
 - Each integer or pointer argument becomes one strong `sea.print` (an SSA
-  use: kept alive through sea-mlir's passes). Its label is the format's text
-  before the conversion, without spaces and `=`, `:`, `,` (`"x=%d"` gives
-  `x`); else the variable an `llvm.dbg.value` says the argument holds (with
-  `-g`); else the argument's LLVM name, unless SeaHorn generated it
+  use: kept alive through sea-mlir's passes). Its label is the trailing
+  identifier-like token (`[A-Za-z_][A-Za-z0-9_.\[\]]*`) of the format's text
+  before the conversion, after the `=`, `:`, `,`, `;`, `(` and spaces that
+  end it (`"x=%d"` and `" inc=%d"` give `x` and `inc`, `"s.a[0] = %d"` gives
+  `s.a[0]`); else the variable an `llvm.dbg.value` says the argument holds
+  (with `-g`); else the argument's LLVM name, unless SeaHorn generated it
   (`_N`, see Locations); else `arg<k>`.
+- The format's leading text before its first label is a print scope around
+  the call's prints (`sea.print.scope "<tag>"` ... `sea.print.end "<tag>"`;
+  sea-mlir shows the dotted path `pre.tx_wnd`). The tag is the text's words
+  (letters, digits, `_`) from the first that starts with a letter or `_`,
+  joined by `_`: `"pre: "` gives `pre`, `"after step 2: "` gives
+  `after_step_2`; text without an identifier (`"--> "`) gives no scope. Text
+  between conversions contributes only its trailing identifier. There is no
+  scope when the format does not match the arguments.
 - The conversion picks the format: `%d` `%i` signed, `%u` unsigned, `%x`
   `%X` hex, `%c` a character; others (and any integer when the format is not
   a constant string or its conversions do not match the arguments: a

@@ -4,9 +4,11 @@
 // a call without arguments is a tag line; a double is not printed, and a
 // format that does not match the arguments gives positional / variable
 // labels and sea-mlir's auto format (warnings). The prints encode nothing
-// in the VC.
+// in the VC. Locations carry source names, not SeaHorn's generated ones
+// (_N, sm<N>).
 // RUN: %sea yama -y sea-mlir-export --bound=1 -m64 -g --horn-sea-mlir-out=%t.mlir "%s" 2>&1 | filecheck %s --check-prefix=LOG
 // RUN: filecheck %s < %t.mlir
+// RUN: filecheck %s --check-prefix=NONAME < %t.mlir
 // LOG: sea_printf at line {{[0-9]+}}: argument 1 (d) of type double is not printed
 // LOG: sea_printf at line {{[0-9]+}}: cannot match the format "two %d %d\0A" to its 1 arguments
 // LOG: sea-mlir-export: wrote
@@ -21,6 +23,9 @@
 // CHECK: sea.print "x" %[[X]] : i32 loc(
 // CHECK-NEXT: sea.print "line1 line2"
 // CHECK-NOT: sea.print
+// NONAME-NOT: loc("_{{[0-9]+}}
+// NONAME-NOT: loc("sm{{[0-9]*}}
+// NONAME-NOT: loc("shadow.mem
 
 extern int nd_int(void);
 extern unsigned nd_uint(void);

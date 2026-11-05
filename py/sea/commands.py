@@ -514,7 +514,8 @@ class Seapp(sea.LimitedCmd):
         # -- unless given explicitly
         passthrough = list (filter (_is_seapp_passthrough_opt, extra))
         if _uses_sea_mlir_engine (extra):
-            for o in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align'):
+            for o in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align',
+                      'seapp-define-available-externally'):
                 if not any (x.lstrip ('-').split ('=', 1)[0] == o
                             for x in passthrough):
                     argv.append ('--' + o)
@@ -1185,7 +1186,8 @@ def _is_seapp_passthrough_opt (x):
     if not x.startswith ('-'):
         return False
     y = x.lstrip ('-').split ('=', 1)[0]
-    return y in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align')
+    return y in ('seapp-lower-expect', 'horn-lower-gv-init-keep-align',
+                 'seapp-define-available-externally')
 
 def _uses_sea_mlir_engine (extra):
     '''True if extra selects the sea-mlir BMC engine

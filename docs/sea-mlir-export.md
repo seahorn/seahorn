@@ -58,6 +58,33 @@ verify-c-common's options for SeaHorn's VC generator (`horn-gsa`,
 and BvOpSem2, which do not run with the sea-mlir engine; the debug options
 (`-S`, `keep-temps`, `temp-dir`, `horn-stats`) do not change the export.
 
+## C++ extern templates
+
+libstdc++ declares some class templates `extern template` (for example
+`extern template class basic_string<char>`). clang then emits their inline
+members as `available_externally` definitions: the body is a copy of a
+definition in another module. seapp's InternalizePass keeps that linkage, and
+`--horn-inline-all` inlines only internal functions, so the calls stay and
+the export fails on them.
+
+`--seapp-define-available-externally` gives these function definitions
+`linkonce_odr` linkage before InternalizePass, which then makes them
+internal, so they are inlined like other definitions. The body is the
+ODR-equivalent definition of the function, so the program does not change.
+`sea` turns the option on for `--horn-bmc-engine=sea-mlir` (so with the
+profile) unless it is given explicitly; SeaHorn's own engines are
+unchanged. `--seapp-define-available-externally=false` turns it off.
+`--seapp-stats` prints the number of functions changed
+(`pp.avail-ext.defined`); `--log=avail-ext` names them.
+
+- Global variables are not changed. An `available_externally` global keeps
+  its linkage and its initializer, as in SeaHorn's own pipeline.
+- Members that are not inline (in libstdc++'s `basic_string`, `_M_create`,
+  `_M_mutate`, `_M_replace`, among others) are only declared under an extern
+  template, so they remain external calls. Model them, or compile with
+  `-D_GLIBCXX_ASSERTIONS`, which turns off the `basic_string` extern
+  templates (and enables libstdc++'s precondition checks).
+
 ## Export errors
 
 An instruction the export does not support is an error that names the
@@ -74,9 +101,9 @@ have no definition:
   counts the other call sites. The shadow memory gives such a call
   `shadow.mem.arg.mod` / `shadow.mem.arg.new` versions, which the export
   usually meets first; they are reported as the call that was not inlined.
-  Common causes are recursion (`std::sort`'s `__introsort_loop`) and
-  `available_externally` definitions (extern templates such as
-  `std::basic_string`), which SeaHorn does not inline.
+  A common cause is recursion (`std::sort`'s `__introsort_loop`).
+  `available_externally` definitions are inlined since
+  `--seapp-define-available-externally` (see below).
 
 ## Heap allocation
 

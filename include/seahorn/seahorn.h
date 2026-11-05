@@ -4,6 +4,7 @@
 #include <seahorn/ownsem.h>
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define SEA_NONDET_FN_ATTR __declspec(noalias)
@@ -73,6 +74,26 @@ extern void sea_set_shadowmem(char, char *, size_t);
  * arg1 - A
  */
 extern size_t sea_get_shadowmem(char, char *);
+/* Counterexample prints. Neither changes what is verified.
+ * sea_printf(fmt, ...): SeaHorn's BMC prints its named arguments in a
+ * counterexample; the sea-mlir export prints each integer or pointer
+ * argument, labelled from fmt (docs/sea-mlir-export.md).
+ * sea_memdump(label, p, n): the sea-mlir export prints the n bytes at p as a
+ * hex dump in the counterexample (label: a string literal); every other flow
+ * ignores it (an external call that is passed p). */
+#if defined(__has_declspec_attribute)
+#if __has_declspec_attribute(noalias)
+/* only argument memory (-fdeclspec, as sea's front end compiles) */
+#define SEA_PRINT_FN_ATTR __declspec(noalias)
+#endif
+#endif
+#ifndef SEA_PRINT_FN_ATTR
+#define SEA_PRINT_FN_ATTR
+#endif
+extern SEA_PRINT_FN_ATTR void sea_printf(const char *format, ...);
+extern SEA_PRINT_FN_ATTR void sea_memdump(const char *label, const void *p,
+                                          size_t n);
+
 #define TRACK_READ_MEM 0
 #define TRACK_WRITE_MEM 1
 #define TRACK_ALLOC_MEM 2

@@ -581,6 +581,8 @@ int main(int argc, char **argv) {
     // -- operational semantics, which needs this very instance to run crab
     // -- (--horn-bv2-crab-*). Declared outside MPM so it outlives MPM.run().
     std::unique_ptr<seadsa::ShadowMem> shadowMem;
+    if (NewPmBmcRoute && BmcEngine == BmcEngineKind::sea_mlir)
+      MPM.addPass(seahorn::SeaMlirPrepPass()); // sea_memdump's region
     MPM.addPass(seadsa::ShadowMemNewPmPass(&shadowMem));
     if (UnifyAssumes)
       MPM.addPass(seahorn::UnifyAssumesNewPass());

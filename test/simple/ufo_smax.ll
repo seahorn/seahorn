@@ -1,7 +1,7 @@
-; UfoOpSem: llvm.smax is unconstrained by default (dev18 behavior: sat);
-; --horn-ufo-minmax-abs-or encodes it (unsat).
-; RUN: %sea horn --solve %s 2>&1 | filecheck %s --check-prefix=OLD
-; RUN: %sea horn --solve --horn-ufo-minmax-abs-or %s 2>&1 | filecheck %s --check-prefix=NEW
+; UfoOpSem: llvm.smax is encoded by default (dev18 behavior: unsat);
+; --horn-ufo-minmax-abs-or=false leaves it unconstrained (sat).
+; RUN: %sea horn --solve --horn-ufo-minmax-abs-or=false %s 2>&1 | filecheck %s --check-prefix=OLD
+; RUN: %sea horn --solve %s 2>&1 | filecheck %s --check-prefix=NEW
 ; OLD: {{^sat$}}
 ; NEW: {{^unsat$}}
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"

@@ -13,7 +13,6 @@
 
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
-#include "seahorn/Support/InlineAsmBarrier.hh"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
@@ -23,6 +22,7 @@
 
 #include "seahorn/CallUtils.hh"
 #include "seahorn/Support/CFG.hh"
+#include "seahorn/Support/InlineAsmBarrier.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 #include "seahorn/Support/Stats.hh"

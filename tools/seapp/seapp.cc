@@ -117,6 +117,15 @@ static llvm::cl::opt<bool> LowerExpectFirst(
                    "default pre-processing pipeline"),
     llvm::cl::init(false));
 
+// Off by default (SeaHorn's pipeline is unchanged); `sea` turns it on for
+// the sea-mlir engine (py/sea/commands.py, Seapp).
+static llvm::cl::opt<bool> DefineAvailExt(
+    "seapp-define-available-externally",
+    llvm::cl::desc("Give available_externally function definitions "
+                   "linkonce_odr linkage, so that they are internalized and "
+                   "inlined like other definitions (C++ extern templates)"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> InlineAll("horn-inline-all",
                                      llvm::cl::desc("Inline all functions"),
                                      llvm::cl::init(false));
@@ -637,6 +646,11 @@ int main(int argc, char **argv) {
 
     // -- mark entry points of all functions
     pm_wrapper.addModulePass(seahorn::MarkFnEntryPass());
+
+    // -- available_externally bodies become this module's definitions, so
+    // -- that the internalize and inline steps below treat them as such
+    if (DefineAvailExt)
+      pm_wrapper.addModulePass(seahorn::DefineAvailableExternallyPass());
 
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {

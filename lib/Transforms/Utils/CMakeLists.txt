@@ -11,6 +11,7 @@ add_llvm_library(SeaTransformsUtils DISABLE_LLVM_LINK_LLVM_DYLIB
   EvalBranchSentinelPass.cc
   ExternalizeAddressTakenFunctions.cc
   ExternalizeFunctions.cc
+  DefineAvailableExternally.cc
   DevirtFunctions.cc
   DevirtFunctionsPass.cc
   SliceFunctions.cc

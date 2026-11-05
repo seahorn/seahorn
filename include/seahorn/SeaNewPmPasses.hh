@@ -80,6 +80,15 @@ public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
+/// Gives available_externally function definitions linkonce_odr linkage, so
+/// that they are internalized and inlined like other definitions
+/// (seapp --seapp-define-available-externally).
+class DefineAvailableExternallyPass
+    : public llvm::PassInfoMixin<DefineAvailableExternallyPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
 class KillVarArgFnPass : public llvm::PassInfoMixin<KillVarArgFnPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);

@@ -102,15 +102,31 @@ modifiers; `*` and `%n` make it give up (positional labels, `auto`).
 
 ## Locations
 
-Each op's location is the LLVM instruction's debug location (`file:line:col`,
-with `-g`), inside a NameLoc with the instruction's name when that name is a
-source name. Names SeaHorn generates are left out, so they do not show as
-`at_name=` in sea-mlir's counterexamples: NameValues' `_N` (also `_N.lcssa`
-and other suffixes LLVM derives from it) and the shadow memory's `sm<N>`
-versions, their phis and `shadow.mem.<N>` slots. A constant materialized for
-an instruction (`sea.const`, `sea.global`, ...) gets only its file location,
-not the instruction's name. Locations do not change the VC: `sea-vc --smt2`
-gives the same query.
+An op's location is the C location of the LLVM instruction it comes from
+(with `-g`), in MLIR's location syntax:
+
+- `"path":line:col`: the path is the DIFile's directory and name, relative
+  to the compilation directory of the module's (first) compile unit when it
+  lies under it, else absolute (`"src/h2fc_step.c":139:24`,
+  `"/opt/fd/src/util/bits/fd_bits.h":421:1`).
+- An instruction inlined from a callee: `callsite(<callee position> at
+  <call position>)`, nested along the DILocation's inlinedAt chain, the
+  innermost position first: `callsite("fd_h2_conn.c":564:7 at
+  callsite("fd_h2_conn.c":375:9 at "h2fc_step.c":255:3))`. sea-vc shows the
+  innermost position (`assert-at`, `at=`).
+- A source name: `"x"(<position>)` (a NameLoc), when the instruction has a
+  name SeaHorn did not generate. Generated names are left out, so they do not
+  show as `at_name=` in counterexamples: NameValues' `_N` (also `_N.lcssa`
+  and other suffixes LLVM derives from it) and the shadow memory's `sm<N>`
+  versions, their phis and `shadow.mem.<N>` slots.
+- A constant materialized for an instruction (`sea.const`, `sea.ptr.null`,
+  ...) gets the instruction's position, not its name. A global
+  (`sea.global`) gets its DIGlobalVariable's file and line, column 0 (the
+  object table's `at=`).
+- An op without a debug location has none in the file; the MLIR parser
+  gives it its position in the `.mlir`.
+
+Locations do not change the VC: `sea-vc --smt2` gives the same query.
 
 ## Profiles by name
 

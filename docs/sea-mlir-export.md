@@ -72,8 +72,8 @@ print: p = &stack.4[2]
   use: kept alive through sea-mlir's passes). Its label is the format's text
   before the conversion, without spaces and `=`, `:`, `,` (`"x=%d"` gives
   `x`); else the variable an `llvm.dbg.value` says the argument holds (with
-  `-g`); else the argument's LLVM name, unless it is SeaHorn's generated
-  `_N`; else `arg<k>`.
+  `-g`); else the argument's LLVM name, unless SeaHorn generated it
+  (`_N`, see Locations); else `arg<k>`.
 - The conversion picks the format: `%d` `%i` signed, `%u` unsigned, `%x`
   `%X` hex, `%c` a character; others (and any integer when the format is not
   a constant string or its conversions do not match the arguments: a
@@ -86,6 +86,18 @@ print: p = &stack.4[2]
 
 The minimal format parser skips flags, width, precision and length
 modifiers; `*` and `%n` make it give up (positional labels, `auto`).
+
+## Locations
+
+Each op's location is the LLVM instruction's debug location (`file:line:col`,
+with `-g`), inside a NameLoc with the instruction's name when that name is a
+source name. Names SeaHorn generates are left out, so they do not show as
+`at_name=` in sea-mlir's counterexamples: NameValues' `_N` (also `_N.lcssa`
+and other suffixes LLVM derives from it) and the shadow memory's `sm<N>`
+versions, their phis and `shadow.mem.<N>` slots. A constant materialized for
+an instruction (`sea.const`, `sea.global`, ...) gets only its file location,
+not the instruction's name. Locations do not change the VC: `sea-vc --smt2`
+gives the same query.
 
 ## Profiles by name
 

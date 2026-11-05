@@ -202,7 +202,8 @@ private:
   std::string
   concatParts(ArrayRef<std::pair<std::string, unsigned>> parts,
               const std::string &l);
-  std::string loc(const Instruction &I);
+  std::string loc(const Instruction &I, bool named = true);
+  bool generatedName(const Value &v) const;
   std::string blockName(const BasicBlock *BB) {
     auto it = blocks.find(BB);
     if (it == blocks.end())
@@ -348,20 +349,38 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
   return std::nullopt;
 }
 
-std::string Exporter::loc(const Instruction &I) {
+/// \p I's location: its file location, inside a NameLoc with \p I's name
+/// when \p named and the name is a source name (generatedName).
+std::string Exporter::loc(const Instruction &I, bool named) {
   std::string child;
   if (const DebugLoc &dl = I.getDebugLoc()) {
     if (auto *scope = dyn_cast<DIScope>(dl.getScope()))
       child = quote(scope->getFilename()) + ":" + std::to_string(dl.getLine()) +
               ":" + std::to_string(dl.getCol());
   }
-  if (I.hasName()) {
+  if (named && I.hasName() && !generatedName(I)) {
     std::string n = quote(I.getName());
     return " loc(" + (child.empty() ? n : n + "(" + child + ")") + ")";
   }
   if (!child.empty())
     return " loc(" + child + ")";
   return "";
+}
+
+/// Whether a name is one SeaHorn generated, not a source name, so that a
+/// location gets no NameLoc (it would show as `at_name=` in sea-mlir's
+/// counterexamples): NameValues' `_N` (also with a suffix LLVM derives from
+/// it, `_N.lcssa`), the shadow memory's versions (`sm<N>` calls and their
+/// phis) and slots (`shadow.mem.<N>`).
+static bool isGeneratedName(StringRef n) {
+  if (n.starts_with("shadow.mem"))
+    return true;
+  StringRef base = n.split('.').first;
+  return base.consume_front("_") && !base.empty() && all_of(base, isDigit);
+}
+
+bool Exporter::generatedName(const Value &v) const {
+  return isMem(&v) || isGeneratedName(v.getName());
 }
 
 /// The function a call names, also when the call's type differs from the
@@ -408,7 +427,7 @@ std::optional<std::string> Exporter::val(const Value *v,
 
 std::optional<std::string> Exporter::constant(const Constant *c,
                                               const Instruction &at) {
-  std::string l = loc(at);
+  std::string l = loc(at, /*named=*/false); // the constant is not at's value
   if (auto *ci = dyn_cast<ConstantInt>(c))
     return emitConst(ci->getValue(), l);
   if (auto *cf = dyn_cast<ConstantFP>(c))
@@ -492,7 +511,7 @@ std::string Exporter::concatParts(
 /// lanes are extracted and concatenated with the defined ones).
 std::optional<std::string> Exporter::vectorConstant(const Constant *c,
                                                     const Instruction &at) {
-  std::string l = loc(at);
+  std::string l = loc(at, /*named=*/false); // the constant is not at's value
   auto *vt = cast<FixedVectorType>(c->getType());
   auto *et = dyn_cast<IntegerType>(vt->getElementType());
   if (!et) {
@@ -556,7 +575,7 @@ static bool hasUndef(const Constant *c) {
 
 std::optional<std::string> Exporter::aggregate(const Constant *c,
                                                const Instruction &at) {
-  std::string l = loc(at);
+  std::string l = loc(at, /*named=*/false); // the constant is not at's value
   auto ty = type(c->getType(), &at);
   if (!ty)
     return std::nullopt;
@@ -1625,9 +1644,7 @@ void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
             label = dv->getVariable()->getName().str();
             break;
           }
-    if (label.empty() && a->hasName() &&
-        !(a->getName().starts_with("_") &&
-          all_of(a->getName().drop_front(), isDigit)))
+    if (label.empty() && a->hasName() && !generatedName(*a))
       label = a->getName().str();
     if (label.empty())
       label = "arg" + std::to_string(k + 1);

@@ -80,6 +80,16 @@ and BvOpSem2, which do not run with the sea-mlir engine; the debug options
   replacement `operator new`); a call that was not inlined is the
   allocation, not the replacement's body.
 
+## Arithmetic with overflow
+
+`llvm.{s,u}{add,sub,mul}.with.overflow` (from `__builtin_*_overflow`, UBSan's
+`-fsanitize=signed-integer-overflow`, `--with-arith-overflow`) has no sea
+op of its own: its value field is the plain op (`sea.mul`) and its overflow
+bit an overflow op (`sea.smulo`), and each `extractvalue` of the result picks
+one of them. A `freeze` of the result (InstCombine and SimplifyCFG add one)
+has the same two fields. Any other use of the `{iN, i1}` result is not
+supported.
+
 ## Counterexample prints: sea_printf
 
 `sea_printf(const char *fmt, ...)` (declare it as

@@ -2352,6 +2352,13 @@ void Exporter::exportInst(const Instruction &I) {
     return;
   }
   if (isa<FreezeInst>(&I)) {
+    // a frozen *.with.overflow result: the same fields (neither is poison)
+    auto it = overflowParts.find(I.getOperand(0));
+    if (it != overflowParts.end()) {
+      auto parts = it->second; // (the insertion may move it)
+      overflowParts[&I] = parts;
+      return;
+    }
     if (auto a = val(I.getOperand(0), I))
       names[&I] = *a;
     return;

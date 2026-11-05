@@ -19,8 +19,9 @@
 ///   undef bytes stay nondet); an initializer the export cannot write
 ///   (pointers, constant expressions, larger than 16 KiB and not a splat,
 ///   or a global used without a shadow.mem.global.init) is an error, or,
-///   with --horn-sea-mlir-allow-uninit-globals, a warning and the global
-///   starts uninitialized;
+///   with --horn-sea-mlir-allow-uninit-globals (every global) or
+///   --horn-sea-mlir-allow-uninit-global=NAME (that global), a warning and
+///   the global starts uninitialized;
 /// - calls to external functions without a shadow-memory definition are
 ///   no-ops returning a nondet value (as BvOpSem2), with a warning per
 ///   callee;
@@ -124,6 +125,14 @@ static cl::opt<bool> SeaMlirAllowUninitGlobals(
              "uninitialized (default: an error)"),
     cl::init(false));
 
+static cl::list<std::string> SeaMlirAllowUninitGlobal(
+    "horn-sea-mlir-allow-uninit-global",
+    cl::desc("sea-mlir export: as --horn-sea-mlir-allow-uninit-globals, for "
+             "the named globals only (LLVM names; repeatable, "
+             "comma-separated); a name that is not a global whose "
+             "initializer is dropped is a warning"),
+    cl::CommaSeparated, cl::ZeroOrMore, cl::value_desc("name"));
+
 static cl::list<std::string>
     SeaVcArgs("horn-sea-vc-arg",
               cl::desc("sea-mlir engine: an extra argument for sea-vc"));
@@ -195,8 +204,9 @@ private:
   }
   /// \p gv's initializer is not written (\p why): the global would start
   /// uninitialized, which can make true facts unprovable and false ones
-  /// provable. An error unless --horn-sea-mlir-allow-uninit-globals (then a
-  /// warning); once per global.
+  /// provable. An error unless --horn-sea-mlir-allow-uninit-globals or
+  /// --horn-sea-mlir-allow-uninit-global=<its name> (then a warning); once
+  /// per global.
   void droppedInit(const GlobalVariable &gv, const Twine &why) {
     std::string msg = ("the initializer of global " + gv.getName() +
                        " is dropped (" + why +
@@ -204,11 +214,30 @@ private:
                           .str();
     if (!warned.insert("init:" + gv.getName().str()).second)
       return;
-    if (SeaMlirAllowUninitGlobals) {
+    droppedGlobals.insert(gv.getName());
+    if (SeaMlirAllowUninitGlobals ||
+        is_contained(SeaMlirAllowUninitGlobal, gv.getName())) {
       WARN << "sea-mlir export: " << msg;
       return;
     }
-    error(msg + " (--horn-sea-mlir-allow-uninit-globals allows it)");
+    error(msg + " (--horn-sea-mlir-allow-uninit-global=" + gv.getName() +
+          " allows it)");
+  }
+  /// A --horn-sea-mlir-allow-uninit-global entry that names no global whose
+  /// initializer was dropped is stale: a warning, so that the allow-list
+  /// does not outlive its reason unnoticed.
+  void staleAllowUninit() {
+    StringSet<> seen;
+    for (const std::string &name : SeaMlirAllowUninitGlobal) {
+      if (name.empty() || !seen.insert(name).second ||
+          droppedGlobals.count(name))
+        continue;
+      const GlobalVariable *gv = F.getParent()->getGlobalVariable(name, true);
+      WARN << "sea-mlir export: --horn-sea-mlir-allow-uninit-global=" << name
+           << " is stale: "
+           << (gv ? "the initializer of this global is not dropped"
+                  : "there is no such global");
+    }
   }
 
   // -- names and types
@@ -309,6 +338,8 @@ private:
   uint64_t nextSite = 0;
   bool ok = true;
   StringSet<> warned;
+  /// The globals whose initializer was dropped (droppedInit).
+  StringSet<> droppedGlobals;
   DenseMap<const Value *, std::string> names;
   DenseMap<const BasicBlock *, std::string> blocks;
   DenseSet<const Value *> memValues;
@@ -2466,6 +2497,7 @@ bool Exporter::run() {
     blockName(BB);
   for (const BasicBlock *BB : rpo)
     exportBlock(*BB);
+  staleAllowUninit();
   if (!ok)
     return false;
   out << "// Exported from SeaHorn (" << F.getParent()->getModuleIdentifier()

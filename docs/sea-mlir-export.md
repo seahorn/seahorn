@@ -30,6 +30,13 @@ sea-vc prog.mlir --lower --seam --widen-memory=4
 - `--horn-sea-mlir-allow-uninit-globals` turns a global initializer the
   export cannot write into a warning (the global starts uninitialized, i.e.
   nondet) instead of an error. It is not in the profile: decide per program.
+- `--horn-sea-mlir-allow-uninit-global=NAME` does the same for the global
+  `NAME` only (its LLVM name, as the error prints it); repeat it or give a
+  comma-separated list (`=a,b`). Prefer it to the flag above: a new dropped
+  initializer elsewhere stays an error. A listed name that is not a global
+  whose initializer is dropped (no such global, or its initializer is
+  written) is a warning, a stale entry, not an error. The error for a
+  dropped initializer names the option that allows it.
 
 ## What the profile contains
 

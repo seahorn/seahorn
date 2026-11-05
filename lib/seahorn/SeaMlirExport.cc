@@ -1530,27 +1530,58 @@ void Exporter::exportCall(const CallBase &CB) {
   names[&CB] = n;
 }
 
-/// One conversion of a printf format: its letter and the literal text
-/// before it (since the previous conversion), cleaned up as a label.
+/// One conversion of a printf format: its letter and the label the literal
+/// text before it (since the previous conversion) gives.
 struct PrintfConv {
   char conv;
   std::string label;
 };
 
-/// The text before a conversion as a label: its last line, without the
-/// spaces and separators around it ("x=%d" gives "x", ", count: %u" gives
-/// "count").
-static std::string printfLabel(StringRef text) {
-  if (size_t nl = text.rfind('\n'); nl != StringRef::npos)
-    text = text.drop_front(nl + 1);
-  text = text.trim().rtrim(" \t=:,;(").ltrim(" \t,;)").trim();
-  return text.str();
+/// The label in the text before a conversion: its trailing identifier-like
+/// token (`[A-Za-z_][A-Za-z0-9_.\[\]]*`), after the spaces and separators
+/// that end it (`=`, `:`, `,`, `;`, `(`): "x=%d" and " inc=%u" give "x" and
+/// "inc", "pre: stream=%p" gives "stream"; "" when there is none. \p lead
+/// gets the text before the token.
+static std::string printfLabel(StringRef text, StringRef *lead = nullptr) {
+  auto isTok = [](char c) {
+    return isAlnum(c) || StringRef("_.[]").contains(c);
+  };
+  StringRef t = text.rtrim(" \t\r\n=:,;(");
+  size_t b = t.size();
+  while (b > 0 && isTok(t[b - 1]))
+    --b;
+  // the token starts at a letter or `_` ("0x%x" gives "x")
+  while (b < t.size() && !isAlpha(t[b]) && t[b] != '_')
+    ++b;
+  if (lead)
+    *lead = t.take_front(b);
+  return t.drop_front(b).str();
+}
+
+/// The leading text of a format (before its first label) as a print scope
+/// tag: its words (runs of letters, digits, `_`) from the first that starts
+/// with a letter or `_`, joined by `_` ("pre: " gives "pre", "after step 2: "
+/// gives "after_step_2"); "" when it has no identifier ("--> ", "1: ").
+static std::string printfScope(StringRef lead) {
+  std::string tag;
+  while (!lead.empty()) {
+    lead = lead.drop_while([](char c) { return !isAlnum(c) && c != '_'; });
+    StringRef w =
+        lead.take_while([](char c) { return isAlnum(c) || c == '_'; });
+    lead = lead.drop_front(w.size());
+    if (w.empty() || (tag.empty() && isDigit(w[0])))
+      continue;
+    tag += (tag.empty() ? "" : "_") + w.str();
+  }
+  return tag;
 }
 
 /// The conversions of \p fmt, or false for what the minimal parser does not
 /// know (`*` width or precision, %n, an unknown conversion): flags, width,
-/// precision and length modifiers are skipped; "%%" is a literal %.
-static bool parsePrintf(StringRef fmt, SmallVectorImpl<PrintfConv> &convs) {
+/// precision and length modifiers are skipped; "%%" is a literal %. \p scope
+/// gets the scope tag of the text before the first conversion's label.
+static bool parsePrintf(StringRef fmt, SmallVectorImpl<PrintfConv> &convs,
+                        std::string &scope) {
   std::string text;
   for (size_t i = 0; i < fmt.size(); ++i) {
     if (fmt[i] != '%') {
@@ -1572,7 +1603,10 @@ static bool parsePrintf(StringRef fmt, SmallVectorImpl<PrintfConv> &convs) {
       ++i;
     if (i == fmt.size() || !StringRef("diouxXcspfFeEgGaA").contains(fmt[i]))
       return false;
-    convs.push_back({fmt[i], printfLabel(text)});
+    StringRef lead;
+    convs.push_back({fmt[i], printfLabel(text, &lead)});
+    if (convs.size() == 1)
+      scope = printfScope(lead);
     text.clear();
   }
   return true;
@@ -1582,16 +1616,19 @@ static bool parsePrintf(StringRef fmt, SmallVectorImpl<PrintfConv> &convs) {
 /// its named arguments) as sea-mlir prints (docs/design/Print.md), which
 /// encode nothing in the VC:
 /// - each integer or pointer argument: one strong sea.print. Label: the
-///   format's text before its conversion ("x=%d" -> "x"), else the debug
-///   variable the argument holds, else its LLVM name (not SeaHorn's
-///   generated `_N`), else arg<k>. Format (when the format string is a
-///   constant the minimal parser reads and its conversions match the
-///   arguments): %d %i -> s, %u -> u, %x %X -> x, %c -> c, %s %p of an
-///   integer -> x, else auto; pointers always print as pointers (object +
+///   trailing identifier of the format's text before its conversion
+///   ("pre: x=%d" -> "x"), else the debug variable the argument holds, else
+///   its LLVM name (not one SeaHorn generated), else arg<k>. Format (when the
+///   format string is a constant the minimal parser reads and its conversions
+///   match the arguments): %d %i -> s, %u -> u, %x %X -> x, %c -> c, %s %p of
+///   an integer -> x, else auto; pointers always print as pointers (object +
 ///   offset);
 /// - a constant string argument (%s of a literal): a tag line
 ///   `label = "text"`; another constant pointer that is not null: a tag
 ///   line naming its global;
+/// - the format's leading text before the first label, if it has an
+///   identifier: a print scope around the call's prints ("pre: x=%d" ->
+///   sea.print.scope "pre", the path pre.x);
 /// - a call without arguments: a tag line with the format (else
 ///   "sea_printf");
 /// - other arguments (floats, aggregates, vectors): a warning, not printed.
@@ -1611,8 +1648,10 @@ void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
   bool haveFmt =
       CB.arg_size() > 0 && getConstantStringInfo(CB.getArgOperand(0), fmt);
   SmallVector<PrintfConv> convs;
+  std::string scope;
   unsigned nargs = CB.arg_size() > 0 ? CB.arg_size() - 1 : 0;
-  bool matched = haveFmt && parsePrintf(fmt, convs) && convs.size() == nargs;
+  bool matched =
+      haveFmt && parsePrintf(fmt, convs, scope) && convs.size() == nargs;
   if (nargs == 0) {
     // one output line: the format's line breaks become spaces
     std::string tag = haveFmt ? fmt.trim().str() : "";
@@ -1630,6 +1669,10 @@ void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
          << ": cannot match the format " << quote(fmt) << " to its " << nargs
          << " arguments; they are printed with positional labels and fmt "
             "auto";
+  if (!matched)
+    scope.clear();
+  if (!scope.empty())
+    os << "  sea.print.scope " << quote(scope) << l << "\n";
   for (unsigned k = 0; k < nargs; ++k) {
     const Value *a = CB.getArgOperand(k + 1);
     std::string label = matched ? convs[k].label : "";
@@ -1706,6 +1749,8 @@ void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
       os << " {fmt = \"" << f << "\"}";
     os << l << "\n";
   }
+  if (!scope.empty())
+    os << "  sea.print.end " << quote(scope) << l << "\n";
 }
 
 void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,

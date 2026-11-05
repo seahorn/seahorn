@@ -35,14 +35,21 @@
 ///   VC ignores them, as SeaHorn does; sea-wrap-flags assumes or asserts
 ///   them);
 /// - intrinsics with a sea op (min/max, bswap, fshl/fshr) map 1:1;
-///   {iN, i1} = *.with.overflow becomes the plain op and a sea.uaddo / saddo / ... op,
-///   which the extractvalues of the result pick; llvm.expect is its
+///   {iN, i1} = *.with.overflow becomes the plain op and a sea.uaddo / saddo /
+///   ... op, which the extractvalues of the result pick; llvm.expect is its
 ///   argument; cttz / ctlz (a zero input is the width, also with
 ///   is_zero_poison) are a binary search of selects, bitreverse a concat of
 ///   one-bit extracts (sea has no op for them);
 /// - inline assembly: only BvOpSem2's patterns (empty-body and
-///   comment-only barriers, a single bswap) are recognized, here, so sea-mlir never sees assembly;
+///   comment-only barriers, a single bswap) are recognized, here, so sea-mlir
+///   never sees assembly;
 /// - shadow.mem.in / shadow.mem.out (main only) have no effect.
+///
+/// sea_printf(fmt, ...) becomes counterexample prints (sea-mlir
+/// docs/design/Print.md), which encode nothing in the VC: one strong
+/// sea.print per integer or pointer argument, a tag line for a call without
+/// arguments (exportPrintf).
+///
 /// Anything else is an error.
 
 #include "seahorn/SeaMlirExport.hh"
@@ -127,13 +134,17 @@ static uint64_t objectAlign(llvm::Align a, unsigned ptrBytes) {
 
 namespace {
 
-/// Escapes a string for an MLIR string literal.
+/// Escapes a string for an MLIR string literal (a non-printable byte as
+/// \HH).
 std::string quote(StringRef s) {
   std::string r = "\"";
   for (char c : s) {
     if (c == '"' || c == '\\')
-      r += '\\';
-    r += c;
+      (r += '\\') += c;
+    else if (isPrint(c))
+      r += c;
+    else
+      r += "\\" + utohexstr(uint8_t(c), /*LowerCase=*/false, 2);
   }
   return r + "\"";
 }
@@ -236,6 +247,7 @@ private:
   void exportCall(const CallBase &CB);
   void exportShadow(const CallBase &CB, StringRef name);
   void exportInlineAsm(const CallBase &CB, const InlineAsm &IA);
+  void exportPrintf(const CallBase &CB, const std::string &l);
   /// Stores the initializer of \p gv into memory version \p mem; returns
   /// the new version, or std::nullopt if the initializer is not plain data.
   std::optional<std::string> exportGlobalInit(const GlobalVariable &gv,
@@ -1340,6 +1352,8 @@ void Exporter::exportCall(const CallBase &CB) {
     os << "  sea.assume " << cond << l << "\n";
     return;
   }
+  if (name == "sea_printf")
+    return exportPrintf(CB, l);
   if (f->isDeclaration() && CB.arg_empty() && !CB.getType()->isVoidTy() &&
       (name.starts_with("nd") || name.starts_with("nondet") ||
        name.starts_with("verifier.nondet") ||
@@ -1495,6 +1509,186 @@ void Exporter::exportCall(const CallBase &CB) {
   os << "  " << n << " = sea.nondet " << quote(name) << " [" << site(&CB)
      << "] : " << *type(CB.getType(), &CB) << l << "\n";
   names[&CB] = n;
+}
+
+/// One conversion of a printf format: its letter and the literal text
+/// before it (since the previous conversion), cleaned up as a label.
+struct PrintfConv {
+  char conv;
+  std::string label;
+};
+
+/// The text before a conversion as a label: its last line, without the
+/// spaces and separators around it ("x=%d" gives "x", ", count: %u" gives
+/// "count").
+static std::string printfLabel(StringRef text) {
+  if (size_t nl = text.rfind('\n'); nl != StringRef::npos)
+    text = text.drop_front(nl + 1);
+  text = text.trim().rtrim(" \t=:,;(").ltrim(" \t,;)").trim();
+  return text.str();
+}
+
+/// The conversions of \p fmt, or false for what the minimal parser does not
+/// know (`*` width or precision, %n, an unknown conversion): flags, width,
+/// precision and length modifiers are skipped; "%%" is a literal %.
+static bool parsePrintf(StringRef fmt, SmallVectorImpl<PrintfConv> &convs) {
+  std::string text;
+  for (size_t i = 0; i < fmt.size(); ++i) {
+    if (fmt[i] != '%') {
+      text += fmt[i];
+      continue;
+    }
+    if (++i < fmt.size() && fmt[i] == '%') {
+      text += '%';
+      continue;
+    }
+    while (i < fmt.size() && StringRef("-+ #0'").contains(fmt[i]))
+      ++i;
+    while (i < fmt.size() && isDigit(fmt[i]))
+      ++i;
+    if (i < fmt.size() && fmt[i] == '.')
+      for (++i; i < fmt.size() && isDigit(fmt[i]);)
+        ++i;
+    while (i < fmt.size() && StringRef("hljztLq").contains(fmt[i]))
+      ++i;
+    if (i == fmt.size() || !StringRef("diouxXcspfFeEgGaA").contains(fmt[i]))
+      return false;
+    convs.push_back({fmt[i], printfLabel(text)});
+    text.clear();
+  }
+  return true;
+}
+
+/// sea_printf(fmt, ...) (SeaHorn's counterexample printf; BmcImpl prints
+/// its named arguments) as sea-mlir prints (docs/design/Print.md), which
+/// encode nothing in the VC:
+/// - each integer or pointer argument: one strong sea.print. Label: the
+///   format's text before its conversion ("x=%d" -> "x"), else the debug
+///   variable the argument holds, else its LLVM name (not SeaHorn's
+///   generated `_N`), else arg<k>. Format (when the format string is a
+///   constant the minimal parser reads and its conversions match the
+///   arguments): %d %i -> s, %u -> u, %x %X -> x, %c -> c, %s %p of an
+///   integer -> x, else auto; pointers always print as pointers (object +
+///   offset);
+/// - a constant string argument (%s of a literal): a tag line
+///   `label = "text"`; another constant pointer that is not null: a tag
+///   line naming its global;
+/// - a call without arguments: a tag line with the format (else
+///   "sea_printf");
+/// - other arguments (floats, aggregates, vectors): a warning, not printed.
+void Exporter::exportPrintf(const CallBase &CB, const std::string &l) {
+  // A memory use or definition SeaHorn's shadow memory may attach to the
+  // call (the declaration is normally noalias): prints change no memory.
+  pendingUse.reset();
+  pendingUseVersion = nullptr;
+  if (pendingDef) {
+    auto d = *takeDef(CB);
+    names[d.second] = d.first;
+  }
+  std::string where;
+  if (const DebugLoc &dl = CB.getDebugLoc())
+    where = " at line " + std::to_string(dl.getLine());
+  StringRef fmt;
+  bool haveFmt =
+      CB.arg_size() > 0 && getConstantStringInfo(CB.getArgOperand(0), fmt);
+  SmallVector<PrintfConv> convs;
+  unsigned nargs = CB.arg_size() > 0 ? CB.arg_size() - 1 : 0;
+  bool matched = haveFmt && parsePrintf(fmt, convs) && convs.size() == nargs;
+  if (nargs == 0) {
+    // one output line: the format's line breaks become spaces
+    std::string tag = haveFmt ? fmt.trim().str() : "";
+    std::replace(tag.begin(), tag.end(), '\n', ' ');
+    os << "  sea.print " << quote(tag.empty() ? "sea_printf" : tag) << l
+       << "\n";
+    return;
+  }
+  if (!haveFmt)
+    WARN << "sea-mlir export: sea_printf" << where
+         << ": the format is not a constant string; its arguments are "
+            "printed with positional labels and fmt auto";
+  else if (!matched)
+    WARN << "sea-mlir export: sea_printf" << where
+         << ": cannot match the format " << quote(fmt) << " to its " << nargs
+         << " arguments; they are printed with positional labels and fmt "
+            "auto";
+  for (unsigned k = 0; k < nargs; ++k) {
+    const Value *a = CB.getArgOperand(k + 1);
+    std::string label = matched ? convs[k].label : "";
+    // the variable an llvm.dbg.value says the argument holds
+    if (auto *md = LocalAsMetadata::getIfExists(const_cast<Value *>(a));
+        md && label.empty())
+      if (auto *mv = MetadataAsValue::getIfExists(a->getContext(), md))
+        for (const User *u : mv->users())
+          if (auto *dv = dyn_cast<DbgValueInst>(u);
+              dv && dv->getVariable() &&
+              !dv->getVariable()->getName().empty()) {
+            label = dv->getVariable()->getName().str();
+            break;
+          }
+    if (label.empty() && a->hasName() &&
+        !(a->getName().starts_with("_") &&
+          all_of(a->getName().drop_front(), isDigit)))
+      label = a->getName().str();
+    if (label.empty())
+      label = "arg" + std::to_string(k + 1);
+    Type *t = a->getType();
+    if (t->isPointerTy() && isa<Constant>(a) && !isa<ConstantPointerNull>(a)) {
+      StringRef str;
+      if (getConstantStringInfo(a, str)) {
+        os << "  sea.print " << quote(label + " = \"" + str.str() + "\"") << l
+           << "\n";
+        continue;
+      }
+      int64_t off = 0;
+      const Value *base = GetPointerBaseWithConstantOffset(a, off, DL);
+      std::string tok = isa<GlobalValue>(base)
+                            ? "&global." + base->getName().str() + "[" +
+                                  std::to_string(off) + "]"
+                            : "a constant pointer";
+      os << "  sea.print " << quote(label + " = " + tok) << l << "\n";
+      continue;
+    }
+    if (!t->isIntegerTy() && !t->isPointerTy()) {
+      std::string ts;
+      raw_string_ostream tos(ts);
+      tos << *t;
+      WARN << "sea-mlir export: sea_printf" << where << ": argument " << k + 1
+           << " (" << label << ") of type " << ts
+           << " is not printed (only integers and pointers are)";
+      continue;
+    }
+    auto v = val(a, CB);
+    auto ty = type(t, &CB);
+    if (!v || !ty)
+      return;
+    const char *f = nullptr;
+    if (matched && t->isIntegerTy()) {
+      switch (convs[k].conv) {
+      case 'd':
+      case 'i':
+        f = "s";
+        break;
+      case 'u':
+        f = "u";
+        break;
+      case 'x':
+      case 'X':
+      case 'p':
+      case 's':
+        f = "x";
+        break;
+      case 'c':
+        f = "c";
+        break;
+      default:
+        break;
+      }
+    }
+    os << "  sea.print " << quote(label) << " " << *v << " : " << *ty;
+    if (f)
+      os << " {fmt = \"" << f << "\"}";
+    os << l << "\n";
+  }
 }
 
 void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,

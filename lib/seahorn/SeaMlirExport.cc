@@ -197,7 +197,20 @@ private:
     }
     ERR << "sea-mlir export: " << msg << where;
     ok = false;
+    // the root cause of the instruction being exported (its first error):
+    // the operands it leaves undefined are not reported again (val)
+    if (current)
+      failed.try_emplace(current, current, msg.str());
   }
+  /// \p v has no definition because \p root failed to export (\p why).
+  /// Reported once per reason; the instruction being exported fails
+  /// silently with the same root cause, so one unsupported construct gives
+  /// one error, not one per use of every value computed from it.
+  void undefinedBy(const Value &v, const Instruction &root,
+                   const std::string &why);
+  /// \p call (a call to a defined function) was not inlined; reported once
+  /// per callee (later calls are counted), \p what says how it was found.
+  void notInlined(const CallBase &call, const Twine &what);
   void warnOnce(const Twine &key, const Twine &msg) {
     if (warned.insert(key.str()).second)
       WARN << "sea-mlir export: " << msg;
@@ -298,6 +311,7 @@ private:
 
   // -- instructions
   void exportBlock(const BasicBlock &BB);
+  static bool isShadowCall(const Instruction &I);
   bool vectorOk(const Instruction &I);
   void exportVectorElement(const Instruction &I);
   void exportInst(const Instruction &I);
@@ -338,6 +352,36 @@ private:
   uint64_t nextSite = 0;
   bool ok = true;
   StringSet<> warned;
+  /// The instruction being exported (error attributes to it).
+  const Instruction *current = nullptr;
+  /// The values whose definition failed to export: the instruction that
+  /// failed and its first error. Uses of them fail silently (val).
+  DenseMap<const Value *, std::pair<const Instruction *, std::string>> failed;
+  /// The root causes (their errors) already explained to the user
+  /// (undefinedBy).
+  StringSet<> explained;
+  /// The calls and the callees reported as not inlined (notInlined), and
+  /// the calls not reported because their callee was.
+  DenseSet<const Instruction *> reportedCalls;
+  StringSet<> reportedCallees;
+  unsigned moreNotInlined = 0;
+  /// The root cause of a failed shadow memory call before the instruction
+  /// being exported: a missing pending definition / use is no new error.
+  std::optional<std::pair<const Instruction *, std::string>> shadowFailed;
+  /// The version takeDef gave the instruction being exported.
+  const Value *takenDef = nullptr;
+  /// A missing pending shadow memory call that follows from shadowFailed.
+  bool shadowFailedFor() {
+    if (!shadowFailed)
+      return false;
+    ok = false;
+    ++suppressed;
+    if (current)
+      failed.try_emplace(current, *shadowFailed);
+    return true;
+  }
+  /// The errors suppressed because they follow from an earlier one.
+  unsigned suppressed = 0;
   /// The globals whose initializer was dropped (droppedInit).
   StringSet<> droppedGlobals;
   DenseMap<const Value *, std::string> names;
@@ -575,8 +619,62 @@ std::optional<std::string> Exporter::val(const Value *v,
     return it->second;
   if (auto *c = dyn_cast<Constant>(v))
     return constant(c, at);
+  auto f = failed.find(v);
+  if (f != failed.end()) {
+    auto root = f->second; // (undefinedBy may grow `failed`)
+    undefinedBy(*v, *root.first, root.second);
+    return std::nullopt;
+  }
   error("operand has no definition yet", v);
   return std::nullopt;
+}
+
+void Exporter::undefinedBy(const Value &v, const Instruction &root,
+                           const std::string &why) {
+  ok = false;
+  if (current)
+    failed.try_emplace(current, &root, why);
+  if (!explained.insert(why).second) {
+    ++suppressed;
+    return;
+  }
+  std::string name;
+  raw_string_ostream ns(name);
+  v.printAsOperand(ns, /*PrintType=*/false);
+  std::string where;
+  raw_string_ostream ws(where);
+  ws << root;
+  if (const DebugLoc &dl = root.getDebugLoc())
+    ws << " (" << dl->getFilename() << ":" << dl.getLine() << ")";
+  ERR << "sea-mlir export: operand " << name << " is undefined because `"
+      << StringRef(where).trim() << "` failed to export (" << why
+      << "); later uses of the values computed from it are not reported";
+}
+
+void Exporter::notInlined(const CallBase &call, const Twine &what) {
+  StringRef callee;
+  if (const Function *fn = calledFunction(call))
+    callee = fn->getName();
+  std::string msg = ("call to " + callee + " was not inlined (" + what +
+                     "; the exporter expects every call to a defined "
+                     "function inlined)")
+                        .str();
+  if (reportedCalls.insert(&call).second) {
+    if (reportedCallees.insert(callee).second) {
+      // the error is about the call; the instruction being exported (a
+      // shadow.mem.arg.* before it) fails with it as the root cause
+      const Instruction *was = current;
+      current = &call;
+      error(msg, &call);
+      current = was;
+    } else {
+      ++moreNotInlined;
+      failed.try_emplace(&call, &call, msg);
+    }
+  }
+  ok = false;
+  if (current && current != &call)
+    failed.try_emplace(current, &call, msg);
 }
 
 std::optional<std::string> Exporter::constant(const Constant *c,
@@ -813,17 +911,20 @@ std::optional<std::string> Exporter::sizeVal(const Value *v,
 std::optional<std::pair<std::string, const Value *>>
 Exporter::takeDef(const Instruction &I) {
   if (!pendingDef) {
-    error("memory update without a shadow.mem.store before it", &I);
+    if (!shadowFailedFor())
+      error("memory update without a shadow.mem.store before it", &I);
     return std::nullopt;
   }
   auto d = *pendingDef;
   pendingDef.reset();
+  takenDef = d.second;
   return d;
 }
 
 std::optional<std::string> Exporter::takeUse(const Instruction &I) {
   if (!pendingUse) {
-    error("load without a shadow.mem.load before it", &I);
+    if (!shadowFailedFor())
+      error("load without a shadow.mem.load before it", &I);
     return std::nullopt;
   }
   auto u = *pendingUse;
@@ -1005,6 +1106,22 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
     }
     if (!CB.getType()->isVoidTy() && !CB.use_empty())
       error(name + " whose result is used is not supported", &CB);
+    return;
+  }
+  if (name.starts_with("shadow.mem.arg.")) {
+    // shadow.mem.arg.mod / arg.new describe the memory a call writes: they
+    // remain only when a call to a defined function was not inlined.
+    for (const Instruction *n = CB.getNextNode(); n; n = n->getNextNode())
+      if (auto *call = dyn_cast<CallBase>(n)) {
+        const Function *fn = calledFunction(*call);
+        if (fn && fn->getName().starts_with("shadow.mem."))
+          continue;
+        notInlined(*call, "it has " + name);
+        return;
+      }
+    error("unsupported shadow memory function " + name +
+              " (it means a call was not inlined, but no call follows it)",
+          &CB);
     return;
   }
   error("unsupported shadow memory function " + name, &CB);
@@ -1644,7 +1761,8 @@ void Exporter::exportCall(const CallBase &CB) {
   if (auto *mt = dyn_cast<MemTransferInst>(&CB)) {
     auto d = takeDef(CB);
     if (!pendingTrsfr) {
-      error("memcpy/memmove without a shadow.mem.trsfr.load before it", &CB);
+      if (!shadowFailedFor())
+        error("memcpy/memmove without a shadow.mem.trsfr.load before it", &CB);
       return;
     }
     std::string src = *pendingTrsfr;
@@ -1736,9 +1854,7 @@ void Exporter::exportCall(const CallBase &CB) {
     return;
   }
   if (!f->isDeclaration()) {
-    error("call to defined function " + name +
-              " (the exporter expects it inlined)",
-          &CB);
+    notInlined(CB, "a call to a defined function");
     return;
   }
   // An external function: no effect, nondet result (as BvOpSem2).
@@ -2475,8 +2591,32 @@ void Exporter::exportBlock(const BasicBlock &BB) {
       continue;
     if (I.isTerminator())
       break;
+    current = &I;
+    takenDef = nullptr;
     exportInst(I);
+    // A memory instruction that failed leaves its shadow memory calls
+    // pending: the versions they define fail with it, and they must not
+    // pair with the next memory instruction.
+    auto fi = failed.find(&I);
+    if (fi != failed.end() && !isShadowCall(I) &&
+        isa<CallBase, LoadInst, StoreInst>(I)) {
+      auto root = fi->second;
+      if (pendingDef)
+        failed.try_emplace(pendingDef->second, root);
+      if (takenDef && !names.count(takenDef))
+        failed.try_emplace(takenDef, root);
+      pendingDef.reset();
+      pendingUse.reset();
+      pendingTrsfr.reset();
+      pendingArgRefs.clear();
+    }
+    if (!isShadowCall(I))
+      shadowFailed.reset();
+    else if (fi != failed.end())
+      shadowFailed = fi->second;
   }
+  shadowFailed.reset();
+  current = BB.getTerminator();
   if (pendingDef || pendingUse || pendingTrsfr)
     error("shadow memory call without the memory instruction it belongs to "
           "in block " +
@@ -2538,6 +2678,12 @@ void Exporter::exportBlock(const BasicBlock &BB) {
   error(Twine("unsupported terminator ") + term->getOpcodeName(), term);
 }
 
+bool Exporter::isShadowCall(const Instruction &I) {
+  auto *cb = dyn_cast<CallBase>(&I);
+  const Function *fn = cb ? calledFunction(*cb) : nullptr;
+  return fn && fn->getName().starts_with("shadow.mem.");
+}
+
 bool Exporter::run() {
   findMemValues();
   unsigned rets = 0;
@@ -2554,6 +2700,14 @@ bool Exporter::run() {
     blockName(BB);
   for (const BasicBlock *BB : rpo)
     exportBlock(*BB);
+  current = nullptr;
+  if (moreNotInlined)
+    WARN << "sea-mlir export: " << moreNotInlined
+         << " more calls to the functions reported above as not inlined";
+  if (suppressed)
+    WARN << "sea-mlir export: " << suppressed
+         << " more uses of values left undefined by the errors above were "
+            "not reported";
   staleAllowUninit();
   if (!ok)
     return false;

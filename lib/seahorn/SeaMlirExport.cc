@@ -58,29 +58,30 @@
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
-#include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/Dominators.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/CFG.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
@@ -157,6 +158,10 @@ public:
     W = DL.getPointerSizeInBits();
     ptrTy = "!sea.ptr<" + std::to_string(W) + ">";
     memTy = "!sea.mem<" + ptrTy + ", i8>";
+    for (const DICompileUnit *cu : F.getParent()->debug_compile_units()) {
+      srcRoot = cu->getDirectory().str();
+      break;
+    }
   }
 
   bool run();
@@ -204,6 +209,9 @@ private:
               const std::string &l);
   std::string loc(const Instruction &I, bool named = true);
   bool generatedName(const Value &v) const;
+  /// Source paths are relative to it: the compilation directory of the
+  /// module's first compile unit.
+  std::string srcRoot;
   std::string blockName(const BasicBlock *BB) {
     auto it = blocks.find(BB);
     if (it == blocks.end())
@@ -349,15 +357,42 @@ std::optional<std::string> Exporter::type(Type *t, const Value *at) {
   return std::nullopt;
 }
 
-/// \p I's location: its file location, inside a NameLoc with \p I's name
-/// when \p named and the name is a source name (generatedName).
+/// The path of a source file: its directory and name, relative to the
+/// compilation directory \p root when it lies under it, else absolute (or as
+/// the debug info has it).
+static std::string sourcePath(const DIFile *file, StringRef root) {
+  if (!file)
+    return "";
+  SmallString<128> path(file->getFilename());
+  if (!sys::path::is_absolute(path) && !file->getDirectory().empty()) {
+    path = file->getDirectory();
+    sys::path::append(path, file->getFilename());
+  }
+  sys::path::remove_dots(path, /*remove_dot_dot=*/true);
+  if (!root.empty() && path.str().starts_with(root) &&
+      path.size() > root.size() && sys::path::is_separator(path[root.size()]))
+    return path.substr(root.size() + 1).str();
+  return path.str().str();
+}
+
+/// A debug location as an MLIR location body: "file":line:col, and when it
+/// was inlined, callsite(<it> at <the call's location>), recursively (the
+/// innermost position first).
+static std::string sourceLoc(const DILocation *dl, StringRef root) {
+  std::string here = quote(sourcePath(dl->getScope()->getFile(), root)) + ":" +
+                     std::to_string(dl->getLine()) + ":" +
+                     std::to_string(dl->getColumn());
+  if (const DILocation *at = dl->getInlinedAt())
+    return "callsite(" + here + " at " + sourceLoc(at, root) + ")";
+  return here;
+}
+
+/// \p I's location: its source location (sourceLoc), inside a NameLoc with
+/// \p I's name when \p named and the name is a source name (generatedName).
 std::string Exporter::loc(const Instruction &I, bool named) {
   std::string child;
-  if (const DebugLoc &dl = I.getDebugLoc()) {
-    if (auto *scope = dyn_cast<DIScope>(dl.getScope()))
-      child = quote(scope->getFilename()) + ":" + std::to_string(dl.getLine()) +
-              ":" + std::to_string(dl.getCol());
-  }
+  if (const DILocation *dl = I.getDebugLoc().get())
+    child = sourceLoc(dl, srcRoot);
   if (named && I.hasName() && !generatedName(I)) {
     std::string n = quote(I.getName());
     return " loc(" + (child.empty() ? n : n + "(" + child + ")") + ")";
@@ -445,6 +480,15 @@ std::optional<std::string> Exporter::constant(const Constant *c,
                              "shadow.mem.global.init before this use");
     std::string n = fresh();
     uint64_t size = DL.getTypeAllocSize(gv->getValueType());
+    // the global's declaration, when the debug info has it
+    SmallVector<DIGlobalVariableExpression *, 1> dvs;
+    gv->getDebugInfo(dvs);
+    for (DIGlobalVariableExpression *e : dvs)
+      if (const DIGlobalVariable *v = e->getVariable(); v && v->getLine()) {
+        l = " loc(" + quote(sourcePath(v->getFile(), srcRoot)) + ":" +
+            std::to_string(v->getLine()) + ":0)";
+        break;
+      }
     os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
        << size << " align " << objectAlign(gv->getPointerAlignment(DL), W / 8)
        << " : "

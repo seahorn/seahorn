@@ -223,10 +223,10 @@ private:
   /// --horn-sea-mlir-allow-uninit-global=<its name> (then a warning); once
   /// per global.
   void droppedInit(const GlobalVariable &gv, const Twine &why) {
-    std::string msg = ("the initializer of global " + gv.getName() +
-                       " is dropped (" + why +
-                       "): the global would start uninitialized")
-                          .str();
+    std::string msg =
+        ("the initializer of global " + gv.getName() + " is dropped (" + why +
+         "): the global would start uninitialized")
+            .str();
     if (!warned.insert("init:" + gv.getName().str()).second)
       return;
     droppedGlobals.insert(gv.getName());
@@ -260,9 +260,8 @@ private:
   std::optional<std::string> type(Type *t, const Value *at);
   std::optional<std::string> vectorConstant(const llvm::Constant *c,
                                             const Instruction &at);
-  std::string
-  concatParts(ArrayRef<std::pair<std::string, unsigned>> parts,
-              const std::string &l);
+  std::string concatParts(ArrayRef<std::pair<std::string, unsigned>> parts,
+                          const std::string &l);
   std::string loc(const Instruction &I, bool named = true);
   bool generatedName(const Value &v) const;
   /// Source paths are relative to it: the compilation directory of the
@@ -869,8 +868,7 @@ std::optional<std::string> Exporter::constant(const Constant *c,
       }
     os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
        << size << " align " << objectAlign(gv->getPointerAlignment(DL), W / 8)
-       << " : "
-       << ptrTy << l << "\n";
+       << " : " << ptrTy << l << "\n";
     return n;
   }
   if (auto *fn = dyn_cast<Function>(c)) {
@@ -893,16 +891,16 @@ std::optional<std::string> Exporter::constant(const Constant *c,
   if (isa<UndefValue>(c) && c->getType()->isPointerTy()) {
     // an undef pointer: a value that can never be dereferenced
     std::string n = fresh();
-    os << "  " << n << " = sea.ptr.nondet \"undef\" [" << site(&at) << "] : "
-       << ptrTy << l << "\n";
+    os << "  " << n << " = sea.ptr.nondet \"undef\" [" << site(&at)
+       << "] : " << ptrTy << l << "\n";
     return n;
   }
   if (isa<UndefValue>(c) &&
       (c->getType()->isIntegerTy() || c->getType()->isFloatingPointTy())) {
     // sea has no undef: an explicit nondet value (as for aggregates)
     std::string n = fresh();
-    os << "  " << n << " = sea.nondet \"undef\" [" << site(&at) << "] : "
-       << *type(c->getType(), &at) << l << "\n";
+    os << "  " << n << " = sea.nondet \"undef\" [" << site(&at)
+       << "] : " << *type(c->getType(), &at) << l << "\n";
     return n;
   }
   if (isa<UndefValue>(c)) {
@@ -914,8 +912,9 @@ std::optional<std::string> Exporter::constant(const Constant *c,
 }
 
 /// \p parts (value, width), lowest first, as one bit-vector (sea.concat).
-std::string Exporter::concatParts(
-    ArrayRef<std::pair<std::string, unsigned>> parts, const std::string &l) {
+std::string
+Exporter::concatParts(ArrayRef<std::pair<std::string, unsigned>> parts,
+                      const std::string &l) {
   std::string acc = parts[0].first;
   unsigned w = parts[0].second;
   for (auto [v, pw] : parts.drop_front()) {
@@ -1116,7 +1115,8 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
     uint64_t size = gti.getSequentialElementStride(DL).getFixedValue();
     if (auto *ci = dyn_cast<ConstantInt>(idx)) {
       // LangRef: the index is sign-extended or truncated to the index width
-      constOff += APInt(2 * W, size) * ci->getValue().sextOrTrunc(W).sext(2 * W);
+      constOff +=
+          APInt(2 * W, size) * ci->getValue().sextOrTrunc(W).sext(2 * W);
       continue;
     }
     if (!idx->getType()->isIntegerTy()) {
@@ -1134,8 +1134,8 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
     std::string iW = *i;
     if (iw > W) {
       iW = fresh();
-      os << "  " << iW << " = sea.trunc " << *i << " : i" << iw << " to i"
-         << W << l << "\n";
+      os << "  " << iW << " = sea.trunc " << *i << " : i" << iw << " to i" << W
+         << l << "\n";
       iw = W;
     }
     APInt s(W, size, /*isSigned=*/false);
@@ -1149,9 +1149,9 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
   if (names.empty() && gep.isInBounds() && constOff.isSignedIntN(W) &&
       !constOff.isZero()) {
     std::string n = fresh();
-    os << "  " << n << " = sea.ptr.index " << *base
-       << " [] strides [] offset " << constOff.trunc(W).getSExtValue()
-       << " inbounds : " << ptrTy << l << "\n";
+    os << "  " << n << " = sea.ptr.index " << *base << " [] strides [] offset "
+       << constOff.trunc(W).getSExtValue() << " inbounds : " << ptrTy << l
+       << "\n";
     return n;
   }
   if (names.empty()) {
@@ -1160,8 +1160,8 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
     // emitConst writes its own line: before this one
     std::string c = emitConst(constOff.trunc(W), l);
     std::string n = fresh();
-    os << "  " << n << " = sea.ptr.add " << *base << ", " << c << " : "
-       << ptrTy << ", i" << W << l << "\n";
+    os << "  " << n << " = sea.ptr.add " << *base << ", " << c << " : " << ptrTy
+       << ", i" << W << l << "\n";
     return n;
   }
   // inbounds only when its promise can be stated: the folded constant and
@@ -1366,9 +1366,9 @@ static bool splatBytes(const Constant *c, const DataLayout &DL,
   return false; // undef, pointers, constant expressions
 }
 
-std::optional<std::string>
-Exporter::exportGlobalInit(const GlobalVariable &gv, const std::string &mem,
-                           const Instruction &at) {
+std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
+                                                      const std::string &mem,
+                                                      const Instruction &at) {
   /// Above this many bytes, an initializer is left out (a store per byte).
   constexpr uint64_t kMaxInitBytes = 1 << 14;
   uint64_t size = DL.getTypeAllocSize(gv.getValueType());
@@ -1389,10 +1389,11 @@ Exporter::exportGlobalInit(const GlobalVariable &gv, const std::string &mem,
     return r;
   }
   if (!DL.isLittleEndian() || size > kMaxInitBytes) {
-    droppedInit(gv, DL.isLittleEndian()
-                        ? Twine(size) + " bytes, not one repeated byte, "
-                              "larger than " + Twine(kMaxInitBytes)
-                        : Twine("big-endian"));
+    droppedInit(gv, DL.isLittleEndian() ? Twine(size) +
+                                              " bytes, not one repeated byte, "
+                                              "larger than " +
+                                              Twine(kMaxInitBytes)
+                                        : Twine("big-endian"));
     return std::nullopt;
   }
   SmallVector<std::optional<uint8_t>> bytes(size);
@@ -1445,24 +1446,23 @@ void Exporter::exportInlineAsm(const CallBase &CB, const InlineAsm &IA) {
                "memory clobber treated as a no-op (as BvOpSem2)");
     return;
   }
-  bool isBswap =
-      body == "bswap $0" || body == "bswapl $0" || body == "bswapq $0" ||
-      body == "bswap ${0:q}" || body == "bswapl ${0:q}" ||
-      body == "bswapq ${0:q}" ||
-      (ty && ty->getBitWidth() == 16 && cons.starts_with("=r,0,") &&
-       (body == "rorw $$8, ${0:w}" || body == "rolw $$8, ${0:w}"));
+  bool isBswap = body == "bswap $0" || body == "bswapl $0" ||
+                 body == "bswapq $0" || body == "bswap ${0:q}" ||
+                 body == "bswapl ${0:q}" || body == "bswapq ${0:q}" ||
+                 (ty && ty->getBitWidth() == 16 && cons.starts_with("=r,0,") &&
+                  (body == "rorw $$8, ${0:w}" || body == "rolw $$8, ${0:w}"));
   if (isBswap && ty && ty->getBitWidth() % 16 == 0 && CB.arg_size() == 1) {
     auto a = val(CB.getArgOperand(0), CB);
     if (!a)
       return;
     std::string n = fresh();
-    os << "  " << n << " = sea.bswap " << *a << " : i" << ty->getBitWidth()
-       << l << "\n";
+    os << "  " << n << " = sea.bswap " << *a << " : i" << ty->getBitWidth() << l
+       << "\n";
     names[&CB] = n;
     return;
   }
-  error("unsupported inline assembly \"" + IA.getAsmString() + "\" (\"" +
-            cons + "\")",
+  error("unsupported inline assembly \"" + IA.getAsmString() + "\" (\"" + cons +
+            "\")",
         &CB);
 }
 
@@ -1543,13 +1543,13 @@ void Exporter::exportBitIntrinsic(const CallBase &CB, Intrinsic::ID id) {
     n = op("sub", n, emitConst(APInt(P, P - w), l), pty);
   if (P != w) {
     std::string t = fresh();
-    os << "  " << t << " = sea.trunc " << n << " : " << pty << " to " << ty
-       << l << "\n";
+    os << "  " << t << " = sea.trunc " << n << " : " << pty << " to " << ty << l
+       << "\n";
     n = t;
   }
   std::string zw = emitConst(APInt::getZero(w), l), isZero = fresh();
-  os << "  " << isZero << " = sea.icmp eq, " << *x << ", " << zw << " : "
-     << ty << l << "\n";
+  os << "  " << isZero << " = sea.icmp eq, " << *x << ", " << zw << " : " << ty
+     << l << "\n";
   std::string wc = emitConst(APInt(w, w), l);
   names[&CB] = select(isZero, wc, n, ty);
 }
@@ -1572,14 +1572,34 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   const char *op = nullptr;
   unsigned nargs = 2;
   switch (id) {
-  case Intrinsic::umin: op = "umin"; break;
-  case Intrinsic::umax: op = "umax"; break;
-  case Intrinsic::smin: op = "smin"; break;
-  case Intrinsic::smax: op = "smax"; break;
-  case Intrinsic::bswap: op = "bswap"; nargs = 1; break;
-  case Intrinsic::ctpop: op = "ctpop"; nargs = 1; break;
-  case Intrinsic::fshl: op = "fshl"; nargs = 3; break;
-  case Intrinsic::fshr: op = "fshr"; nargs = 3; break;
+  case Intrinsic::umin:
+    op = "umin";
+    break;
+  case Intrinsic::umax:
+    op = "umax";
+    break;
+  case Intrinsic::smin:
+    op = "smin";
+    break;
+  case Intrinsic::smax:
+    op = "smax";
+    break;
+  case Intrinsic::bswap:
+    op = "bswap";
+    nargs = 1;
+    break;
+  case Intrinsic::ctpop:
+    op = "ctpop";
+    nargs = 1;
+    break;
+  case Intrinsic::fshl:
+    op = "fshl";
+    nargs = 3;
+    break;
+  case Intrinsic::fshr:
+    op = "fshr";
+    nargs = 3;
+    break;
   case Intrinsic::cttz:
   case Intrinsic::ctlz:
   case Intrinsic::bitreverse:
@@ -1612,8 +1632,8 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
     unsigned w = t->getIntegerBitWidth();
     std::string ty = *type(t, &CB);
     auto v = emit(add ? "add" : "sub", 2, t);
-    auto o = emit(sgn ? (add ? "saddo" : "ssubo") : (add ? "uaddo" : "usubo"),
-                  2, t);
+    auto o =
+        emit(sgn ? (add ? "saddo" : "ssubo") : (add ? "uaddo" : "usubo"), 2, t);
     auto a = val(CB.getArgOperand(0), CB);
     if (!v || !o || !a)
       return true;
@@ -1622,8 +1642,8 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
       bound = emitConst(add ? APInt::getAllOnes(w) : APInt::getZero(w), l);
     } else {
       std::string z = emitConst(APInt::getZero(w), l), neg = fresh();
-      os << "  " << neg << " = sea.icmp slt, " << *a << ", " << z << " : "
-         << ty << l << "\n";
+      os << "  " << neg << " = sea.icmp slt, " << *a << ", " << z << " : " << ty
+         << l << "\n";
       std::string mn = emitConst(APInt::getSignedMinValue(w), l),
                   mx = emitConst(APInt::getSignedMaxValue(w), l);
       bound = fresh();
@@ -1652,12 +1672,30 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
   // overflow bit an overflow op (sea.uaddo, ...); extractvalue picks one.
   const char *arith = nullptr;
   switch (id) {
-  case Intrinsic::uadd_with_overflow: arith = "add"; op = "uaddo"; break;
-  case Intrinsic::sadd_with_overflow: arith = "add"; op = "saddo"; break;
-  case Intrinsic::usub_with_overflow: arith = "sub"; op = "usubo"; break;
-  case Intrinsic::ssub_with_overflow: arith = "sub"; op = "ssubo"; break;
-  case Intrinsic::umul_with_overflow: arith = "mul"; op = "umulo"; break;
-  case Intrinsic::smul_with_overflow: arith = "mul"; op = "smulo"; break;
+  case Intrinsic::uadd_with_overflow:
+    arith = "add";
+    op = "uaddo";
+    break;
+  case Intrinsic::sadd_with_overflow:
+    arith = "add";
+    op = "saddo";
+    break;
+  case Intrinsic::usub_with_overflow:
+    arith = "sub";
+    op = "usubo";
+    break;
+  case Intrinsic::ssub_with_overflow:
+    arith = "sub";
+    op = "ssubo";
+    break;
+  case Intrinsic::umul_with_overflow:
+    arith = "mul";
+    op = "umulo";
+    break;
+  case Intrinsic::smul_with_overflow:
+    arith = "mul";
+    op = "smulo";
+    break;
   default:
     return false;
   }
@@ -1737,8 +1775,8 @@ void Exporter::exportCall(const CallBase &CB) {
       return;
     }
     std::string n = fresh();
-    os << "  " << n << " = sea.nondet \"indirect\" [" << site(&CB) << "] : "
-       << *t << loc(CB) << "\n";
+    os << "  " << n << " = sea.nondet \"indirect\" [" << site(&CB)
+       << "] : " << *t << loc(CB) << "\n";
     names[&CB] = n;
     return;
   }
@@ -1805,7 +1843,7 @@ void Exporter::exportCall(const CallBase &CB) {
     for (const Use &u : ver->uses()) {
       auto *ui = dyn_cast<Instruction>(u.getUser());
       if (!ui || ui->getNextNode() == &CB)
-        continue; // its own shadow.mem.load
+        continue;                  // its own shadow.mem.load
       if (!dt.dominates(&CB, u)) { // a phi's use is at its incoming edge
         error("memhavoc: a use of the memory version it havocs is not after "
               "it (cannot give it a new version)",
@@ -2501,7 +2539,8 @@ void Exporter::exportInst(const Instruction &I) {
       return;
     Type *t = I.getOperand(0)->getType();
     if (t->isPointerTy())
-      def(("sea.ptr.cmp " + pred + ", " + *a + ", " + *b + " : " + ptrTy).str());
+      def(("sea.ptr.cmp " + pred + ", " + *a + ", " + *b + " : " + ptrTy)
+              .str());
     else if (t->isIntegerTy())
       def(("sea.icmp " + pred + ", " + *a + ", " + *b + " : " + *type(t, &I))
               .str());
@@ -2547,8 +2586,8 @@ void Exporter::exportInst(const Instruction &I) {
       break;
     case Instruction::PtrToInt: {
       std::string i = fresh();
-      os << "  " << i << " = sea.ptr.to_int " << *a << " : " << ptrTy
-         << " to i" << W << l << "\n";
+      os << "  " << i << " = sea.ptr.to_int " << *a << " : " << ptrTy << " to i"
+         << W << l << "\n";
       unsigned w = to->getIntegerBitWidth();
       if (w == W)
         names[&I] = i;
@@ -2671,7 +2710,8 @@ void Exporter::exportInst(const Instruction &I) {
     return;
   }
   if (isa<LoadInst, StoreInst>(&I) &&
-      isa<StructType, ArrayType>(getLoadStoreType(const_cast<Instruction *>(&I)))) {
+      isa<StructType, ArrayType>(
+          getLoadStoreType(const_cast<Instruction *>(&I)))) {
     error("loads and stores of aggregates are not supported yet", &I);
     return;
   }
@@ -2690,8 +2730,8 @@ void Exporter::exportInst(const Instruction &I) {
       unsigned w = t->getIntegerBitWidth(), bw = (w + 7) / 8 * 8;
       std::string b = fresh();
       os << "  " << b << " = sea.load " << *m << "[" << *p << "]"
-         << align(ld->getAlign()) << " : " << memTy
-         << " -> i" << bw << l << "\n";
+         << align(ld->getAlign()) << " : " << memTy << " -> i" << bw << l
+         << "\n";
       def("sea.trunc " + b + " : i" + std::to_string(bw) + " to i" +
           std::to_string(w));
       return;
@@ -2721,8 +2761,8 @@ void Exporter::exportInst(const Instruction &I) {
     }
     std::string r = fresh();
     os << "  " << r << " = sea.store " << d->first << "[" << *p << "], "
-       << value << " inplace" << align(st->getAlign()) << " : " << memTy
-       << ", " << vty << l << "\n";
+       << value << " inplace" << align(st->getAlign()) << " : " << memTy << ", "
+       << vty << l << "\n";
     names[d->second] = r;
     return;
   }

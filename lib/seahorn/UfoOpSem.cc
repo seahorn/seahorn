@@ -465,11 +465,11 @@ struct OpSemVisitor : public InstVisitor<OpSemVisitor>, OpSemBase {
       // x | y = 0 implies x = 0 and y = 0 (InstCombine folds
       // x == 0 && y == 0 into (x | y) == 0)
       if (EncodeMinMaxOr)
-        res = mk<AND>(
-            mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
-            mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)),
-            mk<IMPL>(mk<EQ>(lhs, zeroE),
-                     mk<AND>(mk<EQ>(op0, zeroE), mk<EQ>(op1, zeroE))));
+        res =
+            mk<AND>(mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
+                    mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)),
+                    mk<IMPL>(mk<EQ>(lhs, zeroE),
+                             mk<AND>(mk<EQ>(op0, zeroE), mk<EQ>(op1, zeroE))));
       else
         res = mk<AND>(mk<IMPL>(mk<EQ>(op0, zeroE), mk<EQ>(lhs, op1)),
                       mk<IMPL>(mk<EQ>(op1, zeroE), mk<EQ>(lhs, op0)));

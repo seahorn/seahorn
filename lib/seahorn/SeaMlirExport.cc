@@ -55,6 +55,8 @@
 
 #include "seahorn/SeaMlirExport.hh"
 
+#include "seadsa/ShadowMem.hh"
+
 #include "seahorn/Support/InlineAsmBarrier.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
@@ -2884,6 +2886,20 @@ bool Exporter::run() {
     return false;
   out << "// Exported from SeaHorn (" << F.getParent()->getModuleIdentifier()
       << ", function " << F.getName() << ").\n";
+  // sea-dsa's MemSSA optimizer trusts the front end's TBAA metadata
+  // (--horn-shadow-mem-use-tbaa): a load can read a memory version from
+  // before a store through another type. A program that violates strict
+  // aliasing (a mock that writes a library type through its own struct)
+  // then gets a stale value, and a reach can be vacuously unsat. Turning
+  // TBAA off is a diagnosis aid, not the fix: it gives up free alias facts.
+  if (unsigned moved = seadsa::getShadowMemTBAAStats().movedUses) {
+    std::string msg = "TBAA moved " + std::to_string(moved) +
+                      " shadow-memory use" + (moved == 1 ? "" : "s") +
+                      " past stores; to check whether a result depends on it, "
+                      "re-export with --horn-shadow-mem-use-tbaa=false";
+    WARN << "sea-mlir export: " << msg;
+    out << "// sea-mlir-export: " << msg << "\n";
+  }
   out << "sea.program @" << quote(F.getName()) << " {\n";
   if (llvmLinks)
     placePositions(body);

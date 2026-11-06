@@ -105,6 +105,59 @@ have no definition:
   `available_externally` definitions are inlined since
   `--seapp-define-available-externally` (see below).
 
+## Trusted annotations: TBAA
+
+The shadow-memory optimizer (sea-dsa, `--horn-shadow-mem-optimize`) gives
+each load the latest memory version that may write the loaded bytes. With
+`--horn-shadow-mem-use-tbaa` (the default) it trusts the front end's
+type-based alias metadata: a store through one type does not clobber a load
+through an unrelated type, so the load can read a version from before that
+store. This is sound for programs that follow C/C++ strict aliasing, and it
+gives alias facts that the pointer analysis alone does not.
+
+A program that breaks strict aliasing gets stale values. The typical case is
+a mock of a library type written through a mirror struct of the same layout:
+the mock's stores carry the mirror's TBAA tag, the library's loads carry the
+library type's tag, and the loads skip the mock's stores. A reach can then be
+unsat although the program reaches it (a vacuous proof).
+
+When TBAA decides that a load skips a store, the export says so:
+
+```
+Warning: sea-mlir export: TBAA moved N shadow-memory uses past stores; to check whether a result depends on it, re-export with --horn-shadow-mem-use-tbaa=false
+```
+
+and the exported program has the same text as a comment after its first
+line. N counts the loads whose memory version differs from the one they get
+without TBAA (a skip that BasicAA, ScopedNoAliasAA or the allocation-site
+check would also make is not counted). N is summed over the module; the
+export translates `main` only, so after inlining these are `main`'s loads.
+`--log=shadow-mem-tbaa` prints each such load and the first store TBAA
+skipped for it, with their source positions. SeaHorn's own engines report
+the same numbers as statistics (`--horn-stats`):
+`shadow.mem.tbaa-moved-uses` (N) and `shadow.mem.tbaa-noalias-skips` (the
+(load, store) pairs in which the load skipped the store because of TBAA
+alone; one load can skip several stores).
+
+A warning is not an error: in a well-typed program every such skip is
+correct (a load of a `long` that skips a store of a pointer, when the
+pointer analysis cannot separate the two). `--horn-shadow-mem-use-tbaa=false` is a diagnosis aid: if a suspicious
+unsat (or a vacuity check that fails) changes with it, the result depends on
+TBAA. It is not a setting to keep, since it gives up the alias facts above.
+The fix is in the program: mock only what the proof needs, and when a
+library type must be mocked, write the mock against the real type (its own
+API, or explicit specializations) so its accesses carry the library's TBAA
+tags, never through a mirror struct.
+
+sea-mlir's interpreter gives an independent hint: `sea-run` on the exported
+program warns `interp.load-earlier-version` at each load whose memory
+operand is not the latest version of its memory on the executed path. Every
+skip the optimizer makes triggers it, also the correct ones, so it points at
+the loads to inspect rather than proving a stale read. At such a load
+`sea-run` reads the current contents, so if `sea-run` reaches an assertion
+on inputs that `sea-vc` says cannot reach it, one of the flagged loads reads
+a stale version.
+
 ## Heap allocation
 
 - `malloc(n)` is `sea.malloc n align 16`; `calloc(n, k)` is `sea.malloc`

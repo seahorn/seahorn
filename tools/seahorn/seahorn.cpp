@@ -655,6 +655,11 @@ int main(int argc, char **argv) {
     asmOutput->keep();
   if (!OutputFilename.empty())
     output->keep();
+  // -- sea-dsa's MemSSA optimizer: uses it moved past a def because of TBAA
+  // -- alone, and the defs it skipped that way
+  const auto &tbaaStats = seadsa::getShadowMemTBAAStats();
+  seahorn::Stats::uset("shadow.mem.tbaa-moved-uses", tbaaStats.movedUses);
+  seahorn::Stats::uset("shadow.mem.tbaa-noalias-skips", tbaaStats.noAliasSkips);
   if (PrintStats)
     seahorn::Stats::PrintBrunch(llvm::outs());
   return 0;

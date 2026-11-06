@@ -133,9 +133,20 @@ have no definition:
 `-fsanitize=signed-integer-overflow`, `--with-arith-overflow`) has no sea
 op of its own: its value field is the plain op (`sea.mul`) and its overflow
 bit an overflow op (`sea.smulo`), and each `extractvalue` of the result picks
-one of them. A `freeze` of the result (InstCombine and SimplifyCFG add one)
-has the same two fields. Any other use of the `{iN, i1}` result is not
-supported.
+one of them. The result is never a sea struct: it stays two values, and so
+do the instructions that carry it, field by field:
+
+- a `phi` of results (unrolling and GVN merge them) is two block arguments;
+- a `select` of results is two `sea.select`s;
+- a `freeze` of a result (InstCombine and SimplifyCFG add one) has the same
+  two fields;
+- an `insertvalue` into a result replaces one field.
+
+The other operand of such a phi or select may be an `{iN, i1}` constant
+(its fields; an undef or poison field is a nondet value) or any other
+`{iN, i1}` value (its `sea.struct.extract` fields). Any other use of a
+result, for example as an operand of an `insertvalue` into a larger struct
+or of a call, is an error that names the use.
 
 ## Counterexample prints: sea_printf
 

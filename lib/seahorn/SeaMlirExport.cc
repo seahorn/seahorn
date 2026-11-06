@@ -301,6 +301,15 @@ private:
   // -- memory
   void findMemValues();
   bool isMem(const Value *v) const { return memValues.count(v); }
+
+  // -- {iN, i1} results of *.with.overflow intrinsics: pairs of names
+  void findPairValues();
+  bool isPair(const Value *v) const { return pairValues.count(v); }
+  /// The (value, overflow bit) fields of \p v, a pair value or an
+  /// {iN, i1} constant or struct value merged with one.
+  std::optional<std::pair<std::string, std::string>>
+  pairOf(const Value *v, const Instruction &at);
+  void exportPairInst(const Instruction &I);
   unsigned regionOf(const CallBase &cb) {
     return cast<ConstantInt>(cb.getArgOperand(0))->getZExtValue();
   }
@@ -391,8 +400,12 @@ private:
   DenseSet<const GlobalVariable *> initializedGlobals;
   /// Globals whose initializer exportGlobalInit could not write.
   DenseSet<const GlobalVariable *> initFailed;
-  /// The fields of {iN, i1} results of *.with.overflow intrinsics, which
-  /// only extractvalue may use.
+  /// The {iN, i1} values kept as two names, the value and the overflow bit
+  /// (findPairValues): the results of *.with.overflow intrinsics and the
+  /// phis, selects, freezes and insertvalues that carry them.
+  DenseSet<const Value *> pairValues;
+  /// The two names of each exported pair value. Only extractvalue and the
+  /// pair instructions use them; another use is an error.
   DenseMap<const Value *, std::pair<std::string, std::string>> overflowParts;
   // shadow memory: pending definition and uses for the next memory op
   std::optional<std::pair<std::string, const Value *>> pendingDef;
@@ -612,6 +625,135 @@ void Exporter::findMemValues() {
   }
 }
 
+/// Whether \p v is the {iN, i1} result of a scalar *.with.overflow
+/// intrinsic.
+static bool isOverflowIntrinsic(const Value *v) {
+  auto *cb = dyn_cast<CallBase>(v);
+  const Function *f = cb ? calledFunction(*cb) : nullptr;
+  if (!f || !cb->getType()->isStructTy() || !cb->arg_size() ||
+      !cb->getArgOperand(0)->getType()->isIntegerTy())
+    return false;
+  switch (f->getIntrinsicID()) {
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::usub_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::umul_with_overflow:
+  case Intrinsic::smul_with_overflow:
+    return true;
+  default:
+    return false;
+  }
+}
+
+void Exporter::findPairValues() {
+  for (const Instruction &I : instructions(F))
+    if (isOverflowIntrinsic(&I))
+      pairValues.insert(&I);
+  // the phis, selects, freezes and insertvalues of pairs, to a fixpoint
+  // (any other {iN, i1} operand of them is split into its fields: pairOf)
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (const Instruction &I : instructions(F)) {
+      if (isPair(&I))
+        continue;
+      bool pair = false;
+      if (isa<PHINode>(&I))
+        pair = any_of(I.operands(), [&](const Use &u) { return isPair(u); });
+      else if (auto *sel = dyn_cast<SelectInst>(&I))
+        pair = isPair(sel->getTrueValue()) || isPair(sel->getFalseValue());
+      else if (isa<FreezeInst>(&I))
+        pair = isPair(I.getOperand(0));
+      else if (auto *iv = dyn_cast<InsertValueInst>(&I))
+        pair = isPair(iv->getAggregateOperand());
+      if (pair) {
+        pairValues.insert(&I);
+        changed = true;
+      }
+    }
+  }
+}
+
+std::optional<std::pair<std::string, std::string>>
+Exporter::pairOf(const Value *v, const Instruction &at) {
+  auto it = overflowParts.find(v);
+  if (it != overflowParts.end())
+    return it->second;
+  if (isPair(v)) { // it failed to export: val names the root cause
+    val(v, at);
+    return std::nullopt;
+  }
+  auto *st = dyn_cast<StructType>(v->getType());
+  if (!st || st->getNumElements() != 2) {
+    error("not an {iN, i1} value", &at);
+    return std::nullopt;
+  }
+  // a constant: its fields (an undef or poison field is nondet, as in an
+  // aggregate constant)
+  if (auto *c = dyn_cast<Constant>(v)) {
+    const Constant *f0 = c->getAggregateElement(0u),
+                   *f1 = c->getAggregateElement(1u);
+    if (!f0 || !f1) {
+      error("unsupported aggregate constant", c);
+      return std::nullopt;
+    }
+    auto a = constant(f0, at), b = constant(f1, at);
+    if (!a || !b)
+      return std::nullopt;
+    return std::make_pair(*a, *b);
+  }
+  // a struct value (a load, an insertvalue chain): extract its fields
+  auto s = val(v, at);
+  auto ty = type(st, &at), t0 = type(st->getElementType(0), &at),
+       t1 = type(st->getElementType(1), &at);
+  if (!s || !ty || !t0 || !t1)
+    return std::nullopt;
+  std::string l = loc(at, /*named=*/false);
+  std::string a = fresh(), b = fresh();
+  os << "  " << a << " = sea.struct.extract " << *s << "[0] : " << *ty << " -> "
+     << *t0 << l << "\n";
+  os << "  " << b << " = sea.struct.extract " << *s << "[1] : " << *ty << " -> "
+     << *t1 << l << "\n";
+  return std::make_pair(a, b);
+}
+
+/// A select, freeze or insertvalue of a pair is a pair: per field. (A phi
+/// of pairs is two block arguments: exportBlock, exportBranch.)
+void Exporter::exportPairInst(const Instruction &I) {
+  std::string l = loc(I);
+  auto *st = cast<StructType>(I.getType());
+  if (auto *sel = dyn_cast<SelectInst>(&I)) {
+    auto c = val(sel->getCondition(), I);
+    auto a = pairOf(sel->getTrueValue(), I),
+         b = pairOf(sel->getFalseValue(), I);
+    auto t0 = type(st->getElementType(0), &I),
+         t1 = type(st->getElementType(1), &I);
+    if (!c || !a || !b || !t0 || !t1)
+      return;
+    std::string v = fresh(), o = fresh();
+    os << "  " << v << " = sea.select " << *c << ", " << a->first << ", "
+       << b->first << " : " << *t0 << l << "\n";
+    os << "  " << o << " = sea.select " << *c << ", " << a->second << ", "
+       << b->second << " : " << *t1 << l << "\n";
+    overflowParts[&I] = {v, o};
+    return;
+  }
+  if (isa<FreezeInst>(&I)) {
+    // the fields of a with.overflow result are never poison
+    if (auto p = pairOf(I.getOperand(0), I))
+      overflowParts[&I] = *p;
+    return;
+  }
+  auto *iv = cast<InsertValueInst>(&I);
+  auto p = pairOf(iv->getAggregateOperand(), I);
+  auto x = val(iv->getInsertedValueOperand(), I);
+  if (!p || !x)
+    return;
+  (iv->getIndices()[0] == 0 ? p->first : p->second) = *x;
+  overflowParts[&I] = *p;
+}
+
 std::optional<std::string> Exporter::val(const Value *v,
                                          const Instruction &at) {
   auto it = names.find(v);
@@ -623,6 +765,16 @@ std::optional<std::string> Exporter::val(const Value *v,
   if (f != failed.end()) {
     auto root = f->second; // (undefinedBy may grow `failed`)
     undefinedBy(*v, *root.first, root.second);
+    return std::nullopt;
+  }
+  if (overflowParts.count(v)) {
+    std::string name;
+    raw_string_ostream ns(name);
+    v->printAsOperand(ns, /*PrintType=*/true);
+    error(name + " (a *.with.overflow result, kept as its value and overflow "
+                 "bit) is used by an instruction that cannot take it; only "
+                 "extractvalue, phi, select, freeze and insertvalue can",
+          &at);
     return std::nullopt;
   }
   error("operand has no definition yet", v);
@@ -2160,6 +2312,17 @@ void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,
   SmallVector<std::string> args, types;
   for (const PHINode &phi : to.phis()) {
     const Value *in = phi.getIncomingValueForBlock(&from);
+    if (isPair(&phi)) {
+      auto *st = cast<StructType>(phi.getType());
+      auto p = pairOf(in, at);
+      auto t0 = type(st->getElementType(0), &phi),
+           t1 = type(st->getElementType(1), &phi);
+      if (!p || !t0 || !t1)
+        return;
+      args.append({p->first, p->second});
+      types.append({*t0, *t1});
+      continue;
+    }
     auto v = val(in, at);
     if (!v)
       return;
@@ -2295,6 +2458,10 @@ void Exporter::exportInst(const Instruction &I) {
     exportVectorElement(I);
     return;
   }
+  if (isPair(&I) && !isa<CallBase>(&I)) {
+    exportPairInst(I);
+    return;
+  }
   switch (I.getOpcode()) {
   case Instruction::Add:
     return bin("add");
@@ -2407,10 +2574,9 @@ void Exporter::exportInst(const Instruction &I) {
     return;
   }
   if (auto *ev = dyn_cast<ExtractValueInst>(&I)) {
-    auto it = overflowParts.find(ev->getAggregateOperand());
-    if (it != overflowParts.end()) {
-      names[&I] = ev->getIndices()[0] == 0 ? it->second.first
-                                           : it->second.second;
+    if (isPair(ev->getAggregateOperand())) {
+      if (auto p = pairOf(ev->getAggregateOperand(), I))
+        names[&I] = ev->getIndices()[0] == 0 ? p->first : p->second;
       return;
     }
     // a chain of sea.struct.extract along the index path
@@ -2468,13 +2634,6 @@ void Exporter::exportInst(const Instruction &I) {
     return;
   }
   if (isa<FreezeInst>(&I)) {
-    // a frozen *.with.overflow result: the same fields (neither is poison)
-    auto it = overflowParts.find(I.getOperand(0));
-    if (it != overflowParts.end()) {
-      auto parts = it->second; // (the insertion may move it)
-      overflowParts[&I] = parts;
-      return;
-    }
     if (auto a = val(I.getOperand(0), I))
       names[&I] = *a;
     return;
@@ -2574,6 +2733,17 @@ void Exporter::exportBlock(const BasicBlock &BB) {
   // block header: phis become block arguments
   SmallVector<std::string> args;
   for (const PHINode &phi : BB.phis()) {
+    if (isPair(&phi)) { // two block arguments, the value and the overflow bit
+      auto *st = cast<StructType>(phi.getType());
+      auto t0 = type(st->getElementType(0), &phi),
+           t1 = type(st->getElementType(1), &phi);
+      if (!t0 || !t1)
+        continue;
+      std::string v = fresh(), o = fresh();
+      overflowParts[&phi] = {v, o};
+      args.append({v + " : " + *t0, o + " : " + *t1});
+      continue;
+    }
     std::string n = fresh();
     names[&phi] = n;
     if (isMem(&phi))
@@ -2686,6 +2856,7 @@ bool Exporter::isShadowCall(const Instruction &I) {
 
 bool Exporter::run() {
   findMemValues();
+  findPairValues();
   unsigned rets = 0;
   for (const BasicBlock &BB : F)
     rets += isa<ReturnInst>(BB.getTerminator());

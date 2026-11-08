@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef _HCDB_BOOST_GRAPH_TRAITS_HPP__
 #define _HCDB_BOOST_GRAPH_TRAITS_HPP__
 

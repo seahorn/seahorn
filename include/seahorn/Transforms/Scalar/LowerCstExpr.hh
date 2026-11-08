@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef _LOWER_CONSTANT_EXPRESSIONS__HH__
 #define _LOWER_CONSTANT_EXPRESSIONS__HH__
 

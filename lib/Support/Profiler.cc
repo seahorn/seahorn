@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /* 
    This pass aims at profiling a program for the purpose of checking
    certain kind of errors such as out-of-bound accesses, division by

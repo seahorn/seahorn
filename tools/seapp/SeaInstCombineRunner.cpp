@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 // Isolated translation unit that runs SeaHorn's new-PM SeaInstCombine pass.
 //
 // This is kept out of seapp.cc on purpose: llvm-seahorn's SeaInstCombine.h

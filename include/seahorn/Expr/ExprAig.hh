@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef _EXPR_AIG__HPP_
 #define _EXPR_AIG__HPP_
 #include "Expr.hh"

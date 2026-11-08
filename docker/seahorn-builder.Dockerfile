@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 # SeaHorn builder image that builds binary SeaHorn release package
 # Primarily used by the CI
 # Arguments:

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /*
  * sea pf /tmp/test.c  -O0 --verbose=1 -DSTEP=2 -DMAXK=16 --show-invars 
  * diverges for

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /** Insert dummy exit basic blocks */
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"

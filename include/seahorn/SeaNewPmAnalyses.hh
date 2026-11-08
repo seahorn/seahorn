@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #pragma once
 /// New-PM analysis wrappers for SeaHorn's legacy analysis passes. Each Result
 /// owns a legacy state-holder object (constructed standalone and driven via

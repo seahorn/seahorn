@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 extern void __VERIFIER_error() __attribute__((noreturn));
 /* extern void __VERIFIER_error(); */
 extern int nd();

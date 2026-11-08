@@ -1,13 +1,5 @@
-// Derived from
-// https://github.com/smackers/smack/blob/master/tools/smack/smack.cpp
-//
-// Copyright (c) 2013 Pantazis Deligiannis (p.deligiannis@imperial.ac.uk)
-// This file is distributed under the MIT License. See LICENSE for details.
-//
-
-///
-// SeaPP-- LLVM bitcode Pre-Processor for Verification
-///
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "llvm_seahorn/InitializePasses.h"
 #include "llvm_seahorn/Transforms/IPO.h"

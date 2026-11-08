@@ -38,8 +38,10 @@ more information on what is happening, check our (infrequently updated)
 
 ## License 
 
-[SeaHorn][seahorn-web] is distributed under a modified BSD license. See
- [license.txt](license.txt) for details.
+[SeaHorn][seahorn-web] is distributed under Apache-2.0 WITH LLVM-exception.
+See [LICENSE](LICENSE) for terms and [NOTICE](NOTICE) for retained notices.
+Third-party files retain the terms identified by their SPDX headers or
+`REUSE.toml`; `play/neha-examples` has no license grant.
  
 # Introduction
 

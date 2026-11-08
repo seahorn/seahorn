@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 set(Z3_ROOT "" CACHE PATH "Root of Z3 distribution.")
 find_path(Z3_INCLUDE_DIR NAMES z3.h z3++.h PATHS ${Z3_ROOT}/include NO_DEFAULT_PATH)
 find_library(Z3_LIBRARY NAMES z3 PATHS ${Z3_ROOT}/lib ${Z3_ROOT}/bin NO_DEFAULT_PATH)

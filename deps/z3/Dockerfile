@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 # z3/spacer Dockerfile for SeaHorn
 # This produces packages in /z3.
 # Arguments:

@@ -1,0 +1,13 @@
+repos:
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: ea739bff9c6daa1c4c8a5c5dfd069f3fb0374728 # v6.3.0
+    hooks:
+      - id: reuse
+  - repo: local
+    hooks:
+      - id: spdx
+        name: Check SPDX headers
+        entry: python3 utils/spdx.py --check
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 //
 // Wrapper over doctest.h to workaround macro name clash with Sealog.hh
 //

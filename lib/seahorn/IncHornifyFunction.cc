@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/IncHornifyFunction.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/LiveSymbols.hh"

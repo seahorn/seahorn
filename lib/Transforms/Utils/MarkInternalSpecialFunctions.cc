@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/MemoryBuiltins.h"

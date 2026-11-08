@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef GUESS_CANDIDATES__HH_
 #define GUESS_CANDIDATES__HH_
 

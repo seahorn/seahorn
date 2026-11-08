@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2012 Petroules Corporation
+# SPDX-License-Identifier: BSD-2-Clause
+
 # from: https://raw.githubusercontent.com/petroules/solar-cmake/master/TargetArch.cmake
 # Based on the Qt 5 processor detection code, so should be very accurate
 # https://qt.gitorious.org/qt/qtbase/blobs/master/src/corelib/global/qprocessordetection.h

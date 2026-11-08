@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /*
 http://stackoverflow.com/questions/10248705/segmentation-fault-while-matrix-multiplication-c
 */

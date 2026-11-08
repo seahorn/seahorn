@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef __SEA__DEBUG__HPP_
 #define __SEA__DEBUG__HPP_
 #include "SeaAssert.h"

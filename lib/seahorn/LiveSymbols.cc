@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/LiveSymbols.hh"
 #include "boost/range.hpp"
 #include "boost/range/algorithm.hpp"

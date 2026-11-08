@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #define DEBUG_TYPE "devirt-functions"
 
 #include "seahorn/Transforms/Utils/DevirtFunctions.hh"

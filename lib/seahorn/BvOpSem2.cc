@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/BvOpSem2.hh"
 #include "BvOpSem2ExtraWideMemMgr.hh"
 #include "BvOpSem2FatMemMgr.hh"

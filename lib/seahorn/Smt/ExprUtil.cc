@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// All Expr utilitiies.
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/ExprNumericUtils.hh"

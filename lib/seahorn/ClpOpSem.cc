@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// Symbolic execution based on semantics used in CLP
 ///
 /// Most variables are integer except errorFlag and variables

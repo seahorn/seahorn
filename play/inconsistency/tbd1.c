@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 // sea_inc  tbd1.c ;;  example9 is feasible
 // sea_inc --single tbd1.c ;;  example9 is infeasible
 

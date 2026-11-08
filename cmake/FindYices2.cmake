@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 # - Try to find yices2
 # Once done this will define
 #  YICES2_FOUND - System has yices2

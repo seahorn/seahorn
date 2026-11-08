@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// Public API for constructing expressions
 #pragma once
 #include "seahorn/Expr/ExprCore.hh"

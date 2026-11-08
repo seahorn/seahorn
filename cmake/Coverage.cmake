@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2017 Lectem <lectem@gmail.com>
+# SPDX-License-Identifier: MIT
+
 #
 # CMake module that detects if the compilers support coverage
 #

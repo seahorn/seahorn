@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #pragma once
 /// Inline assembly that is only a compiler barrier, shared by BvOpSem2 and
 /// the sea-mlir export so that both back ends accept the same asm.

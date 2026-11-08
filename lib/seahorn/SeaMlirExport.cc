@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// Export to sea-mlir (see include/seahorn/SeaMlirExport.hh).
 ///
 /// Mapping (sea-mlir docs/design/Memory*.md):

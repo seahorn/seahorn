@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /*
  * sea pf  ./strides4.c  -O0 --verbose=1   --show-invars   -DSTEP=4
  */

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**==-- Type Checker Tests --==*/
 #include "seahorn/Expr/ExprErrBinder.hh"
 #include "seahorn/Expr/TypeCheckerErrors.hh"

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// Turn available_externally function definitions into linkonce_odr ones.
 ///
 /// An available_externally function has a body, but the body is only a copy

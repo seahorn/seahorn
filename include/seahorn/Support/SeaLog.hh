@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /** \brief Rudimentary logging facility for warnings and errors
 
  Prints in color with Warning/Error prefix and file location suffix.

@@ -6,6 +6,8 @@ These tests cover the fat-pointer-as-intrinsics approach: the
 
 That approach was superseded by the wide memory models
 (`--horn-bv2-widemem`, `--horn-bv2-extra-widemem`), which build wide
-pointers into the memory model. The tests still pass, so they stay until
+pointers into the memory model. The tests still pass, except
+`fat_ptr_store_load_test_unsat.ll`, which needs more than 300 s of
+solver time and runs only with `lit -D slow=1`. They stay until
 the instrumentation, the intrinsics and their `sea-rt` runtime are
 removed; delete this directory together with that code.

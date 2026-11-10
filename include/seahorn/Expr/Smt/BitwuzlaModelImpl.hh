@@ -23,12 +23,17 @@ class bitwuzla_solver_impl;
 /// changed, or is destroyed, eval() logs an error and returns nondet instead
 /// of a value from some other model.
 ///
-/// eval() returns true or false for a Bool term, and the bit-vector numeral
-/// in [0, 2^w) (the bits read as unsigned) for a bit-vector term of width w.
-/// It returns nondet for any term it cannot evaluate: one the encoder
-/// rejects, or of another sort (arrays, structs). Bitwuzla always completes
-/// its model, so a constant in no assertion gets a value as well, and the
-/// \p complete flag makes no difference.
+/// eval() returns true or false for a Bool term, the bit-vector numeral in
+/// [0, 2^w) (the bits read as unsigned) for a bit-vector term of width w,
+/// and store(... const-array(index sort, default) ...) of such numerals for
+/// an array term. It returns nondet for any term it cannot evaluate: one the
+/// encoder rejects, one of another sort, and one with an equality or
+/// disequality between arrays inside, whose value Bitwuzla 0.9.1 can get
+/// wrong. For the same reason it returns nondet for every term while an
+/// assertion has such an equality over indices narrower than 32 bits. A
+/// struct is evaluated field by field. Bitwuzla always completes its model,
+/// so a constant in no assertion gets a value as well, and the \p complete
+/// flag makes no difference.
 class bitwuzla_model_impl : public Model {
 public:
   /// \p generation 0 makes a model that never has values

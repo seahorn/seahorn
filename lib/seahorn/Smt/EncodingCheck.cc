@@ -162,6 +162,10 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
   for (const SmtLibConst &k : consts) {
     Z3_sort s =
         k.bv_width == 0 ? Z3_mk_bool_sort(c) : Z3_mk_bv_sort(c, k.bv_width);
+    if (s && k.index_width != 0) {
+      Z3_sort index = Z3_mk_bv_sort(c, k.index_width);
+      s = index ? Z3_mk_array_sort(c, index, s) : nullptr;
+    }
     if (!s || !declare(k.name, s))
       return {V::UNCHECKED, "Z3 cannot declare " + k.name + ": " + z3Error(c)};
   }

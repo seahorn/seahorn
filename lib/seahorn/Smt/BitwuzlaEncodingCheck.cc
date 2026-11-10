@@ -57,11 +57,21 @@ EncodingCheck checkBitwuzlaEncoding(Expr e, const bitwuzla::Term &t,
           return {V::UNCHECKED,
                   "the name of constant " + name->get() + " " + why};
         bool ok;
-        unsigned w = widthOf(u.sort(), ok);
+        bitwuzla::Sort s = u.sort();
+        unsigned index = 0;
+        if (s.is_array()) {
+          // -- an array from bit-vectors of width index to s
+          index = widthOf(s.array_index(), ok);
+          if (!ok || index == 0)
+            return {V::UNCHECKED, "a constant of sort " + u.sort().str() +
+                                      " is not supported by the check"};
+          s = s.array_element();
+        }
+        unsigned w = widthOf(s, ok);
         if (!ok)
           return {V::UNCHECKED, "a constant of sort " + u.sort().str() +
                                     " is not supported by the check"};
-        consts.push_back({name->get(), w});
+        consts.push_back({name->get(), w, index});
       }
       for (const bitwuzla::Term &ch : u.children())
         todo.push_back(ch);

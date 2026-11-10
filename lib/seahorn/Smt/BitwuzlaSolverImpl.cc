@@ -15,7 +15,9 @@
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <unistd.h>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -76,6 +78,45 @@ mkBitwuzla(bitwuzla::TermManager &tm, const bitwuzla::Options &options) {
   }
 }
 
+// -- Bitwuzla 0.9.1 can give an equality between arrays a wrong model value.
+// -- It compares the two arrays' value terms for identity
+// -- (rewrite/evaluator.cpp:28). Values are canonical (one store per index
+// -- that an access touches, none equal to the default:
+// -- ArraySolver::construct_model_value), so that is wrong only for two
+// -- different defaults whose stores together write every index. It happens
+// -- for an equality outside the assertions, and for one in the assertions
+// -- that preprocessing moved into a constant's definition (with q = (a = b)
+// -- asserted, q's value is that comparison).
+
+/// Arrays with indices at least this wide are safe from it: one of the two
+/// values would need 2^31 stores, so the formula 2^31 accesses
+static const uint64_t WIDE_INDEX = 32;
+
+/// \p t has, outside of \p seen, an equality or disequality between arrays
+/// whose index is narrower than \p width bits. Adds the terms it visits to
+/// \p seen.
+static bool hasArrayEquality(const bitwuzla::Term &t,
+                             std::unordered_set<bitwuzla::Term> &seen,
+                             uint64_t width) {
+  std::vector<bitwuzla::Term> todo{t};
+  while (!todo.empty()) {
+    bitwuzla::Term u = todo.back();
+    todo.pop_back();
+    if (!seen.insert(u).second)
+      continue;
+    if ((u.kind() == bitwuzla::Kind::EQUAL ||
+         u.kind() == bitwuzla::Kind::DISTINCT) &&
+        u[0].sort().is_array()) {
+      bitwuzla::Sort index = u[0].sort().array_index();
+      if (!index.is_bv() || index.bv_size() < width)
+        return true;
+    }
+    for (const bitwuzla::Term &ch : u.children())
+      todo.push_back(ch);
+  }
+  return false;
+}
+
 bitwuzla_solver_impl::bitwuzla_solver_impl()
     : Solver(), m_marshal(m_tm),
       m_self(std::make_shared<bitwuzla_solver_impl *>(this)) {
@@ -94,6 +135,13 @@ bool bitwuzla_solver_impl::add(Expr exp) {
       checkEncoding(exp, t);
     m_bzla->assert_formula(t);
     m_assertions.push_back(exp);
+    if (!m_narrow_array_eq &&
+        hasArrayEquality(t, m_scanned_assertions, WIDE_INDEX)) {
+      m_narrow_array_eq = true;
+      LOG("bitwuzla", WARN << "an assertion has an equality between arrays "
+                              "with narrow indices, so models have no "
+                              "values";);
+    }
     return true;
   } catch (std::exception &ex) {
     if (!CheckEncodingLog.empty())
@@ -139,6 +187,8 @@ void bitwuzla_solver_impl::reset() {
   m_bzla = mkBitwuzla(m_tm, m_options);
   m_unsupported.clear();
   m_assertions.clear();
+  m_narrow_array_eq = false;
+  m_scanned_assertions.clear();
 }
 
 bitwuzla_solver_impl::model_ref bitwuzla_solver_impl::get_model() {
@@ -157,8 +207,28 @@ Expr bitwuzla_solver_impl::eval_in_model(Expr e, uint64_t generation) {
            "after a check that was not sat; it has no values";
     return mk<NONDET>(e->efac());
   }
+  // -- a struct, field by field, as Z3's model does (Z3.hh:399-405). Formulas
+  // -- have no structs, but with --horn-bv2-extra-widemem SeaHorn asks for
+  // -- registers that are structs of terms: pointers and memories.
+  if (isOpX<MK_STRUCT>(e)) {
+    ExprVector fields;
+    for (auto it = e->args_begin(), end = e->args_end(); it != end; ++it)
+      fields.push_back(eval_in_model(*it, generation));
+    return strct::mk(fields);
+  }
+  if (m_narrow_array_eq) {
+    LOG("bitwuzla", WARN << "Bitwuzla model has no values: an assertion has "
+                            "an equality between arrays with narrow indices";);
+    return mk<NONDET>(e->efac());
+  }
   try {
     bitwuzla::Term t = m_marshal.encode_term(e);
+    std::unordered_set<bitwuzla::Term> seen;
+    if (hasArrayEquality(t, seen, std::numeric_limits<uint64_t>::max())) {
+      LOG("bitwuzla", WARN << "Bitwuzla model does not evaluate equalities "
+                              "between arrays";);
+      return mk<NONDET>(e->efac());
+    }
     if (Expr v = decode_bitwuzla_value(m_bzla->get_value(t), e->efac()))
       return v;
     LOG("bitwuzla", WARN << "Bitwuzla model: no value for a term of sort "

@@ -219,6 +219,19 @@ static Kind kindOf(Expr e) {
       break;
     }
     break;
+  case OpFamilyId::ArrayOp:
+    switch (llvm::cast<ArrayOp>(e->op()).m_kind) {
+    case ArrayOpKind::SELECT:
+      return Kind::ARRAY_SELECT;
+    case ArrayOpKind::STORE:
+      return Kind::ARRAY_STORE;
+    case ArrayOpKind::CONST_ARRAY:
+      return Kind::CONST_ARRAY;
+    default:
+      // -- array-map, array-default, as-array
+      break;
+    }
+    break;
   default:
     break;
   }
@@ -226,14 +239,15 @@ static Kind kindOf(Expr e) {
 }
 
 /// The children of \p e that are terms, as [first, last): (extract hi lo
-/// bv), (sext bv sort), (repeat n bv) and (rotate n bv) also have numerals
-/// and sorts as children
+/// bv), (sext bv sort), (repeat n bv), (rotate n bv) and (const-array sort
+/// v) also have numerals and sorts as children
 static std::pair<unsigned, unsigned> termArgs(Expr e) {
   if (isOpX<BEXTRACT>(e))
     return {2, 3};
   if (isOpX<BSEXT>(e) || isOpX<BZEXT>(e))
     return {0, 1};
-  if (isOpX<BREPEAT>(e) || isOpX<BROTATE_LEFT>(e) || isOpX<BROTATE_RIGHT>(e))
+  if (isOpX<BREPEAT>(e) || isOpX<BROTATE_LEFT>(e) || isOpX<BROTATE_RIGHT>(e) ||
+      isOpX<CONST_ARRAY>(e))
     return {1, 2};
   return {0, static_cast<unsigned>(e->arity())};
 }
@@ -283,6 +297,15 @@ Sort marshal_bitwuzla::encode_sort(Expr s) {
     } catch (bitwuzla::Exception &ex) {
       throw UnsupportedExpr(s, "Bitwuzla rejects the sort: " + ex.msg());
     }
+  }
+  if (isOpX<ARRAY_TY>(s)) {
+    // -- memory maps bit-vectors to bit-vectors; nothing else is needed yet
+    if (!isOpX<BVSORT>(sort::arrayIndexTy(s)) ||
+        !isOpX<BVSORT>(sort::arrayValTy(s)))
+      throw UnsupportedExpr(s, "only arrays from bit-vectors to bit-vectors "
+                               "are supported by Bitwuzla adapter");
+    return m_tm.mk_array_sort(encode_sort(sort::arrayIndexTy(s)),
+                              encode_sort(sort::arrayValTy(s)));
   }
   if (isOpX<INT_TY>(s) || isOpX<REAL_TY>(s))
     throw UnsupportedExpr(s, "Bitwuzla has no integer or real sort");
@@ -368,6 +391,15 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
     case Kind::BV_SSUB_OVERFLOW:
     case Kind::BV_SMUL_OVERFLOW:
       return mkNoOverflow(m_tm, e, k, args);
+    case Kind::CONST_ARRAY: {
+      // -- SeaHorn gives the index sort, Bitwuzla wants the array sort
+      if (!isOpX<BVSORT>(e->arg(0)) || !args.at(0).sort().is_bv())
+        throw UnsupportedExpr(e, "only arrays from bit-vectors to bit-vectors "
+                                 "are supported by Bitwuzla adapter");
+      Sort index = encode_sort(e->arg(0));
+      return m_tm.mk_const_array(m_tm.mk_array_sort(index, args[0].sort()),
+                                 args[0]);
+    }
     case Kind::AND:
     case Kind::OR:
     case Kind::XOR:
@@ -428,7 +460,36 @@ Term marshal_bitwuzla::encode_term(Expr root) {
   return m_cache.at(root);
 }
 
+/// An array value: a chain of stores of values over a constant array of a
+/// value, as get_value gives it. Rebuilt in the same order, so it is the
+/// same function even if an index were stored twice.
+static Expr decodeArray(const Term &v, ExprFactory &efac) {
+  std::vector<Term> stores;
+  Term base = v;
+  while (base.kind() == Kind::ARRAY_STORE) {
+    stores.push_back(base);
+    base = base[0];
+  }
+  Sort index = v.sort().array_index();
+  if (base.kind() != Kind::CONST_ARRAY || !index.is_bv())
+    return Expr();
+  Expr dflt = decode_bitwuzla_value(base[0], efac);
+  if (!dflt)
+    return Expr();
+  Expr res = op::array::constArray(bv::bvsort(index.bv_size(), efac), dflt);
+  for (auto it = stores.rbegin(); it != stores.rend(); ++it) {
+    Expr i = decode_bitwuzla_value((*it)[1], efac);
+    Expr x = decode_bitwuzla_value((*it)[2], efac);
+    if (!i || !x)
+      return Expr();
+    res = op::array::store(res, i, x);
+  }
+  return res;
+}
+
 Expr decode_bitwuzla_value(const Term &v, ExprFactory &efac) {
+  if (v.sort().is_array())
+    return decodeArray(v, efac);
   if (!v.is_value())
     return Expr();
   Sort s = v.sort();

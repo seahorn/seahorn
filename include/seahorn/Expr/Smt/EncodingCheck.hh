@@ -29,10 +29,13 @@ struct EncodingCheck {
   std::string detail;
 };
 
-/// \brief A free constant of an SMT-LIB term: Bool if \p bv_width is 0
+/// \brief A free constant of an SMT-LIB term: Bool if \p bv_width is 0, a
+/// bit-vector otherwise. If \p index_width is not 0, it is an array from
+/// bit-vectors of that width to that sort.
 struct SmtLibConst {
   std::string name;
   unsigned bv_width;
+  unsigned index_width = 0;
 };
 
 /// \brief Checks with Z3 that the SMT-LIB term \p term equals Z3's

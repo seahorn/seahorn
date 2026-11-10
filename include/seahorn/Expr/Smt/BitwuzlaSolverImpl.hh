@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 namespace llvm {
 class raw_ostream;
@@ -28,7 +29,8 @@ namespace solver {
 ///
 /// get_model() returns a bitwuzla_model_impl, which asks this solver for
 /// values and is valid only until the next add(), check() or reset(). See
-/// BitwuzlaModelImpl.hh.
+/// BitwuzlaModelImpl.hh. While an assertion has an equality between arrays
+/// with indices narrower than 32 bits, models have no values.
 ///
 /// Bitwuzla reports errors with exceptions. Every method catches them, so
 /// none escapes into SeaHorn, which may be compiled without them.
@@ -78,6 +80,13 @@ private:
 
   /// the assertions since the last reset, for printing a model
   expr::ExprVector m_assertions;
+
+  /// An assertion since the last reset has an equality between arrays whose
+  /// index is narrower than 32 bits. Bitwuzla may then give constants wrong
+  /// values (see BitwuzlaSolverImpl.cc), so models give none.
+  bool m_narrow_array_eq = false;
+  /// the terms of the assertions already searched for such an equality
+  std::unordered_set<bitwuzla::Term> m_scanned_assertions;
 
   /// Increased by add(), check() and reset(), each of which ends the life of
   /// a model. It starts at 1, so the generation 0 is never current.

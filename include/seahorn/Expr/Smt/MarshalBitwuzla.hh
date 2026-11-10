@@ -28,10 +28,12 @@ public:
 /// \brief Encodes Exprs as Bitwuzla terms of a given TermManager
 ///
 /// Supports Bool and bit-vector constants and numerals, the Boolean
-/// operators, equality, and the bit-vector operators, including the overflow
-/// predicates. Everything else throws UnsupportedExpr, among it int2bv,
-/// bv2int, rotation by a term, and =>, <=>, = or distinct with other than
-/// two arguments. Errors that Bitwuzla reports while encoding (such as a
+/// operators, equality, the bit-vector operators, including the overflow
+/// predicates, and arrays from bit-vectors to bit-vectors (constants,
+/// select, store, const-array). Everything else throws UnsupportedExpr,
+/// among it int2bv, bv2int, rotation by a term, =>, <=>, = or distinct with
+/// other than two arguments, other array sorts, array-map, array-default
+/// and as-array. Errors that Bitwuzla reports while encoding (such as a
 /// width of 0) are thrown as UnsupportedExpr as well.
 ///
 /// Results are cached, so encoding the same Expr twice returns the same
@@ -64,8 +66,11 @@ private:
 ///
 /// A Bool value becomes true or false, and a bit-vector value of width w the
 /// bit-vector numeral of width w whose number is in [0, 2^w) (the bits read
-/// as unsigned). Returns a null Expr for anything else: a value of another
-/// sort, or a term that is not a value. Does not throw for a non-null term.
+/// as unsigned). An array value, a chain of stores over a constant array,
+/// becomes SeaHorn's store(... const-array(index sort, default) ...) with
+/// the stores in the same order. Returns a null Expr for anything else: a
+/// value of another sort, or a term that is not a value. Does not throw for
+/// a non-null term.
 expr::Expr decode_bitwuzla_value(const bitwuzla::Term &v,
                                  expr::ExprFactory &efac);
 } // namespace solver

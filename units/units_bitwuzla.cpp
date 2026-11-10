@@ -64,6 +64,12 @@ struct Env {
     return bv::bvnum(expr::mpz_class(v), w, efac);
   }
   Expr bvsort(unsigned w) { return bv::bvsort(w, efac); }
+  /// an array constant (uninterpreted) from bit-vectors of width \p iw to
+  /// bit-vectors of width \p vw
+  Expr arrc(const std::string &name, unsigned iw, unsigned vw) {
+    return bind::mkConst(mkTerm<std::string>(name, efac),
+                         sort::arrayTy(bvsort(iw), bvsort(vw)));
+  }
 
   bz::Result check(Expr e) {
     bz::Bitwuzla s(tm);
@@ -134,8 +140,77 @@ void termsOf(Expr e, ExprSet &seen, ExprVector &out) {
     termsOf(e->arg(0), seen, out);
     return;
   }
+  if (isOpX<CONST_ARRAY>(e)) {
+    termsOf(e->arg(1), seen, out);
+    return;
+  }
   for (unsigned i = 0, sz = e->arity(); i < sz; ++i)
     termsOf(e->arg(i), seen, out);
+}
+
+/// \p e is a term of array sort, built as the fuzzer builds them: an array
+/// constant, const-array, store, or ite of arrays
+bool isArrayTerm(Expr e) {
+  if (isOpX<STORE>(e) || isOpX<CONST_ARRAY>(e))
+    return true;
+  if (isOpX<ITE>(e))
+    return isArrayTerm(e->arg(1));
+  return bind::IsConst()(e) && isOpX<ARRAY_TY>(bind::rangeTy(bind::fname(e)));
+}
+
+/// Some subterm of \p e satisfies \p pred
+bool anySubterm(Expr e, const std::function<bool(Expr)> &pred) {
+  ExprSet seen;
+  ExprVector todo{e};
+  while (!todo.empty()) {
+    Expr x = todo.back();
+    todo.pop_back();
+    if (!seen.insert(x).second)
+      continue;
+    if (pred(x))
+      return true;
+    todo.insert(todo.end(), x->args_begin(), x->args_end());
+  }
+  return false;
+}
+
+/// \p e has an equality or disequality between arrays inside
+bool hasArrayEquality(Expr e) {
+  return anySubterm(e, [](Expr x) {
+    return (isOpX<EQ>(x) || isOpX<NEQ>(x)) && isArrayTerm(x->arg(0));
+  });
+}
+
+/// The index width of an array term built as the fuzzer builds them
+unsigned indexWidthOf(Expr a) {
+  if (isOpX<STORE>(a))
+    return indexWidthOf(a->arg(0));
+  if (isOpX<ITE>(a))
+    return indexWidthOf(a->arg(1));
+  if (isOpX<CONST_ARRAY>(a))
+    return bv::width(a->arg(0));
+  return bv::width(sort::arrayIndexTy(bind::rangeTy(bind::fname(a))));
+}
+
+/// \p e has an equality or disequality between arrays with indices narrower
+/// than 32 bits inside
+bool hasNarrowArrayEquality(Expr e) {
+  return anySubterm(e, [](Expr x) {
+    return (isOpX<EQ>(x) || isOpX<NEQ>(x)) && isArrayTerm(x->arg(0)) &&
+           indexWidthOf(x->arg(0)) < 32;
+  });
+}
+
+/// \p v is an array value: a store chain of unsigned numerals over a
+/// const-array of an unsigned numeral
+bool isArrayValue(Expr v) {
+  while (isOpX<STORE>(v)) {
+    if (!isUnsignedBvNum(v->arg(1)) || !isUnsignedBvNum(v->arg(2)))
+      return false;
+    v = v->arg(0);
+  }
+  return isOpX<CONST_ARRAY>(v) && isOpX<BVSORT>(v->arg(0)) &&
+         isUnsignedBvNum(v->arg(1));
 }
 } // namespace
 
@@ -145,10 +220,21 @@ TEST_CASE("bitwuzla.sorts") {
   CHECK(env.m.encode_sort(env.bvsort(13)).bv_size() == 13);
   CHECK_THROWS_AS(env.m.encode_sort(sort::intTy(env.efac)), UnsupportedExpr);
   CHECK_THROWS_AS(env.m.encode_sort(sort::realTy(env.efac)), UnsupportedExpr);
-  // -- arrays come with memory (plan 1.6)
-  CHECK_THROWS_AS(
-      env.m.encode_sort(sort::arrayTy(env.bvsort(8), env.bvsort(8))),
-      UnsupportedExpr);
+  // -- arrays from bit-vectors to bit-vectors (plan 1.6), and no others
+  bz::Sort arr = env.m.encode_sort(sort::arrayTy(env.bvsort(64), env.bvsort(8)));
+  REQUIRE(arr.is_array());
+  CHECK(arr.array_index().bv_size() == 64);
+  CHECK(arr.array_element().bv_size() == 8);
+  Expr boolTy = sort::boolTy(env.efac), intTy = sort::intTy(env.efac);
+  for (Expr bad : {sort::arrayTy(boolTy, env.bvsort(8)),
+                   sort::arrayTy(env.bvsort(8), boolTy),
+                   sort::arrayTy(intTy, env.bvsort(8)),
+                   sort::arrayTy(env.bvsort(8), intTy),
+                   sort::arrayTy(env.bvsort(8),
+                                 sort::arrayTy(env.bvsort(8), env.bvsort(8)))}) {
+    INFO(*bad);
+    CHECK_THROWS_AS(env.m.encode_sort(bad), UnsupportedExpr);
+  }
 }
 
 TEST_CASE("bitwuzla.constants") {
@@ -459,13 +545,20 @@ class RandomFormulas {
   std::mt19937 m_rng;
   // -- the terms built for the current formula, by width; 0 is Bool
   std::map<unsigned, ExprVector> m_pool;
+  // -- the arrays built for the current formula, by index and element width
+  std::map<std::pair<unsigned, unsigned>, ExprVector> m_arrays;
 
   unsigned pick(unsigned n) {
     return std::uniform_int_distribution<unsigned>(0, n - 1)(m_rng);
   }
   bool chance(unsigned percent) { return pick(100) < percent; }
+  // -- the narrow width that the current formula favours: terms over the
+  // -- same few constants make more formulas unsat or valid
+  unsigned m_main = 1;
   unsigned width() {
     static const unsigned ws[] = {1, 2, 3, 4, 5, 8, 13, 16, 32, 64, 65, 128};
+    if (chance(50))
+      return m_main;
     return ws[pick(sizeof(ws) / sizeof(ws[0]))];
   }
   std::string bits(unsigned n) {
@@ -490,9 +583,14 @@ class RandomFormulas {
                        w, m_env.efac);
     }
   }
+  /// small indices, so that every index can be written, and one like memory's
+  unsigned indexWidth() {
+    static const unsigned ws[] = {1, 2, 3, 32};
+    return ws[pick(4)];
+  }
   Expr reused(unsigned w) {
     ExprVector &p = m_pool[w];
-    return p.empty() || !chance(25) ? Expr() : p[pick(p.size())];
+    return p.empty() || !chance(55) ? Expr() : p[pick(p.size())];
   }
   ExprVector bvArgs(unsigned n, unsigned w, unsigned depth) {
     ExprVector args;
@@ -504,13 +602,26 @@ class RandomFormulas {
 public:
   RandomFormulas(Env &env, unsigned seed) : m_env(env), m_rng(seed) {}
 
-  /// A conjunction of up to four random atoms; small widths and several
+  /// A conjunction of two to five random atoms; small widths and several
   /// conjuncts make a fair share of them unsat
   Expr formula() {
     m_pool.clear();
+    m_arrays.clear();
+    m_main = 1 + pick(4);
     ExprVector conj;
-    for (unsigned i = 0, n = 1 + pick(4); i < n; ++i)
+    for (unsigned i = 0, n = 2 + pick(4); i < n; ++i)
       conj.push_back(boolean(3));
+    // -- a definition of a constant, which Bitwuzla substitutes away; its
+    // -- value then comes from the defining term
+    if (chance(40)) {
+      unsigned w = width();
+      conj.push_back(pick(2) ? mk<EQ>(m_env.boolc("p" + std::to_string(pick(3))),
+                                      boolean(3))
+                             : mk<EQ>(m_env.bvc("x" + std::to_string(w) +
+                                                    (pick(2) ? "a" : "b"),
+                                                w),
+                                      bv(w, 3)));
+    }
     return conj.size() == 1 ? conj[0] : mknary<AND>(conj);
   }
 
@@ -537,7 +648,7 @@ public:
           binop<UMUL_NO_OVERFLOW>(), binop<SMUL_NO_OVERFLOW>(),
           binop<SMUL_NO_UNDERFLOW>()};
       unsigned w = width();
-      switch (pick(7)) {
+      switch (pick(8)) {
       case 0:
         e = mk<NEG>(boolean(d));
         break;
@@ -556,6 +667,13 @@ public:
       case 5:
         e = cmps[pick(cmps.size())](bv(w, d), bv(w, d));
         break;
+      case 6: {
+        // -- equality of arrays; narrow elements, so that values repeat
+        unsigned iw = indexWidth(), vw = 1 + pick(4);
+        e = pick(2) ? mk<EQ>(array(iw, vw, d), array(iw, vw, d))
+                    : mk<NEQ>(array(iw, vw, d), array(iw, vw, d));
+        break;
+      }
       default:
         // -- the multiplication tests only on narrow widths, to stay fast
         e = ovfs[pick(w <= 16 ? 9 : 6)](bv(w, d), bv(w, d));
@@ -582,10 +700,16 @@ public:
       static const std::vector<BinOp> muls = {binop<BMUL>(),  binop<BUDIV>(),
                                               binop<BSDIV>(), binop<BUREM>(),
                                               binop<BSREM>(), binop<BSMOD>()};
-      switch (pick(10)) {
+      switch (pick(12)) {
       case 0:
         e = pick(2) ? mk<BNOT>(bv(w, d)) : mk<BNEG>(bv(w, d));
         break;
+      case 10:
+      case 11: {
+        unsigned iw = indexWidth();
+        e = op::array::select(array(iw, w, d), bv(iw, d));
+        break;
+      }
       case 1: {
         ExprVector args = bvArgs(2 + pick(2), w, d);
         switch (pick(3)) {
@@ -638,6 +762,27 @@ public:
     m_pool[w].push_back(e);
     return e;
   }
+
+  /// An array from bit-vectors of width \p iw to width \p vw
+  Expr array(unsigned iw, unsigned vw, unsigned depth) {
+    ExprVector &p = m_arrays[{iw, vw}];
+    if (!p.empty() && chance(25))
+      return p[pick(p.size())];
+    Expr e;
+    unsigned d = depth == 0 ? 0 : depth - 1;
+    if (depth == 0 || chance(20)) {
+      e = chance(75) ? m_env.arrc("A" + std::to_string(iw) + "_" +
+                                      std::to_string(vw) + (pick(2) ? "a" : "b"),
+                                  iw, vw)
+                     : op::array::constArray(m_env.bvsort(iw), bv(vw, d));
+    } else if (chance(75)) {
+      e = op::array::store(array(iw, vw, d), bv(iw, d), bv(vw, d));
+    } else {
+      e = mk<ITE>(boolean(d), array(iw, vw, d), array(iw, vw, d));
+    }
+    p.push_back(e);
+    return e;
+  }
 };
 
 unsigned envOr(const char *name, unsigned dflt) {
@@ -650,10 +795,14 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   // -- BITWUZLA_FUZZ_N formulas from seed BITWUZLA_FUZZ_SEED; each formula f
   // -- and its negation are solved by the adapter and by Z3. Every sat answer
   // -- is also certified: Z3 checks f under Bitwuzla's values of f's constants.
+  // -- Bitwuzla may answer unknown, but only on an equality of arrays with a
+  // -- const-array (it does not fully support those).
   Env env;
   EZ3 z3(env.efac);
   RandomFormulas gen(env, envOr("BITWUZLA_FUZZ_SEED", 1));
   const unsigned n = envOr("BITWUZLA_FUZZ_N", 300);
+  // -- Z3's time limit for each formula check
+  const unsigned check_ms = envOr("BITWUZLA_FUZZ_CHECK_MS", 10000);
 
   // -- one adapter for every formula: reset() must clear everything
   bitwuzla_solver_impl adapter;
@@ -661,20 +810,43 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
 
   unsigned sat = 0, unsat = 0, z3_unknown = 0, disagreements = 0,
            bad_models = 0;
+  // -- Bitwuzla's unknowns, and those on a formula without an equality of
+  // -- arrays and a const-array; formulas with an array
+  unsigned bw_unknown = 0, unexplained_unknown = 0, with_arrays = 0;
+  // -- formulas the encoder rejects (none should be)
+  unsigned not_encoded = 0;
   // -- terms evaluated through the model; values that are not values, or not
   // -- in [0, 2^w); values that differ from Z3's under the same assignment
   unsigned evaluated = 0, non_values = 0, value_mismatches = 0;
+  // -- of those, arrays compared by Z3; terms with an array equality, which
+  // -- must give nondet, and those that gave something else
+  unsigned arrays_compared = 0, refused = 0, not_refused = 0;
+  // -- sat models with no values (an equality of narrow arrays in f)
+  unsigned refused_models = 0;
   // -- verdicts of the formula check (translation validation) on every f
   std::map<EncodingVerdict, unsigned> encoding;
   Expr f;
   for (unsigned i = 0; i < 2 * n; ++i) {
     f = i % 2 == 0 ? gen.formula() : mk<NEG>(f);
+    if (anySubterm(f, [](Expr x) { return isOpX<SELECT>(x) || isArrayTerm(x); }))
+      ++with_arrays;
 
-    auto ec = checkBitwuzlaEncoding(f, env.m.encode_term(f), 10000);
+    // -- every generated formula must encode. Caught here: an UnsupportedExpr
+    // -- that escaped the test case would outlive env's ExprFactory and crash
+    bz::Term ft;
+    try {
+      ft = env.m.encode_term(f);
+    } catch (UnsupportedExpr &ex) {
+      ++not_encoded;
+      MESSAGE("formula " << i << ": not encoded: " << ex.what());
+      continue;
+    }
+    auto ec = checkBitwuzlaEncoding(f, ft, check_ms);
     ++encoding[ec.verdict];
     if (ec.verdict != EncodingVerdict::SAME)
       MESSAGE("formula " << i << ": encoding check says "
-                         << verdictName(ec.verdict) << ": " << ec.detail);
+                         << std::string(verdictName(ec.verdict)) << ": "
+                         << ec.detail << "\n  formula: " << *f);
 
     s.reset();
     REQUIRE(s.add(f));
@@ -684,6 +856,16 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     boost::tribool zr = zs.solve();
     if (boost::indeterminate(zr)) {
       ++z3_unknown;
+      continue;
+    }
+    if (r == SolverResult::UNKNOWN) {
+      ++bw_unknown;
+      if (!hasArrayEquality(f) || !anySubterm(f, [](Expr x) {
+            return isOpX<CONST_ARRAY>(x);
+          })) {
+        ++unexplained_unknown;
+        MESSAGE("formula " << i << ": Bitwuzla answers unknown");
+      }
       continue;
     }
     if (r != (zr ? SolverResult::SAT : SolverResult::UNSAT)) {
@@ -698,6 +880,27 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     }
     ++sat;
 
+    // -- with an equality of narrow arrays in f, the model must have no
+    // -- values at all (Bitwuzla may give constants wrong ones)
+    if (hasNarrowArrayEquality(f)) {
+      ++refused_models;
+      Solver::model_ref model = s.get_model();
+      ExprSet seen;
+      ExprVector terms;
+      termsOf(f, seen, terms);
+      for (Expr t : terms) {
+        if (isOpX<NONDET>(model->eval(t, true)))
+          ++refused;
+        else {
+          ++not_refused;
+          MESSAGE("formula " << i << ": the model gives a value for " << *t
+                             << ", with an equality of narrow arrays in the "
+                                "formula");
+        }
+      }
+      continue;
+    }
+
     // -- the model, through the Solver interface. Evaluate every term of f,
     // -- and two terms over constants that are in no assertion (Bitwuzla
     // -- completes its model, so they get values too). complete alternates.
@@ -706,17 +909,20 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     ExprVector terms;
     termsOf(f, seen, terms);
     std::vector<std::pair<Expr, Expr>> values; // -- term, Bitwuzla's value
-    Expr someBv, someBool;
+    Expr someBv, someBool, someSel, freshArr;
     for (Expr t : terms) {
       Expr v = model->eval(t, values.size() % 2 == 0);
       values.push_back({t, v});
       unsigned w;
-      if (!someBv && bv::isBvNum(v, w))
+      if (!someBv && bv::isBvNum(v, w)) {
         someBv = mk<BADD>(t, env.bvc("fresh" + std::to_string(w), w));
+        freshArr = env.arrc("freshA" + std::to_string(w), w, 8);
+        someSel = op::array::select(freshArr, t);
+      }
       if (!someBool && (isOpX<TRUE>(v) || isOpX<FALSE>(v)))
         someBool = mk<XOR>(t, env.boolc("fresh"));
     }
-    for (Expr t : {someBv, someBool})
+    for (Expr t : {someBv, someBool, someSel, freshArr})
       if (t)
         values.push_back({t, model->eval(t, false)});
 
@@ -731,7 +937,8 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     for (Expr c : consts) {
       Expr v = model->eval(c, true);
       // -- Z3 cannot take nondet (it would exit); count it below instead
-      if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || bv::is_bvnum(v))) {
+      if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || bv::is_bvnum(v) ||
+            isArrayValue(v))) {
         all_values = false;
         break;
       }
@@ -754,6 +961,32 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     for (auto &tv : values) {
       ++evaluated;
       Expr v = tv.second;
+      if (hasArrayEquality(tv.first)) {
+        // -- Bitwuzla can get these wrong, so the model must not answer
+        if (isOpX<NONDET>(v)) {
+          ++refused;
+        } else {
+          ++not_refused;
+          MESSAGE("formula " << i << ": the model gives " << *v << " for "
+                             << *tv.first << ", which has an array equality");
+        }
+        continue;
+      }
+      if (isArrayValue(v)) {
+        // -- Z3 proves the term equal to the value, under the same values of
+        // -- the constants (they fix the term)
+        ++arrays_compared;
+        certify.push();
+        certify.assertExpr(mk<NEQ>(tv.first, v));
+        boost::tribool differ = certify.solve();
+        certify.pop();
+        if (differ || boost::indeterminate(differ)) {
+          ++value_mismatches;
+          MESSAGE("formula " << i << ": " << *tv.first << " is " << *v
+                             << " in Bitwuzla's model, but not for z3");
+        }
+        continue;
+      }
       if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || isUnsignedBvNum(v))) {
         ++non_values;
         MESSAGE("formula " << i << ": the model gives " << *v << " for "
@@ -769,23 +1002,39 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     }
   }
   MESSAGE((2 * n) << " formulas: " << sat << " sat, " << unsat << " unsat, "
-                  << z3_unknown << " unknown to z3; encoding check: "
+                  << z3_unknown << " unknown to z3, " << bw_unknown
+                  << " unknown to Bitwuzla (" << unexplained_unknown
+                  << " unexplained), " << with_arrays
+                  << " with arrays; encoding check: "
                   << encoding[EncodingVerdict::SAME] << " same; model: "
-                  << evaluated << " terms evaluated, " << value_mismatches
-                  << " differ from z3, " << non_values << " not values");
+                  << evaluated << " terms evaluated (" << arrays_compared
+                  << " arrays), " << value_mismatches << " differ from z3, "
+                  << non_values << " not values, " << refused
+                  << " refused (array equality), " << not_refused
+                  << " not refused; " << refused_models
+                  << " sat models without values (narrow array equality)");
   // -- every formula Bitwuzla got is Z3's formula, not only equisatisfiable
   CHECK(encoding[EncodingVerdict::SAME] == 2 * n);
-  CHECK(sat + unsat + z3_unknown + disagreements == 2 * n);
+  CHECK(not_encoded == 0);
+  CHECK(sat + unsat + z3_unknown + bw_unknown + disagreements + not_encoded ==
+        2 * n);
   CHECK(disagreements == 0);
+  // -- unknown only where Bitwuzla says it is incomplete, and rarely
+  CHECK(unexplained_unknown == 0);
+  CHECK(bw_unknown <= 2 * n / 10);
+  CHECK(not_refused == 0);
   CHECK(bad_models == 0);
   CHECK(z3_unknown == 0);
   CHECK(non_values == 0);
   CHECK(value_mismatches == 0);
   // -- every sat formula has at least one term
   CHECK(evaluated >= sat);
-  // -- the generator must produce both kinds, or the test proves little
-  CHECK(sat > n / 4);
-  CHECK(unsat > n / 4);
+  // -- the generator must produce both kinds, and arrays, or the test proves
+  // -- little
+  // -- (of the 2n formulas: a quarter each; until 1.6 this was an eighth)
+  CHECK(sat >= 2 * n / 4);
+  CHECK(unsat >= 2 * n / 4);
+  CHECK(with_arrays >= 2 * n / 4);
 }
 
 TEST_CASE("bitwuzla.encoding check") {
@@ -900,14 +1149,28 @@ TEST_CASE("bitwuzla.encoding check: when it cannot compare") {
   CHECK(verdict(x, env.tm.mk_var(bv8, "v")).verdict ==
         EncodingVerdict::UNCHECKED);
   CHECK(verdict(x, env.tm.mk_const(bv8)).verdict == EncodingVerdict::UNCHECKED);
+  // -- since plan 1.6, constants of array sort are compared: x is not a[y]
   bz::Sort arr = env.tm.mk_array_sort(bv8, bv8);
   bz::Term a = env.tm.mk_const(arr, "a");
   CHECK(verdict(x, env.tm.mk_term(bz::Kind::ARRAY_SELECT,
                                   {a, env.m.encode_term(y)}))
-            .verdict == EncodingVerdict::UNCHECKED);
+            .verdict == EncodingVerdict::DIFFERENT);
+  // -- but not a term of array sort, nor arrays with other index or element
+  // -- sorts
   CHECK(
       verdict(x, env.tm.mk_const_array(arr, env.tm.mk_bv_zero(bv8))).verdict ==
       EncodingVerdict::UNCHECKED);
+  bz::Sort boolS = env.tm.mk_bool_sort();
+  bz::Term byBool = env.tm.mk_const(env.tm.mk_array_sort(boolS, bv8), "bb");
+  CHECK(verdict(x, env.tm.mk_term(bz::Kind::ARRAY_SELECT,
+                                  {byBool, env.tm.mk_true()}))
+            .verdict == EncodingVerdict::UNCHECKED);
+  bz::Term nested = env.tm.mk_const(env.tm.mk_array_sort(bv8, arr), "nn");
+  bz::Term inner = env.tm.mk_term(bz::Kind::ARRAY_SELECT,
+                                  {nested, env.m.encode_term(y)});
+  CHECK(verdict(x, env.tm.mk_term(bz::Kind::ARRAY_SELECT,
+                                  {inner, env.m.encode_term(y)}))
+            .verdict == EncodingVerdict::UNCHECKED);
 
   // -- a constant may have the name of the check's own helper constant
   Expr clash = env.bvc("encoding_check_rhs", 8);
@@ -1068,12 +1331,35 @@ TEST_CASE("bitwuzla.unsupported") {
   CHECK(env.rejects(mk<EQ>(rot, x), rot));
   Expr leq = mk<LEQ>(x, x);
   CHECK(env.rejects(mk<OR>(leq, mk<EQ>(x, x)), leq));
-  // -- constants of unsupported sorts: integers, arrays (plan 1.6)
+  // -- constants of unsupported sorts: integers, arrays other than from
+  // -- bit-vectors to bit-vectors
   CHECK(env.rejects(mk<EQ>(i, i), i));
-  Expr A = bind::mkConst(mkTerm<std::string>("A", env.efac),
-                         sort::arrayTy(env.bvsort(8), env.bvsort(8)));
-  Expr sel = op::array::select(A, x);
-  CHECK(env.rejects(mk<EQ>(sel, x), sel));
+  Expr p0 = env.boolc("p0");
+  Expr byBool = bind::mkConst(mkTerm<std::string>("byBool", env.efac),
+                              sort::arrayTy(sort::boolTy(env.efac),
+                                            env.bvsort(8)));
+  CHECK(env.rejects(mk<EQ>(op::array::select(byBool, p0), x), byBool));
+  Expr toBool = bind::mkConst(mkTerm<std::string>("toBool", env.efac),
+                              sort::arrayTy(env.bvsort(8),
+                                            sort::boolTy(env.efac)));
+  CHECK(env.rejects(op::array::select(toBool, x), toBool));
+  // -- and constant arrays of them
+  Expr caBool = op::array::constArray(sort::boolTy(env.efac), x);
+  CHECK(env.rejects(mk<EQ>(op::array::select(caBool, p0), x), caBool));
+  Expr caToBool = op::array::constArray(env.bvsort(8), p0);
+  CHECK(env.rejects(op::array::select(caToBool, x), caToBool));
+  Expr caInt = op::array::constArray(sort::intTy(env.efac), x);
+  CHECK(env.rejects(mk<EQ>(caInt, caInt), caInt));
+  // -- array operators other than select, store and const-array
+  Expr A = env.arrc("A", 8, 8);
+  Expr dflt = op::array::aDefault(A);
+  CHECK(env.rejects(mk<EQ>(dflt, x), dflt));
+  Expr asArr = mk<AS_ARRAY>(A);
+  CHECK(env.rejects(mk<EQ>(op::array::select(asArr, x), x), asArr));
+  Expr g = bind::fdecl(mkTerm<std::string>("g", env.efac),
+                       ExprVector{env.bvsort(8), env.bvsort(8)});
+  Expr amap = mk<ARRAY_MAP>(g, A);
+  CHECK(env.rejects(mk<EQ>(op::array::select(amap, x), x), amap));
   // -- uninterpreted functions
   Expr f = bind::fdecl(mkTerm<std::string>("f", env.efac),
                        ExprVector{env.bvsort(8), env.bvsort(8)});
@@ -1369,12 +1655,19 @@ TEST_CASE("bitwuzla.model of terms it cannot evaluate") {
   // -- terms the encoder rejects give nondet
   Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
   Expr a = bind::mkConst(mkTerm<std::string>("a", env.efac),
-                         sort::arrayTy(env.bvsort(8), env.bvsort(8)));
+                         sort::arrayTy(sort::boolTy(env.efac), env.bvsort(8)));
+  Expr A = env.arrc("A", 8, 8);
   CHECK(isOpX<NONDET>(m->eval(i, true)));
   CHECK(isOpX<NONDET>(m->eval(mk<BV2INT>(x), true)));
   CHECK(isOpX<NONDET>(m->eval(a, true)));
-  CHECK(isOpX<NONDET>(m->eval(mk<SELECT>(a, x), false)));
-  CHECK(isOpX<NONDET>(m->eval(strct::mk(x, x), false)));
+  CHECK(isOpX<NONDET>(m->eval(mk<SELECT>(a, mk<TRUE>(env.efac)), false)));
+  CHECK(isOpX<NONDET>(m->eval(op::array::aDefault(A), false)));
+  // -- a struct is evaluated field by field (bitwuzla.model of structs); a
+  // -- struct sort elsewhere is rejected
+  Expr st = bind::mkConst(mkTerm<std::string>("st", env.efac),
+                          sort::structTy(env.bvsort(8), env.bvsort(8)));
+  CHECK(isOpX<NONDET>(m->eval(st, false)));
+  CHECK(isOpX<NONDET>(m->eval(strct::extractVal(st, 0), false)));
 
   // -- the model and the solver still work
   CHECK(m->eval(x, true) == env.num(3, 8));
@@ -1408,8 +1701,39 @@ TEST_CASE("bitwuzla.decode values") {
       tm.mk_term(bz::Kind::BV_ADD, {tm.mk_bv_one(bv8), tm.mk_bv_one(bv8)})));
   CHECK_FALSE(decode(tm.mk_rm_value(bz::RoundingMode::RNE)));
   CHECK_FALSE(decode(tm.mk_fp_pos_zero(tm.mk_fp_sort(5, 11))));
-  CHECK_FALSE(decode(
-      tm.mk_const_array(tm.mk_array_sort(bv8, bv8), tm.mk_bv_zero(bv8))));
+
+  // -- arrays (plan 1.6): a chain of stores over a constant array, rebuilt
+  // -- in the same order, with unsigned numerals
+  bz::Sort bv2 = tm.mk_bv_sort(2), arr = tm.mk_array_sort(bv2, bv8);
+  auto bwv = [&](bz::Sort s, unsigned n) {
+    return tm.mk_bv_value_uint64(s, n);
+  };
+  bz::Term ca = tm.mk_const_array(arr, bwv(bv8, 255));
+  Expr eca = op::array::constArray(env.bvsort(2), env.num(255, 8));
+  CHECK(decode(ca) == eca);
+  bz::Term st1 = tm.mk_term(bz::Kind::ARRAY_STORE, {ca, bwv(bv2, 3), bwv(bv8, 1)});
+  bz::Term st2 =
+      tm.mk_term(bz::Kind::ARRAY_STORE, {st1, bwv(bv2, 0), bwv(bv8, 128)});
+  Expr est1 = op::array::store(eca, env.num(3, 2), env.num(1, 8));
+  CHECK(decode(st1) == est1);
+  CHECK(decode(st2) == op::array::store(est1, env.num(0, 2), env.num(128, 8)));
+  // -- an index stored twice keeps both stores, so the last one still wins
+  bz::Term st3 =
+      tm.mk_term(bz::Kind::ARRAY_STORE, {st1, bwv(bv2, 3), bwv(bv8, 2)});
+  CHECK(decode(st3) == op::array::store(est1, env.num(3, 2), env.num(2, 8)));
+  // -- anything that is not made of values: a null Expr
+  bz::Term ac = tm.mk_const(arr, "ac");
+  bz::Term c8 = tm.mk_const(bv8, "c8"), c2 = tm.mk_const(bv2, "c2");
+  CHECK_FALSE(decode(ac));
+  CHECK_FALSE(decode(tm.mk_const_array(arr, c8)));
+  CHECK_FALSE(decode(tm.mk_term(bz::Kind::ARRAY_STORE, {ac, bwv(bv2, 1), bwv(bv8, 1)})));
+  CHECK_FALSE(decode(tm.mk_term(bz::Kind::ARRAY_STORE, {ca, c2, bwv(bv8, 1)})));
+  CHECK_FALSE(decode(tm.mk_term(bz::Kind::ARRAY_STORE, {st1, bwv(bv2, 1), c8})));
+  CHECK_FALSE(decode(tm.mk_term(
+      bz::Kind::ITE, {tm.mk_const(tm.mk_bool_sort(), "pp"), ca, st1})));
+  // -- an index sort other than a bit-vector
+  CHECK_FALSE(decode(tm.mk_const_array(
+      tm.mk_array_sort(tm.mk_bool_sort(), bv8), bwv(bv8, 0))));
 }
 
 TEST_CASE("bitwuzla.model print") {
@@ -1448,6 +1772,392 @@ TEST_CASE("bitwuzla.model print") {
   CHECK(s.add(mk<NEG>(q)));
   REQUIRE(s.check() == SolverResult::SAT);
   CHECK(printed(s.get_model()) == "q = " + str(mk<FALSE>(env.efac)) + "\n");
+}
+
+
+namespace {
+/// Z3 proves \p e valid
+bool z3Valid(EZ3 &z3, Expr e) {
+  ZSolver<EZ3> zs(z3);
+  zs.assertExpr(mk<NEG>(e));
+  boost::tribool r = zs.solve();
+  return bool(!r) && !boost::indeterminate(r);
+}
+
+/// The adapter's answer on the conjunction of \p fs, in a fresh solver
+SolverResult adapterCheck(std::initializer_list<Expr> fs) {
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  for (Expr f : fs)
+    REQUIRE(s.add(f));
+  return s.check();
+}
+} // namespace
+
+TEST_CASE("bitwuzla.arrays") {
+  Env env;
+  using namespace op::array;
+  const SolverResult SAT = SolverResult::SAT, UNSAT = SolverResult::UNSAT;
+  // -- read over write, like memory (64-bit index, 8-bit elements), and with
+  // -- a 2-bit index
+  for (unsigned iw : {64u, 2u}) {
+    INFO("index width " << iw);
+    Expr a = env.arrc("a" + std::to_string(iw), iw, 8);
+    Expr i = env.bvc("i" + std::to_string(iw), iw);
+    Expr j = env.bvc("j" + std::to_string(iw), iw);
+    Expr v = env.bvc("v", 8);
+    Expr st = store(a, i, v);
+    CHECK(adapterCheck({mk<NEQ>(select(st, i), v)}) == UNSAT);
+    CHECK(adapterCheck({mk<NEQ>(i, j), mk<NEQ>(select(st, j), select(a, j))}) ==
+          UNSAT);
+    CHECK(adapterCheck({mk<NEQ>(select(st, j), select(a, j))}) == SAT);
+    // -- two writes to the same place: the second one wins (mem.c)
+    Expr st2 = store(store(a, i, env.num(1, 8)), j, env.num(2, 8));
+    CHECK(adapterCheck({mk<NEQ>(select(st2, i), env.num(1, 8))}) == SAT);
+    CHECK(adapterCheck({mk<NEQ>(i, j), mk<NEQ>(select(st2, i), env.num(1, 8))}) ==
+          UNSAT);
+    // -- extensionality
+    Expr b = env.arrc("b" + std::to_string(iw), iw, 8);
+    CHECK(adapterCheck({mk<EQ>(a, b), mk<NEQ>(select(a, i), select(b, i))}) ==
+          UNSAT);
+    CHECK(adapterCheck({mk<NEQ>(a, b)}) == SAT);
+    // -- ite over arrays
+    Expr p = env.boolc("p");
+    CHECK(adapterCheck({p, mk<NEQ>(select(mk<ITE>(p, a, b), i), select(a, i))}) ==
+          UNSAT);
+  }
+
+  // -- constant arrays
+  Expr i2 = env.bvc("i2", 2), k = env.bvc("k", 8);
+  Expr c3 = constArray(env.bvsort(2), env.num(3, 8));
+  CHECK(env.valid(mk<EQ>(select(c3, i2), env.num(3, 8))));
+  CHECK(env.valid(mk<EQ>(select(constArray(env.bvsort(64), k),
+                                env.bvc("i64", 64)),
+                         k)));
+  // -- writing 7 at all four indices of a 2-bit array gives the constant
+  // -- array 7 ...
+  Expr all7 = c3;
+  for (unsigned n = 0; n < 4; ++n)
+    all7 = store(all7, env.num(n, 2), env.num(7, 8));
+  Expr c7 = constArray(env.bvsort(2), env.num(7, 8));
+  CHECK(adapterCheck({mk<NEQ>(all7, c7)}) == UNSAT);
+  // -- ... but three of them do not
+  Expr three7 = store(store(store(c3, env.num(0, 2), env.num(7, 8)),
+                            env.num(1, 2), env.num(7, 8)),
+                      env.num(2, 2), env.num(7, 8));
+  CHECK(adapterCheck({mk<NEQ>(three7, c7)}) == SAT);
+
+  // -- Bitwuzla 0.9.1 answers unknown on an equality of two constant
+  // -- arrays; the adapter passes that on, whether the formula is sat or not
+  Expr ck = constArray(env.bvsort(8), k);
+  Expr c3b = constArray(env.bvsort(8), env.num(3, 8));
+  CHECK(adapterCheck({mk<EQ>(ck, c3b)}) == SolverResult::UNKNOWN);
+  CHECK(adapterCheck({mk<EQ>(ck, c3b), mk<EQ>(k, env.num(4, 8))}) ==
+        SolverResult::UNKNOWN);
+}
+
+TEST_CASE("bitwuzla.array operators it cannot encode") {
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), A = env.arrc("A", 8, 8);
+  Expr byBool = bind::mkConst(
+      mkTerm<std::string>("byBool", env.efac),
+      sort::arrayTy(sort::boolTy(env.efac), env.bvsort(8)));
+  Expr g = bind::fdecl(mkTerm<std::string>("g", env.efac),
+                       ExprVector{env.bvsort(8), env.bvsort(8)});
+  for (Expr bad :
+       {mk<EQ>(op::array::aDefault(A), x),
+        mk<EQ>(op::array::select(mk<AS_ARRAY>(A), x), x),
+        mk<EQ>(op::array::select(mk<ARRAY_MAP>(g, A), x), x),
+        mk<EQ>(op::array::select(byBool, mk<TRUE>(env.efac)), x)}) {
+    INFO(*bad);
+    // -- with an assertion that is unsat on its own: never unsat, nor sat
+    CHECK(s.add(mk<NEQ>(op::array::select(op::array::store(A, x, x), x), x)));
+    CHECK_FALSE(s.add(bad));
+    CHECK(s.check() == SolverResult::UNKNOWN);
+    s.reset();
+    CHECK(s.add(mk<EQ>(op::array::select(A, x), x)));
+    CHECK(s.check() == SolverResult::SAT);
+    s.reset();
+  }
+}
+
+TEST_CASE("bitwuzla.model of arrays") {
+  Env env;
+  EZ3 z3(env.efac);
+  using namespace op::array;
+  for (unsigned iw : {8u, 64u}) {
+    INFO("index width " << iw);
+    bitwuzla_solver_impl bzla;
+    Solver &s = bzla;
+    Expr a = env.arrc("a", iw, 8), i = env.bvc("i", iw);
+    CHECK(s.add(mk<EQ>(select(a, env.num(1, iw)), env.num(5, 8))));
+    CHECK(s.add(mk<EQ>(select(a, env.num(2, iw)), env.num(7, 8))));
+    CHECK(s.add(mk<EQ>(select(a, i), env.num(9, 8))));
+    REQUIRE(s.check() == SolverResult::SAT);
+    Solver::model_ref m = s.get_model();
+
+    // -- a store chain of numerals over a constant array of a numeral
+    Expr va = m->eval(a, true);
+    Expr cur = va;
+    unsigned stores = 0;
+    while (isOpX<STORE>(cur)) {
+      CHECK(isUnsignedBvNum(cur->arg(1)));
+      CHECK(isUnsignedBvNum(cur->arg(2)));
+      cur = cur->arg(0);
+      ++stores;
+    }
+    REQUIRE(isOpX<CONST_ARRAY>(cur));
+    CHECK(cur->arg(0) == env.bvsort(iw));
+    CHECK(isUnsignedBvNum(cur->arg(1)));
+    CHECK(stores >= 2);
+    // -- that Z3 proves has the asserted values
+    Expr vi = m->eval(i, false);
+    CHECK(z3Valid(z3, mk<AND>(mk<EQ>(select(va, env.num(1, iw)), env.num(5, 8)),
+                              mk<EQ>(select(va, env.num(2, iw)), env.num(7, 8)),
+                              mk<EQ>(select(va, vi), env.num(9, 8)))));
+    // -- terms of array sort and selects
+    CHECK(m->eval(select(a, env.num(1, iw)), true) == env.num(5, 8));
+    CHECK(m->eval(select(a, i), false) == env.num(9, 8));
+    Expr st = store(a, env.num(1, iw), env.num(6, 8));
+    Expr vst = m->eval(st, false);
+    CHECK(z3Valid(z3, mk<AND>(mk<EQ>(select(vst, env.num(1, iw)), env.num(6, 8)),
+                              mk<EQ>(select(vst, env.num(2, iw)), env.num(7, 8)))));
+    // -- an array in no assertion gets a value too, consistent with terms
+    // -- over it
+    Expr fresh = env.arrc("fresh", iw, 8);
+    Expr vf = m->eval(fresh, true);
+    REQUIRE(isOpX<CONST_ARRAY>(vf));
+    CHECK(m->eval(select(fresh, i), true) == vf->arg(1));
+
+    // -- the guards of 1.5 hold for array terms: after a change, nondet
+    CHECK(s.add(mk<EQ>(select(a, env.num(3, iw)), env.num(1, 8))));
+    CHECK(isOpX<NONDET>(m->eval(a, true)));
+    CHECK(isOpX<NONDET>(m->eval(select(a, i), true)));
+    REQUIRE(s.check() == SolverResult::SAT);
+    CHECK(isOpX<NONDET>(m->eval(a, true)));
+    CHECK(isOpX<NONDET>(s.get_model()->eval(mk<EQ>(a, a), true)));
+    CHECK_FALSE(isOpX<NONDET>(s.get_model()->eval(a, true)));
+  }
+}
+
+TEST_CASE("bitwuzla.model does not evaluate array equalities") {
+  Env env;
+  using namespace op::array;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr p = env.boolc("p"), x = env.bvc("x", 8);
+  Expr a = env.arrc("a", 1, 8), b = env.arrc("b", 1, 8);
+  CHECK(s.add(p));
+  CHECK(s.add(mk<EQ>(select(a, env.num(0, 1)), env.num(5, 8))));
+  CHECK(s.add(mk<EQ>(select(a, env.num(1, 1)), env.num(5, 8))));
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+
+  // -- probe16c: Bitwuzla's value of these is false, but they are true
+  Expr c3 = constArray(env.bvsort(2), env.num(3, 8));
+  Expr all7 = c3;
+  for (unsigned n = 0; n < 4; ++n)
+    all7 = store(all7, env.num(n, 2), env.num(7, 8));
+  Expr c7 = constArray(env.bvsort(2), env.num(7, 8));
+  Expr c5 = constArray(env.bvsort(1), env.num(5, 8));
+  for (Expr e : {mk<EQ>(all7, c7), mk<EQ>(a, c5), mk<NEQ>(a, c5),
+                 mk<AND>(p, mk<EQ>(a, c5)),
+                 mk<ITE>(mk<EQ>(a, b), x, env.num(2, 8)), mk<EQ>(a, a)}) {
+    INFO(*e);
+    CHECK(isOpX<NONDET>(m->eval(e, true)));
+    CHECK(isOpX<NONDET>(m->eval(e, false)));
+  }
+  // -- other terms still have values, and the solver still works
+  CHECK(m->eval(mk<AND>(p, mk<EQ>(select(a, env.num(1, 1)), env.num(5, 8))),
+                false) == mk<TRUE>(env.efac));
+  CHECK(m->eval(x, false) == env.num(1, 8));
+  // -- a is 5 at both of its indices, so it equals the constant array 5:
+  // -- asserted, the disequality is unsat (Bitwuzla answers unknown on the
+  // -- equality itself, see bitwuzla.arrays)
+  CHECK(s.add(mk<NEQ>(a, c5)));
+  CHECK(s.check() == SolverResult::UNSAT);
+}
+
+TEST_CASE("bitwuzla.model after an equality of narrow arrays") {
+  // -- Bitwuzla moves q = (a = b) into q's definition, and then gives q the
+  // -- value "a's and b's value terms are the same", which is wrong when
+  // -- every index is written (review of step 1.6, probes p1, p2, p5). So
+  // -- while an assertion has an array equality with indices narrower than
+  // -- 32 bits, the model has no values at all.
+  Env env;
+  using namespace op::array;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr q = env.boolc("q"), p = env.boolc("p"), x = env.bvc("x", 8);
+  Expr c3 = constArray(env.bvsort(2), env.num(3, 8));
+  Expr c7 = constArray(env.bvsort(2), env.num(7, 8));
+  Expr all7 = c3;
+  for (unsigned n = 0; n < 4; ++n)
+    all7 = store(all7, env.num(n, 2), env.num(7, 8));
+  auto noValues = [&](Solver::model_ref m) {
+    for (Expr e : {q, p, x, mk<NEG>(q), env.num(1, 8)}) {
+      INFO(*e);
+      CHECK(isOpX<NONDET>(m->eval(e, true)));
+    }
+    // -- a struct is still a struct, of nondets
+    Expr st = m->eval(strct::mk(q, x), false);
+    REQUIRE(isOpX<MK_STRUCT>(st));
+    CHECK(isOpX<NONDET>(st->arg(0)));
+    CHECK(isOpX<NONDET>(st->arg(1)));
+  };
+
+  // -- p5: q must be true; Bitwuzla's value of q is false
+  CHECK(s.add(mk<EQ>(q, mk<EQ>(all7, c7))));
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  noValues(s.get_model());
+
+  // -- p1, p2: 1-bit indices, a is 5 at both, so a = const(5); Bitwuzla
+  // -- gives p false, x 0 and m d's value
+  s.reset();
+  Expr a = env.arrc("a", 1, 8), c5 = constArray(env.bvsort(1), env.num(5, 8));
+  Expr c = env.arrc("c", 1, 8), d = env.arrc("d", 1, 8);
+  Expr m = env.arrc("m", 1, 8);
+  CHECK(s.add(mk<EQ>(select(a, env.num(0, 1)), env.num(5, 8))));
+  CHECK(s.add(mk<EQ>(select(a, env.num(1, 1)), env.num(5, 8))));
+  CHECK(s.add(mk<EQ>(p, mk<EQ>(a, c5))));
+  CHECK(s.add(mk<EQ>(m, mk<ITE>(mk<EQ>(a, c5), c, d))));
+  CHECK(s.add(mk<EQ>(select(c, env.num(0, 1)), env.num(1, 8))));
+  CHECK(s.add(mk<EQ>(select(d, env.num(0, 1)), env.num(2, 8))));
+  CHECK(s.add(mk<EQ>(x, mk<ITE>(mk<NEQ>(a, c5), env.num(0, 8), env.num(1, 8)))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref mm = s.get_model();
+  noValues(mm);
+  CHECK(isOpX<NONDET>(mm->eval(m, true)));
+  CHECK(isOpX<NONDET>(mm->eval(select(m, env.num(0, 1)), true)));
+
+  // -- with 64-bit indices, as SeaHorn's memory has, values are given and
+  // -- right: q is forced true through its definition
+  s.reset();
+  Expr a64 = env.arrc("a64", 64, 8), b64 = env.arrc("b64", 64, 8);
+  Expr i = env.bvc("i", 64);
+  CHECK(s.add(mk<EQ>(q, mk<EQ>(a64, b64))));
+  CHECK(s.add(mk<EQ>(a64, store(b64, i, select(b64, i)))));
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m64 = s.get_model();
+  CHECK(m64->eval(q, true) == mk<TRUE>(env.efac));
+  CHECK(m64->eval(x, true) == env.num(1, 8));
+  // -- the equality itself is still not evaluated (the term guard)
+  CHECK(isOpX<NONDET>(m64->eval(mk<EQ>(a64, b64), true)));
+
+  // -- one narrow equality among wide ones is enough, and a disequality too
+  CHECK(s.add(mk<NEQ>(all7, c3)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(isOpX<NONDET>(s.get_model()->eval(x, true)));
+  // -- and reset() ends it
+  s.reset();
+  CHECK(s.add(mk<EQ>(x, env.num(2, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(2, 8));
+  // -- an array equality with a narrow index in a term only, not in an
+  // -- assertion, refuses only that term
+  CHECK(isOpX<NONDET>(s.get_model()->eval(mk<EQ>(all7, c7), true)));
+  CHECK(s.get_model()->eval(x, true) == env.num(2, 8));
+
+  // -- the boundary: 31-bit indices are narrow, 32-bit ones are not
+  for (unsigned iw : {8u, 31u, 32u}) {
+    INFO("index width " << iw);
+    s.reset();
+    Expr aw = env.arrc("aw" + std::to_string(iw), iw, 8);
+    Expr bw = env.arrc("bw" + std::to_string(iw), iw, 8);
+    CHECK(s.add(mk<EQ>(q, mk<NEQ>(aw, bw))));
+    CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+    REQUIRE(s.check() == SolverResult::SAT);
+    Expr vx = s.get_model()->eval(x, true);
+    if (iw < 32)
+      CHECK(isOpX<NONDET>(vx));
+    else
+      CHECK(vx == env.num(3, 8));
+  }
+}
+
+TEST_CASE("bitwuzla.model print with arrays") {
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr a = env.arrc("a", 2, 8), x = env.bvc("x", 8);
+  auto str = [](Expr e) { return boost::lexical_cast<std::string>(*e); };
+  CHECK(s.add(mk<EQ>(op::array::select(a, env.num(1, 2)), x)));
+  CHECK(s.add(mk<EQ>(x, env.num(4, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  std::string out;
+  llvm::raw_string_ostream os(out);
+  m->print(os);
+  CHECK(os.str() == "a = " + str(m->eval(a, true)) + "\nx = " +
+                        str(env.num(4, 8)) + "\n");
+  CHECK(os.str().find("store(") != std::string::npos);
+}
+
+TEST_CASE("bitwuzla.model of structs") {
+  // -- with --horn-bv2-extra-widemem, SeaHorn asks the model for registers
+  // -- that are structs of terms (pointers, memories); like Z3's model, each
+  // -- field is evaluated
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), a = env.arrc("a", 64, 8);
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+  CHECK(s.add(mk<EQ>(op::array::select(a, env.num(0, 64)), env.num(9, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+
+  Expr v = m->eval(strct::mk(x, mk<BADD>(x, env.num(1, 8))), false);
+  CHECK(v == strct::mk(env.num(3, 8), env.num(4, 8)));
+  // -- fields of any kind, nested structs, and fields it cannot evaluate
+  Expr va = m->eval(a, true);
+  REQUIRE(isOpX<STORE>(va));
+  CHECK(m->eval(strct::mk(a, x), true) == strct::mk(va, env.num(3, 8)));
+  CHECK(m->eval(strct::mk(strct::mk(x), x), true) ==
+        strct::mk(strct::mk(env.num(3, 8)), env.num(3, 8)));
+  Expr vi = m->eval(strct::mk(i, x), true);
+  REQUIRE(isOpX<MK_STRUCT>(vi));
+  CHECK(isOpX<NONDET>(vi->arg(0)));
+  CHECK(vi->arg(1) == env.num(3, 8));
+  // -- an array equality inside a field is refused there
+  Expr ve = m->eval(strct::mk(mk<EQ>(a, a), x), true);
+  REQUIRE(isOpX<MK_STRUCT>(ve));
+  CHECK(isOpX<NONDET>(ve->arg(0)));
+  // -- an out-of-date model has no values, not even a struct of them
+  CHECK(s.add(mk<EQ>(x, x)));
+  CHECK(isOpX<NONDET>(m->eval(strct::mk(x, x), false)));
+}
+
+TEST_CASE("bitwuzla.encoding check with arrays") {
+  Env env;
+  using namespace op::array;
+  auto verdict = [&](Expr e, const bz::Term &t) {
+    auto ec = checkBitwuzlaEncoding(e, t, 10000);
+    INFO(verdictName(ec.verdict) << ": " << ec.detail);
+    return ec.verdict;
+  };
+  Expr a = env.arrc("a", 64, 8), b = env.arrc("b", 64, 8);
+  Expr i = env.bvc("i", 64), j = env.bvc("j", 64), v = env.bvc("v", 8);
+  Expr c = constArray(env.bvsort(64), v);
+  for (Expr e : {mk<EQ>(select(store(a, i, v), j), v),
+                 mk<EQ>(a, store(b, i, select(c, j))),
+                 mk<NEQ>(mk<ITE>(mk<EQ>(i, j), a, b), c)}) {
+    INFO(*e);
+    CHECK(verdict(e, env.m.encode_term(e)) == EncodingVerdict::SAME);
+  }
+  // -- a wrong encoding is found: read over write at another index
+  Expr e = mk<EQ>(select(store(a, i, v), j), v);
+  Expr wrong = mk<EQ>(select(a, j), v);
+  CHECK(verdict(e, env.m.encode_term(wrong)) == EncodingVerdict::DIFFERENT);
+  // -- and a constant array of another value
+  Expr e2 = mk<EQ>(select(c, j), v);
+  Expr wrong2 = mk<EQ>(select(constArray(env.bvsort(64), env.num(0, 8)), j), v);
+  CHECK(verdict(e2, env.m.encode_term(wrong2)) == EncodingVerdict::DIFFERENT);
 }
 
 #endif

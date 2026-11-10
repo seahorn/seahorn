@@ -59,6 +59,15 @@ private:
   bitwuzla::TermManager &m_tm;
   std::unordered_map<expr::Expr, bitwuzla::Term> m_cache;
 };
+
+/// \brief Decodes a value that Bitwuzla::get_value returned
+///
+/// A Bool value becomes true or false, and a bit-vector value of width w the
+/// bit-vector numeral of width w whose number is in [0, 2^w) (the bits read
+/// as unsigned). Returns a null Expr for anything else: a value of another
+/// sort, or a term that is not a value. Does not throw for a non-null term.
+expr::Expr decode_bitwuzla_value(const bitwuzla::Term &v,
+                                 expr::ExprFactory &efac);
 } // namespace solver
 } // namespace seahorn
 #endif

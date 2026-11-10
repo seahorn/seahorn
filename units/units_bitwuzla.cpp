@@ -33,6 +33,7 @@ using namespace seahorn;
 using seahorn::solver::bitwuzla_solver_impl;
 using seahorn::solver::checkBitwuzlaEncoding;
 using seahorn::solver::checkSmtLibTermWithZ3;
+using seahorn::solver::decode_bitwuzla_value;
 using seahorn::solver::EncodingVerdict;
 using seahorn::solver::marshal_bitwuzla;
 using seahorn::solver::Solver;
@@ -93,6 +94,48 @@ Expr z3Value(EZ3 &z3, Expr t, Expr r) {
   solver.assertExpr(mk<EQ>(r, t));
   REQUIRE(bool(solver.solve()));
   return solver.getModel().eval(r);
+}
+
+/// \p v is a bit-vector numeral whose number is in [0, 2^w)
+bool isUnsignedBvNum(Expr v) {
+  unsigned w;
+  if (!bv::isBvNum(v, w))
+    return false;
+  expr::mpz_class n = bv::toMpz(v);
+  return n >= 0l && n < (expr::mpz_class(1ul) << w);
+}
+
+/// \p a and \p b are the same Bool value, or numerals of the same width with
+/// the same bits (Z3's decoder may give a negative number for them)
+bool sameValue(Expr a, Expr b) {
+  if (isOpX<TRUE>(a) || isOpX<FALSE>(a))
+    return a == b;
+  unsigned wa, wb;
+  if (!bv::isBvNum(a, wa) || !bv::isBvNum(b, wb) || wa != wb)
+    return false;
+  expr::mpz_class mod = expr::mpz_class(1ul) << wa;
+  return bv::toMpz(a) % mod == bv::toMpz(b) % mod;
+}
+
+/// Appends to \p out the terms of \p e not in \p seen, in a fixed order: \p e
+/// and, below it, every argument that is a term (not the indices of extract,
+/// nor the sort of an extension)
+void termsOf(Expr e, ExprSet &seen, ExprVector &out) {
+  if (!seen.insert(e).second)
+    return;
+  out.push_back(e);
+  if (bind::IsConst()(e) || bv::is_bvnum(e))
+    return;
+  if (isOpX<BEXTRACT>(e)) {
+    termsOf(e->arg(2), seen, out);
+    return;
+  }
+  if (isOpX<BSEXT>(e) || isOpX<BZEXT>(e)) {
+    termsOf(e->arg(0), seen, out);
+    return;
+  }
+  for (unsigned i = 0, sz = e->arity(); i < sz; ++i)
+    termsOf(e->arg(i), seen, out);
 }
 } // namespace
 
@@ -615,11 +658,12 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   // -- one adapter for every formula: reset() must clear everything
   bitwuzla_solver_impl adapter;
   Solver &s = adapter;
-  bz::Options opts;
-  opts.set(bz::Option::PRODUCE_MODELS, true);
 
   unsigned sat = 0, unsat = 0, z3_unknown = 0, disagreements = 0,
            bad_models = 0;
+  // -- terms evaluated through the model; values that are not values, or not
+  // -- in [0, 2^w); values that differ from Z3's under the same assignment
+  unsigned evaluated = 0, non_values = 0, value_mismatches = 0;
   // -- verdicts of the formula check (translation validation) on every f
   std::map<EncodingVerdict, unsigned> encoding;
   Expr f;
@@ -654,38 +698,91 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     }
     ++sat;
 
-    // -- Bitwuzla's values for the constants of f must satisfy f for Z3
-    bz::Bitwuzla bzla(env.tm, opts);
-    bzla.assert_formula(env.m.encode_term(f));
-    REQUIRE(bzla.check_sat() == bz::Result::SAT);
+    // -- the model, through the Solver interface. Evaluate every term of f,
+    // -- and two terms over constants that are in no assertion (Bitwuzla
+    // -- completes its model, so they get values too). complete alternates.
+    Solver::model_ref model = s.get_model();
+    ExprSet seen;
+    ExprVector terms;
+    termsOf(f, seen, terms);
+    std::vector<std::pair<Expr, Expr>> values; // -- term, Bitwuzla's value
+    Expr someBv, someBool;
+    for (Expr t : terms) {
+      Expr v = model->eval(t, values.size() % 2 == 0);
+      values.push_back({t, v});
+      unsigned w;
+      if (!someBv && bv::isBvNum(v, w))
+        someBv = mk<BADD>(t, env.bvc("fresh" + std::to_string(w), w));
+      if (!someBool && (isOpX<TRUE>(v) || isOpX<FALSE>(v)))
+        someBool = mk<XOR>(t, env.boolc("fresh"));
+    }
+    for (Expr t : {someBv, someBool})
+      if (t)
+        values.push_back({t, model->eval(t, false)});
+
+    // -- the values of the constants, those in no assertion included, must
+    // -- satisfy f for Z3
     ExprSet consts;
-    filter(f, bind::IsConst(), std::inserter(consts, consts.begin()));
+    for (auto &tv : values)
+      filter(tv.first, bind::IsConst(), std::inserter(consts, consts.begin()));
     ZSolver<EZ3> certify(z3);
     certify.assertExpr(f);
+    bool all_values = true;
     for (Expr c : consts) {
-      bz::Term v = bzla.get_value(env.m.encode_term(c));
-      Expr ev =
-          v.sort().is_bool()
-              ? (v.value<bool>() ? mk<TRUE>(env.efac) : mk<FALSE>(env.efac))
-              : bv::bvnum(expr::mpz_class(v.value<std::string>(10)),
-                          v.sort().bv_size(), env.efac);
-      certify.assertExpr(mk<EQ>(c, ev));
+      Expr v = model->eval(c, true);
+      // -- Z3 cannot take nondet (it would exit); count it below instead
+      if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || bv::is_bvnum(v))) {
+        all_values = false;
+        break;
+      }
+      certify.assertExpr(mk<EQ>(c, v));
+    }
+    if (!all_values) {
+      ++non_values;
+      MESSAGE("formula " << i << ": the model has no value for a constant");
+      continue;
     }
     boost::tribool ok = certify.solve();
     if (!ok || boost::indeterminate(ok)) {
       ++bad_models;
       MESSAGE("formula " << i << ": z3 rejects Bitwuzla's values");
+      continue;
+    }
+
+    // -- and under those values, Z3 must give every term the same value
+    ZModel<EZ3> zmodel = certify.getModel();
+    for (auto &tv : values) {
+      ++evaluated;
+      Expr v = tv.second;
+      if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || isUnsignedBvNum(v))) {
+        ++non_values;
+        MESSAGE("formula " << i << ": the model gives " << *v << " for "
+                           << *tv.first);
+        continue;
+      }
+      Expr zv = zmodel.eval(tv.first, true);
+      if (!sameValue(v, zv)) {
+        ++value_mismatches;
+        MESSAGE("formula " << i << ": " << *tv.first << " is " << *v
+                           << " in Bitwuzla's model, but " << *zv << " for z3");
+      }
     }
   }
   MESSAGE((2 * n) << " formulas: " << sat << " sat, " << unsat << " unsat, "
                   << z3_unknown << " unknown to z3; encoding check: "
-                  << encoding[EncodingVerdict::SAME] << " same");
+                  << encoding[EncodingVerdict::SAME] << " same; model: "
+                  << evaluated << " terms evaluated, " << value_mismatches
+                  << " differ from z3, " << non_values << " not values");
   // -- every formula Bitwuzla got is Z3's formula, not only equisatisfiable
   CHECK(encoding[EncodingVerdict::SAME] == 2 * n);
   CHECK(sat + unsat + z3_unknown + disagreements == 2 * n);
   CHECK(disagreements == 0);
   CHECK(bad_models == 0);
   CHECK(z3_unknown == 0);
+  CHECK(non_values == 0);
+  CHECK(value_mismatches == 0);
+  // -- every sat formula has at least one term
+  CHECK(evaluated >= sat);
   // -- the generator must produce both kinds, or the test proves little
   CHECK(sat > n / 4);
   CHECK(unsat > n / 4);
@@ -1102,6 +1199,255 @@ TEST_CASE("bitwuzla.solver unsupported input") {
   s.reset();
   CHECK(s.add(mk<EQ>(x, env.num(2, 8))));
   CHECK(s.check() == SolverResult::SAT);
+}
+
+// -- models (plan 1.5)
+
+TEST_CASE("bitwuzla.model values") {
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), b = env.bvc("b", 1),
+       w = env.bvc("w", 128), p = env.boolc("p"), q = env.boolc("q");
+  CHECK(s.add(mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8))));
+  CHECK(s.add(mk<EQ>(b, env.num(1, 1))));
+  CHECK(s.add(mk<EQ>(w, env.num(-1, 128))));
+  CHECK(s.add(p));
+  CHECK(s.add(mk<NEG>(q)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+
+  // -- numerals are hash-consed: == compares the number and the width. The
+  // -- number is the unsigned reading of the bits.
+  Expr ones128 =
+      bv::bvnum(expr::mpz_class(std::string(128, '1'), 2), 128, env.efac);
+  CHECK(m->eval(x, false) == env.num(255, 8));
+  CHECK(m->eval(b, false) == env.num(1, 1));
+  CHECK(m->eval(w, false) == ones128);
+  CHECK(m->eval(p, false) == mk<TRUE>(env.efac));
+  CHECK(m->eval(q, false) == mk<FALSE>(env.efac));
+
+  // -- terms, not only constants
+  CHECK(m->eval(mk<BADD>(x, env.num(1, 8)), false) == env.num(0, 8));
+  CHECK(m->eval(mk<BULT>(x, env.num(7, 8)), false) == mk<FALSE>(env.efac));
+  CHECK(m->eval(mk<OR>(p, q), false) == mk<TRUE>(env.efac));
+  CHECK(m->eval(bv::extract(7, 4, x), false) == env.num(15, 4));
+
+  // -- complete makes no difference
+  for (Expr t : {x, b, w, p, q, mk<BADD>(x, w)})
+    CHECK(m->eval(t, true) == m->eval(t, false));
+
+  // -- y is in no assertion: it gets a value, the same each time, and terms
+  // -- over it agree with that value (the values are one assignment)
+  Expr vy = m->eval(y, false);
+  REQUIRE(bv::is_bvnum(vy));
+  CHECK(m->eval(y, true) == vy);
+  expr::mpz_class y_minus_x = (bv::toMpz(vy) + expr::mpz_class(1ul)) % 256u;
+  CHECK(m->eval(mk<BSUB>(y, x), false) == bv::bvnum(y_minus_x, 8, env.efac));
+  Expr r = env.boolc("r"); // -- also in no assertion
+  Expr vr = m->eval(r, false);
+  CHECK((isOpX<TRUE>(vr) || isOpX<FALSE>(vr)));
+  CHECK(m->eval(mk<AND>(r, p), false) == vr);
+
+  // -- evaluating does not change the solver: y and r got values above, but
+  // -- they are still free
+  CHECK(s.add(mk<EQ>(y, mk<BADD>(vy, env.num(5, 8)))));
+  CHECK(s.add(isOpX<TRUE>(vr) ? mk<NEG>(r) : r));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m2 = s.get_model();
+  CHECK(m2->eval(y, true) != vy);
+  CHECK(m2->eval(r, true) != vr);
+  CHECK(m2->eval(x, true) == env.num(255, 8));
+}
+
+TEST_CASE("bitwuzla.model after a change") {
+  // -- a model is valid only until the next add, check or reset; after that,
+  // -- and if the last check was not sat, it gives nondet, never a value
+  Env env;
+  Expr x = env.bvc("x", 8);
+  auto noValue = [&](const Solver::model_ref &m) {
+    return isOpX<NONDET>(m->eval(x, true)) && isOpX<NONDET>(m->eval(x, false));
+  };
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+
+  CHECK(noValue(s.get_model())); // -- before any check
+  CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+  CHECK(noValue(s.get_model())); // -- added since the last check
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m1 = s.get_model();
+  CHECK(m1->eval(x, true) == env.num(3, 8));
+
+  // -- a later add
+  CHECK(s.add(mk<BULT>(x, env.num(5, 8))));
+  CHECK(noValue(m1));
+  // -- a later check, even a sat one: m1 stays out of date, m2 is valid
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(noValue(m1));
+  Solver::model_ref m2 = s.get_model();
+  CHECK(m2->eval(x, true) == env.num(3, 8));
+  // -- a check with nothing added in between
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(noValue(m2));
+
+  // -- reset, then a different formula: an old model must not show its values
+  Solver::model_ref m3 = s.get_model();
+  CHECK(m3->eval(x, true) == env.num(3, 8));
+  s.reset();
+  CHECK(noValue(m3));
+  CHECK(s.add(mk<EQ>(x, env.num(9, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(noValue(m3));
+  CHECK(s.get_model()->eval(x, true) == env.num(9, 8));
+
+  // -- after unsat
+  CHECK(s.add(mk<EQ>(x, env.num(4, 8))));
+  REQUIRE(s.check() == SolverResult::UNSAT);
+  CHECK(noValue(s.get_model()));
+
+  // -- after unknown (an assertion it cannot encode)
+  s.reset();
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  CHECK_FALSE(s.add(mk<EQ>(mk<BV2INT>(x), i)));
+  REQUIRE(s.check() == SolverResult::UNKNOWN);
+  CHECK(noValue(s.get_model()));
+
+  // -- after the solver is destroyed
+  Solver::model_ref orphan;
+  {
+    bitwuzla_solver_impl gone;
+    CHECK(gone.add(mk<EQ>(x, env.num(3, 8))));
+    REQUIRE(gone.check() == SolverResult::SAT);
+    orphan = gone.get_model();
+    CHECK(orphan->eval(x, true) == env.num(3, 8));
+  }
+  CHECK(noValue(orphan));
+
+  // -- printing an out-of-date model prints no values
+  for (const Solver::model_ref &m : {m1, orphan}) {
+    std::string str;
+    llvm::raw_string_ostream os(str);
+    m->print(os);
+    CHECK(os.str().empty());
+  }
+}
+
+TEST_CASE("bitwuzla.model after an assertion it cannot encode") {
+  // -- Bitwuzla never sees an assertion that the encoder rejects, nor a check
+  // -- that answers unknown because of one, so it still holds the old sat
+  // -- model and would answer from it. Only the adapter can tell that the
+  // -- model is out of date.
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8);
+  auto noValue = [&](const Solver::model_ref &m) {
+    return isOpX<NONDET>(m->eval(x, true));
+  };
+  CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  CHECK(m->eval(x, true) == env.num(3, 8));
+
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  CHECK_FALSE(s.add(mk<EQ>(mk<BV2INT>(x), i)));
+  CHECK(noValue(m));
+  REQUIRE(s.check() == SolverResult::UNKNOWN);
+  CHECK(noValue(m));
+  CHECK(noValue(s.get_model()));
+}
+
+TEST_CASE("bitwuzla.model of terms it cannot evaluate") {
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8);
+  CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+
+  // -- terms the encoder rejects give nondet
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  Expr a = bind::mkConst(mkTerm<std::string>("a", env.efac),
+                         sort::arrayTy(env.bvsort(8), env.bvsort(8)));
+  CHECK(isOpX<NONDET>(m->eval(i, true)));
+  CHECK(isOpX<NONDET>(m->eval(mk<BV2INT>(x), true)));
+  CHECK(isOpX<NONDET>(m->eval(a, true)));
+  CHECK(isOpX<NONDET>(m->eval(mk<SELECT>(a, x), false)));
+  CHECK(isOpX<NONDET>(m->eval(strct::mk(x, x), false)));
+
+  // -- the model and the solver still work
+  CHECK(m->eval(x, true) == env.num(3, 8));
+  CHECK(s.add(mk<EQ>(x, env.num(4, 8))));
+  CHECK(s.check() == SolverResult::UNSAT);
+}
+
+TEST_CASE("bitwuzla.decode values") {
+  Env env;
+  bz::TermManager &tm = env.tm;
+  bz::Sort bv8 = tm.mk_bv_sort(8);
+  auto decode = [&](const bz::Term &t) {
+    return decode_bitwuzla_value(t, env.efac);
+  };
+  CHECK(decode(tm.mk_true()) == mk<TRUE>(env.efac));
+  CHECK(decode(tm.mk_false()) == mk<FALSE>(env.efac));
+  CHECK(decode(tm.mk_bv_value(bv8, "255", 10)) == env.num(255, 8));
+  CHECK(decode(tm.mk_bv_value(bv8, "-1", 10)) == env.num(255, 8));
+  CHECK(decode(tm.mk_bv_zero(tm.mk_bv_sort(1))) == env.num(0, 1));
+  CHECK(decode(tm.mk_bv_one(tm.mk_bv_sort(1))) == env.num(1, 1));
+  CHECK(decode(tm.mk_bv_value(tm.mk_bv_sort(128), std::string(128, '1'))) ==
+        bv::bvnum(expr::mpz_class(std::string(128, '1'), 2), 128, env.efac));
+  CHECK(decode(tm.mk_bv_value(tm.mk_bv_sort(65), "1" + std::string(64, '0'))) ==
+        bv::bvnum(expr::mpz_class(1ul) << 64, 65, env.efac));
+
+  // -- not a value, or a value of another sort: a null Expr
+  CHECK_FALSE(decode(tm.mk_const(bv8, "c")));
+  CHECK_FALSE(decode(tm.mk_var(bv8, "v")));
+  CHECK_FALSE(decode(tm.mk_const(tm.mk_bool_sort(), "p")));
+  CHECK_FALSE(decode(
+      tm.mk_term(bz::Kind::BV_ADD, {tm.mk_bv_one(bv8), tm.mk_bv_one(bv8)})));
+  CHECK_FALSE(decode(tm.mk_rm_value(bz::RoundingMode::RNE)));
+  CHECK_FALSE(decode(tm.mk_fp_pos_zero(tm.mk_fp_sort(5, 11))));
+  CHECK_FALSE(decode(
+      tm.mk_const_array(tm.mk_array_sort(bv8, bv8), tm.mk_bv_zero(bv8))));
+}
+
+TEST_CASE("bitwuzla.model print") {
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), p = env.boolc("p"), q = env.boolc("q");
+  auto str = [](Expr e) { return boost::lexical_cast<std::string>(*e); };
+  auto printed = [](const Solver::model_ref &m) {
+    std::string out;
+    llvm::raw_string_ostream os(out);
+    m->print(os);
+    return os.str();
+  };
+
+  // -- every constant of the assertions, once, sorted by name
+  CHECK(s.add(mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8))));
+  CHECK(s.add(mk<OR>(p, mk<EQ>(x, x))));
+  CHECK(s.add(p));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(printed(s.get_model()) == "p = " + str(mk<TRUE>(env.efac)) +
+                                      "\nx = " + str(env.num(255, 8)) + "\n");
+
+  // -- an out-of-date model prints nothing, also while the solver has
+  // -- assertions and a newer sat model
+  Solver::model_ref old = s.get_model();
+  CHECK(s.add(mk<NEG>(q)));
+  CHECK(printed(old).empty());
+  CHECK(printed(s.get_model()).empty()); // -- added since the last check
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(printed(old).empty());
+  CHECK_FALSE(printed(s.get_model()).empty());
+
+  // -- after reset, only the new assertions' constants
+  s.reset();
+  CHECK(s.add(mk<NEG>(q)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(printed(s.get_model()) == "q = " + str(mk<FALSE>(env.efac)) + "\n");
 }
 
 #endif

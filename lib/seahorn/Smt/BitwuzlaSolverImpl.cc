@@ -1,7 +1,9 @@
 #ifdef WITH_BITWUZLA
 
 #include "seahorn/Expr/Smt/BitwuzlaSolverImpl.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/Smt/BitwuzlaEncodingCheck.hh"
+#include "seahorn/Expr/Smt/BitwuzlaModelImpl.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
@@ -9,10 +11,13 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 
 using namespace expr;
 using bitwuzla::Option;
@@ -71,7 +76,9 @@ mkBitwuzla(bitwuzla::TermManager &tm, const bitwuzla::Options &options) {
   }
 }
 
-bitwuzla_solver_impl::bitwuzla_solver_impl() : Solver(), m_marshal(m_tm) {
+bitwuzla_solver_impl::bitwuzla_solver_impl()
+    : Solver(), m_marshal(m_tm),
+      m_self(std::make_shared<bitwuzla_solver_impl *>(this)) {
   // -- options must be set before the Bitwuzla instance is created
   m_options.set(Option::PRODUCE_MODELS, true);
   m_bzla = mkBitwuzla(m_tm, m_options);
@@ -80,11 +87,13 @@ bitwuzla_solver_impl::bitwuzla_solver_impl() : Solver(), m_marshal(m_tm) {
 bitwuzla_solver_impl::~bitwuzla_solver_impl() = default;
 
 bool bitwuzla_solver_impl::add(Expr exp) {
+  ++m_generation;
   try {
     bitwuzla::Term t = m_marshal.encode_term(exp);
     if (!CheckEncodingLog.empty())
       checkEncoding(exp, t);
     m_bzla->assert_formula(t);
+    m_assertions.push_back(exp);
     return true;
   } catch (std::exception &ex) {
     if (!CheckEncodingLog.empty())
@@ -102,6 +111,7 @@ bool bitwuzla_solver_impl::add(Expr exp) {
 }
 
 SolverResult bitwuzla_solver_impl::check() {
+  ++m_generation;
   if (!m_unsupported.empty()) {
     LOG("bitwuzla", WARN << "answering unknown: " << m_unsupported;);
     return SolverResult::UNKNOWN;
@@ -109,6 +119,7 @@ SolverResult bitwuzla_solver_impl::check() {
   try {
     switch (m_bzla->check_sat()) {
     case bitwuzla::Result::SAT:
+      m_sat_generation = m_generation;
       return SolverResult::SAT;
     case bitwuzla::Result::UNSAT:
       return SolverResult::UNSAT;
@@ -122,10 +133,74 @@ SolverResult bitwuzla_solver_impl::check() {
 }
 
 void bitwuzla_solver_impl::reset() {
+  ++m_generation;
   // -- a fresh instance; the TermManager and the encoder's cache stay valid
   m_bzla.reset();
   m_bzla = mkBitwuzla(m_tm, m_options);
   m_unsupported.clear();
+  m_assertions.clear();
+}
+
+bitwuzla_solver_impl::model_ref bitwuzla_solver_impl::get_model() {
+  uint64_t generation = m_generation;
+  if (m_sat_generation != m_generation) {
+    ERR << "Bitwuzla adapter: get_model needs the last check to be sat, with "
+           "no change since; this model has no values";
+    generation = 0;
+  }
+  return std::make_shared<bitwuzla_model_impl>(m_self, generation);
+}
+
+Expr bitwuzla_solver_impl::eval_in_model(Expr e, uint64_t generation) {
+  if (generation != m_generation) {
+    ERR << "Bitwuzla adapter: a model was used after the solver changed, or "
+           "after a check that was not sat; it has no values";
+    return mk<NONDET>(e->efac());
+  }
+  try {
+    bitwuzla::Term t = m_marshal.encode_term(e);
+    if (Expr v = decode_bitwuzla_value(m_bzla->get_value(t), e->efac()))
+      return v;
+    LOG("bitwuzla", WARN << "Bitwuzla model: no value for a term of sort "
+                         << t.sort().str(););
+  } catch (std::exception &ex) {
+    // -- UnsupportedExpr, or a bitwuzla::Exception
+    LOG("bitwuzla", WARN << "Bitwuzla model cannot evaluate: " << ex.what(););
+  }
+  return mk<NONDET>(e->efac());
+}
+
+void bitwuzla_solver_impl::print_model(llvm::raw_ostream &o,
+                                       uint64_t generation) {
+  if (generation != m_generation) {
+    ERR << "Bitwuzla adapter: a model was printed after the solver changed, "
+           "or after a check that was not sat; it has no values";
+    return;
+  }
+  // -- the constants of the assertions, without recursion (formulas can be
+  // -- deep), sorted by name
+  std::vector<std::pair<std::string, Expr>> consts;
+  ExprSet seen;
+  ExprVector todo(m_assertions.begin(), m_assertions.end());
+  while (!todo.empty()) {
+    Expr e = todo.back();
+    todo.pop_back();
+    if (!seen.insert(e).second)
+      continue;
+    if (bind::IsConst()(e)) {
+      std::string name;
+      llvm::raw_string_ostream os(name);
+      os << *e;
+      consts.push_back({os.str(), e});
+      continue;
+    }
+    todo.insert(todo.end(), e->args_begin(), e->args_end());
+  }
+  std::stable_sort(
+      consts.begin(), consts.end(),
+      [](const auto &a, const auto &b) { return a.first < b.first; });
+  for (auto &c : consts)
+    o << c.first << " = " << *eval_in_model(c.second, generation) << "\n";
 }
 
 SolverResult
@@ -140,10 +215,6 @@ void bitwuzla_solver_impl::unsat_core(ExprVector &out) {
 void bitwuzla_solver_impl::push() { notSupportedYet("push"); }
 
 void bitwuzla_solver_impl::pop() { notSupportedYet("pop"); }
-
-bitwuzla_solver_impl::model_ref bitwuzla_solver_impl::get_model() {
-  notSupportedYet("get_model (models and traces)");
-}
 
 void bitwuzla_solver_impl::to_smt_lib(llvm::raw_ostream &o) {
   notSupportedYet("to_smt_lib");

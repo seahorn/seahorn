@@ -428,6 +428,19 @@ Term marshal_bitwuzla::encode_term(Expr root) {
   return m_cache.at(root);
 }
 
+Expr decode_bitwuzla_value(const Term &v, ExprFactory &efac) {
+  if (!v.is_value())
+    return Expr();
+  Sort s = v.sort();
+  if (s.is_bool())
+    return v.value<bool>() ? mk<TRUE>(efac) : mk<FALSE>(efac);
+  if (s.is_bv())
+    // -- base 10 gives the unsigned number of the bits
+    return bv::bvnum(expr::mpz_class(v.value<std::string>(10)), s.bv_size(),
+                     efac);
+  return Expr();
+}
+
 } // namespace solver
 } // namespace seahorn
 

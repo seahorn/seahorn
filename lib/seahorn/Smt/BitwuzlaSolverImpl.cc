@@ -1,19 +1,60 @@
 #ifdef WITH_BITWUZLA
 
 #include "seahorn/Expr/Smt/BitwuzlaSolverImpl.hh"
+#include "seahorn/Expr/Smt/BitwuzlaEncodingCheck.hh"
 #include "seahorn/Support/SeaDebug.h"
 #include "seahorn/Support/SeaLog.hh"
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <chrono>
 #include <cstdlib>
+#include <fstream>
+#include <unistd.h>
 
 using namespace expr;
 using bitwuzla::Option;
 
+static llvm::cl::opt<std::string> CheckEncodingLog(
+    "horn-bw-check-encoding",
+    llvm::cl::desc("For every formula given to Bitwuzla, have Z3 check that it "
+                   "means the same as Z3's encoding, and append the verdict "
+                   "to this file (slow; for testing)"),
+    llvm::cl::value_desc("file"), llvm::cl::init(""), llvm::cl::Hidden);
+
+static llvm::cl::opt<unsigned> CheckEncodingTimeout(
+    "horn-bw-check-encoding-timeout",
+    llvm::cl::desc("Z3 time limit for each check of --horn-bw-check-encoding"),
+    llvm::cl::value_desc("ms"), llvm::cl::init(10000), llvm::cl::Hidden);
+
 namespace seahorn {
 namespace solver {
+
+/// Appends one line to the --horn-bw-check-encoding file: the verdict, the
+/// time it took, the process, and the detail
+static void logEncodingCheck(const std::string &verdict, long ms,
+                             std::string detail) {
+  for (char &ch : detail)
+    if (ch == '\n' || ch == '\t')
+      ch = ' ';
+  std::ofstream log(CheckEncodingLog, std::ios::app);
+  log << verdict << "\t" << ms << "ms\tpid " << ::getpid() << "\t" << detail
+      << "\n";
+}
+
+/// Translation validation of one formula, when --horn-bw-check-encoding is on
+static void checkEncoding(Expr exp, const bitwuzla::Term &t) {
+  auto start = std::chrono::steady_clock::now();
+  EncodingCheck res = checkBitwuzlaEncoding(exp, t, CheckEncodingTimeout);
+  long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start)
+                .count();
+  if (res.verdict == EncodingVerdict::DIFFERENT)
+    ERR << "Bitwuzla's formula differs from Z3's encoding: " << res.detail;
+  logEncodingCheck(verdictName(res.verdict), ms, res.detail);
+}
 
 [[noreturn]] static void notSupportedYet(const char *method) {
   ERR << "Bitwuzla adapter: " << method << " is not supported yet";
@@ -40,9 +81,14 @@ bitwuzla_solver_impl::~bitwuzla_solver_impl() = default;
 
 bool bitwuzla_solver_impl::add(Expr exp) {
   try {
-    m_bzla->assert_formula(m_marshal.encode_term(exp));
+    bitwuzla::Term t = m_marshal.encode_term(exp);
+    if (!CheckEncodingLog.empty())
+      checkEncoding(exp, t);
+    m_bzla->assert_formula(t);
     return true;
   } catch (std::exception &ex) {
+    if (!CheckEncodingLog.empty())
+      logEncodingCheck("NOT-ENCODED", 0, ex.what());
     // -- UnsupportedExpr, or a bitwuzla::Exception such as for an assertion
     // -- that is not Boolean. Keep the first reason.
     if (m_unsupported.empty()) {

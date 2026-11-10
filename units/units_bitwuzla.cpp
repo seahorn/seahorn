@@ -6,13 +6,16 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
+#include "seahorn/Expr/Smt/BitwuzlaEncodingCheck.hh"
 #include "seahorn/Expr/Smt/BitwuzlaSolverImpl.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/MarshalBitwuzla.hh"
 
 #include "boost/lexical_cast.hpp"
+#include "llvm/Support/CommandLine.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -28,11 +31,21 @@
 using namespace expr;
 using namespace seahorn;
 using seahorn::solver::bitwuzla_solver_impl;
+using seahorn::solver::checkBitwuzlaEncoding;
+using seahorn::solver::checkSmtLibTermWithZ3;
+using seahorn::solver::EncodingVerdict;
 using seahorn::solver::marshal_bitwuzla;
 using seahorn::solver::Solver;
 using seahorn::solver::SolverResult;
 using seahorn::solver::UnsupportedExpr;
+using seahorn::solver::verdictName;
 namespace bz = bitwuzla;
+
+namespace doctest {
+template <> struct StringMaker<EncodingVerdict> {
+  static String convert(EncodingVerdict v) { return verdictName(v); }
+};
+} // namespace doctest
 
 namespace {
 struct Env {
@@ -607,9 +620,17 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
 
   unsigned sat = 0, unsat = 0, z3_unknown = 0, disagreements = 0,
            bad_models = 0;
+  // -- verdicts of the formula check (translation validation) on every f
+  std::map<EncodingVerdict, unsigned> encoding;
   Expr f;
   for (unsigned i = 0; i < 2 * n; ++i) {
     f = i % 2 == 0 ? gen.formula() : mk<NEG>(f);
+
+    auto ec = checkBitwuzlaEncoding(f, env.m.encode_term(f), 10000);
+    ++encoding[ec.verdict];
+    if (ec.verdict != EncodingVerdict::SAME)
+      MESSAGE("formula " << i << ": encoding check says "
+                         << verdictName(ec.verdict) << ": " << ec.detail);
 
     s.reset();
     REQUIRE(s.add(f));
@@ -657,7 +678,10 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     }
   }
   MESSAGE((2 * n) << " formulas: " << sat << " sat, " << unsat << " unsat, "
-                  << z3_unknown << " unknown to z3");
+                  << z3_unknown << " unknown to z3; encoding check: "
+                  << encoding[EncodingVerdict::SAME] << " same");
+  // -- every formula Bitwuzla got is Z3's formula, not only equisatisfiable
+  CHECK(encoding[EncodingVerdict::SAME] == 2 * n);
   CHECK(sat + unsat + z3_unknown + disagreements == 2 * n);
   CHECK(disagreements == 0);
   CHECK(bad_models == 0);
@@ -665,6 +689,230 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   // -- the generator must produce both kinds, or the test proves little
   CHECK(sat > n / 4);
   CHECK(unsat > n / 4);
+}
+
+TEST_CASE("bitwuzla.encoding check") {
+  // -- translation validation: Bitwuzla prints its term, Z3 parses it and
+  // -- compares it with SeaHorn's own Z3 encoding of the same Expr
+  Env env;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8);
+  auto verdict = [&](Expr e, const bz::Term &t) {
+    auto ec = checkBitwuzlaEncoding(e, t, 10000);
+    INFO(verdictName(ec.verdict) << ": " << ec.detail);
+    return ec.verdict;
+  };
+  auto own = [&](Expr e) { return verdict(e, env.m.encode_term(e)); };
+
+  // -- the encoder's own terms, for every operator on 8 bits
+  const std::vector<BinOp> ops = {
+      binop<BADD>(),  binop<BSUB>(),   binop<BMUL>(),  binop<BUDIV>(),
+      binop<BSDIV>(), binop<BUREM>(),  binop<BSREM>(), binop<BSMOD>(),
+      binop<BAND>(),  binop<BOR>(),    binop<BXOR>(),  binop<BNAND>(),
+      binop<BNOR>(),  binop<BXNOR>(),  binop<BSHL>(),  binop<BLSHR>(),
+      binop<BASHR>(), binop<BCONCAT>()};
+  for (auto &op : ops)
+    CHECK(own(op(x, y)) == EncodingVerdict::SAME);
+  const std::vector<BinOp> preds = {binop<EQ>(),
+                                    binop<NEQ>(),
+                                    binop<BULT>(),
+                                    binop<BULE>(),
+                                    binop<BUGT>(),
+                                    binop<BUGE>(),
+                                    binop<BSLT>(),
+                                    binop<BSLE>(),
+                                    binop<BSGT>(),
+                                    binop<BSGE>(),
+                                    binop<SADD_NO_OVERFLOW>(),
+                                    binop<SADD_NO_UNDERFLOW>(),
+                                    binop<UADD_NO_OVERFLOW>(),
+                                    binop<SSUB_NO_OVERFLOW>(),
+                                    binop<SSUB_NO_UNDERFLOW>(),
+                                    binop<USUB_NO_UNDERFLOW>(),
+                                    binop<SMUL_NO_OVERFLOW>(),
+                                    binop<SMUL_NO_UNDERFLOW>(),
+                                    binop<UMUL_NO_OVERFLOW>()};
+  for (auto &op : preds)
+    CHECK(own(op(x, y)) == EncodingVerdict::SAME);
+  CHECK(own(mk<BNOT>(x)) == EncodingVerdict::SAME);
+  CHECK(own(mk<BNEG>(x)) == EncodingVerdict::SAME);
+  CHECK(own(bv::extract(6, 2, x)) == EncodingVerdict::SAME);
+  CHECK(own(bv::sext(x, 13)) == EncodingVerdict::SAME);
+  CHECK(own(bv::zext(x, 13)) == EncodingVerdict::SAME);
+  CHECK(own(env.num(-3, 8)) == EncodingVerdict::SAME);
+  Expr p = env.boolc("p"), q = env.boolc("q");
+  CHECK(own(mk<ITE>(p, x, y)) == EncodingVerdict::SAME);
+  CHECK(own(mk<IMPL>(p, q)) == EncodingVerdict::SAME);
+  CHECK(own(mk<IFF>(p, q)) == EncodingVerdict::SAME);
+  CHECK(own(mk<XOR>(p, q)) == EncodingVerdict::SAME);
+
+  // -- a wrong term is caught: unsigned and signed comparison differ
+  bz::Term tx = env.m.encode_term(x), ty = env.m.encode_term(y);
+  CHECK(verdict(mk<BULT>(x, y), env.tm.mk_term(bz::Kind::BV_SLT, {tx, ty})) ==
+        EncodingVerdict::DIFFERENT);
+  // -- and so are swapped arguments of a non-commutative operator
+  CHECK(verdict(mk<BSUB>(x, y), env.tm.mk_term(bz::Kind::BV_SUB, {ty, tx})) ==
+        EncodingVerdict::DIFFERENT);
+  // -- but not swapped arguments of a commutative one
+  CHECK(verdict(mk<BADD>(x, y), env.tm.mk_term(bz::Kind::BV_ADD, {ty, tx})) ==
+        EncodingVerdict::SAME);
+  // -- sorts must agree: wider, narrower, Bool against bit-vector
+  CHECK(verdict(x, env.m.encode_term(env.bvc("x", 16))) ==
+        EncodingVerdict::DIFFERENT);
+  CHECK(verdict(env.bvc("x", 16), tx) == EncodingVerdict::DIFFERENT);
+  Expr pb = env.boolc("pb");
+  CHECK(verdict(pb, tx) == EncodingVerdict::DIFFERENT);
+  CHECK(verdict(x, env.m.encode_term(pb)) == EncodingVerdict::DIFFERENT);
+  // -- a constant that Z3's encoding does not have makes them differ
+  CHECK(verdict(x, env.tm.mk_const(env.tm.mk_bv_sort(8), "z")) ==
+        EncodingVerdict::DIFFERENT);
+  // -- two constants with one name cannot be told apart in SMT-LIB
+  bz::Term x16 = env.m.encode_term(env.bvc("x", 16));
+  CHECK(verdict(mk<EQ>(x, x),
+                env.tm.mk_term(bz::Kind::EQUAL,
+                               {tx, env.tm.mk_term(bz::Kind::BV_EXTRACT, {x16},
+                                                   {7, 0})})) ==
+        EncodingVerdict::UNCHECKED);
+  // -- also with the same sort: merging two such constants would make
+  // -- (= x x') look valid, and so equal to Z3's encoding of (= x x)
+  bz::Term other = env.tm.mk_const(env.tm.mk_bv_sort(8), "x");
+  CHECK(verdict(mk<EQ>(x, x), env.tm.mk_term(bz::Kind::EQUAL, {tx, other})) ==
+        EncodingVerdict::UNCHECKED);
+
+  // -- Z3's encoder keeps only two factors of an n-ary bvmul
+  // -- (ExprToZ.def, case BMUL), while Bitwuzla's term has all three
+  Expr z = env.bvc("z", 8);
+  CHECK(own(mknary<BMUL>(ExprVector{x, y, z})) == EncodingVerdict::DIFFERENT);
+}
+
+TEST_CASE("bitwuzla.encoding check: when it cannot compare") {
+  Env env;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8);
+  bz::Sort bv8 = env.tm.mk_bv_sort(8);
+  auto verdict = [&](Expr e, const bz::Term &t, unsigned ms = 10000) {
+    auto ec = checkBitwuzlaEncoding(e, t, ms);
+    INFO(verdictName(ec.verdict) << ": " << ec.detail);
+    return ec;
+  };
+
+  CHECK(std::string(verdictName(EncodingVerdict::SAME)) == "SAME");
+  CHECK(std::string(verdictName(EncodingVerdict::DIFFERENT)) == "DIFFERENT");
+  CHECK(std::string(verdictName(EncodingVerdict::UNDECIDED)) == "UNDECIDED");
+  CHECK(std::string(verdictName(EncodingVerdict::UNCHECKED)) == "UNCHECKED");
+
+  // -- terms the check does not handle are reported, not guessed
+  CHECK(verdict(x, env.tm.mk_var(bv8, "v")).verdict ==
+        EncodingVerdict::UNCHECKED);
+  CHECK(verdict(x, env.tm.mk_const(bv8)).verdict == EncodingVerdict::UNCHECKED);
+  bz::Sort arr = env.tm.mk_array_sort(bv8, bv8);
+  bz::Term a = env.tm.mk_const(arr, "a");
+  CHECK(verdict(x, env.tm.mk_term(bz::Kind::ARRAY_SELECT,
+                                  {a, env.m.encode_term(y)}))
+            .verdict == EncodingVerdict::UNCHECKED);
+  CHECK(
+      verdict(x, env.tm.mk_const_array(arr, env.tm.mk_bv_zero(bv8))).verdict ==
+      EncodingVerdict::UNCHECKED);
+
+  // -- a constant may have the name of the check's own helper constant
+  Expr clash = env.bvc("encoding_check_rhs", 8);
+  CHECK(verdict(mk<BADD>(clash, x), env.m.encode_term(mk<BADD>(clash, x)))
+            .verdict == EncodingVerdict::SAME);
+  // -- also when only Z3's side has it: e = c against the wrong term #x00
+  // -- must not compare c with itself
+  CHECK(verdict(clash, env.tm.mk_bv_zero(bv8)).verdict ==
+        EncodingVerdict::DIFFERENT);
+  // -- wherever the constant is: here only in the last argument, where
+  // -- comparing ite(p, y, c) with y would be valid if rhs were c
+  Expr pc = env.boolc("pc");
+  CHECK(verdict(mk<ITE>(pc, y, clash), env.m.encode_term(y)).verdict ==
+        EncodingVerdict::DIFFERENT);
+
+  // -- names that SMT-LIB cannot carry safely are not compared
+  for (const char *odd : {"a|b", "|x|", "a\\b", "_let0"}) {
+    Expr c = env.bvc(odd, 8);
+    INFO("name " << odd);
+    CHECK(verdict(mk<BADD>(c, x), env.m.encode_term(mk<BADD>(c, x))).verdict ==
+          EncodingVerdict::UNCHECKED);
+  }
+  // -- nor operators that SeaHorn's Z3 encoder lacks (it fails on them)
+  Expr rep2 = mk<BREPEAT>(mkTerm<unsigned>(2, env.efac), env.num(0xA, 4));
+  auto ec2 = verdict(rep2, env.m.encode_term(rep2));
+  CHECK(ec2.verdict == EncodingVerdict::UNCHECKED);
+  CHECK(ec2.detail.find("repeat") != std::string::npos);
+  Expr rot = mk<BROTATE_LEFT>(mkTerm<unsigned>(1, env.efac), x);
+  CHECK(verdict(rot, env.m.encode_term(rot)).verdict ==
+        EncodingVerdict::UNCHECKED);
+  Expr rotr = mk<BROTATE_RIGHT>(mkTerm<unsigned>(1, env.efac), x);
+  CHECK(verdict(rotr, env.m.encode_term(rotr)).verdict ==
+        EncodingVerdict::UNCHECKED);
+  // -- also below the root, in any argument
+  Expr deep = mk<EQ>(rep2, env.bvc("r", 8));
+  CHECK(verdict(deep, env.m.encode_term(deep)).verdict ==
+        EncodingVerdict::UNCHECKED);
+
+  // -- text that Z3 cannot read, or that is more than one term
+  CHECK(checkSmtLibTermWithZ3(x, "(bvfoo x)", {{"x", 8}}, 8, 10000).verdict ==
+        EncodingVerdict::UNCHECKED);
+  CHECK(checkSmtLibTermWithZ3(x, "x)) (assert (= x x", {{"x", 8}}, 8, 10000)
+            .verdict == EncodingVerdict::UNCHECKED);
+
+  // -- Z3 gives up: x = (x udiv y) * y + (x urem y) holds for every y, but
+  // -- proving it at 64 bits takes far longer than a millisecond
+  Expr p = env.bvc("p", 64), q = env.bvc("q", 64);
+  bz::Term tp = env.m.encode_term(p), tq = env.m.encode_term(q);
+  bz::Term roundtrip = env.tm.mk_term(
+      bz::Kind::BV_ADD,
+      {env.tm.mk_term(bz::Kind::BV_MUL,
+                      {env.tm.mk_term(bz::Kind::BV_UDIV, {tp, tq}), tq}),
+       env.tm.mk_term(bz::Kind::BV_UREM, {tp, tq})});
+  CHECK(verdict(p, roundtrip, 1).verdict == EncodingVerdict::UNDECIDED);
+
+  // -- the differing values are cut to a readable length
+  ExprVector many;
+  for (unsigned k = 0; k < 40; ++k)
+    many.push_back(env.bvc("c" + std::to_string(k), 8));
+  Expr sum = mknary<BADD>(many);
+  bz::Term off = env.tm.mk_term(
+      bz::Kind::BV_ADD, {env.m.encode_term(sum), env.tm.mk_bv_one(bv8)});
+  auto ec = verdict(sum, off);
+  CHECK(ec.verdict == EncodingVerdict::DIFFERENT);
+  CHECK(ec.detail.size() < 500);
+  CHECK(ec.detail.substr(ec.detail.size() - 3) == "...");
+}
+
+TEST_CASE("bitwuzla.encoding check option") {
+  // -- --horn-bw-check-encoding=FILE makes the adapter check every formula
+  // -- and append one line per add() to FILE
+  auto &registered = llvm::cl::getRegisteredOptions();
+  REQUIRE(registered.count("horn-bw-check-encoding"));
+  auto *opt = static_cast<llvm::cl::opt<std::string> *>(
+      registered["horn-bw-check-encoding"]);
+  std::string path =
+      std::string(std::getenv("TMPDIR") ? std::getenv("TMPDIR") : "/tmp") +
+      "/units_bitwuzla_check_encoding.log";
+  std::remove(path.c_str());
+  // -- switched off again however the test ends, for the other tests
+  struct Reset {
+    llvm::cl::opt<std::string> *o;
+    ~Reset() { *o = ""; }
+  } reset{opt};
+  *opt = path;
+
+  Env env;
+  Expr x = env.bvc("x", 8);
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  bitwuzla_solver_impl adapter;
+  Solver &s = adapter;
+  CHECK(s.add(mk<BULT>(x, env.num(3, 8))));
+  CHECK(s.add(mk<EQ>(mk<BADD>(x, x), env.num(4, 8))));
+  CHECK_FALSE(s.add(mk<EQ>(i, i)));
+  CHECK(s.check() == SolverResult::UNKNOWN);
+
+  std::ifstream in(path);
+  std::vector<std::string> verdicts;
+  for (std::string line; std::getline(in, line);)
+    verdicts.push_back(line.substr(0, line.find('\t')));
+  CHECK(verdicts == std::vector<std::string>{"SAME", "SAME", "NOT-ENCODED"});
+  std::remove(path.c_str());
 }
 
 TEST_CASE("bitwuzla.repeat, rotate and n-ary operators") {
@@ -769,6 +1017,22 @@ TEST_CASE("bitwuzla.unsupported") {
     CHECK(std::string(ex.what()).find("bvextrotleft(bvadd(...), x)") !=
           std::string::npos);
   }
+  // -- and at most four arguments are printed
+  Expr wide = mknary<NEQ>(ExprVector{big, x, x, x, x});
+  try {
+    env.m.encode_term(wide);
+    FAIL("distinct with five arguments is not supported");
+  } catch (UnsupportedExpr &ex) {
+    CHECK(ex.expr() == wide);
+    CHECK(std::string(ex.what()).find("x, x, x, ...)") != std::string::npos);
+  }
+
+  // -- extension to a narrower sort
+  Expr narrow = mk<BZEXT>(x, env.bvsort(4));
+  CHECK(env.rejects(mk<EQ>(narrow, env.num(0, 4)), narrow));
+  // -- repeat and rotate take an unsigned numeral, not a bit-vector one
+  Expr rep2 = mk<BREPEAT>(env.num(2, 8), x);
+  CHECK(env.rejects(mk<EQ>(rep2, env.bvc("y", 16)), rep2));
 }
 
 TEST_CASE("bitwuzla.deep expressions") {

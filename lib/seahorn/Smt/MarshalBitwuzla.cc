@@ -277,8 +277,13 @@ static Term mkNoOverflow(bitwuzla::TermManager &tm, Expr e, Kind k,
 Sort marshal_bitwuzla::encode_sort(Expr s) {
   if (isOpX<BOOL_TY>(s))
     return m_tm.mk_bool_sort();
-  if (isOpX<BVSORT>(s))
-    return m_tm.mk_bv_sort(bv::width(s));
+  if (isOpX<BVSORT>(s)) {
+    try {
+      return m_tm.mk_bv_sort(bv::width(s));
+    } catch (bitwuzla::Exception &ex) {
+      throw UnsupportedExpr(s, "Bitwuzla rejects the sort: " + ex.msg());
+    }
+  }
   if (isOpX<INT_TY>(s) || isOpX<REAL_TY>(s))
     throw UnsupportedExpr(s, "Bitwuzla has no integer or real sort");
   throw UnsupportedExpr(s, "sort not supported by Bitwuzla adapter yet");
@@ -298,26 +303,26 @@ Term marshal_bitwuzla::mkLeaf(Expr e) {
   if (isOpX<FALSE>(e))
     return m_tm.mk_false();
 
-  if (bv::is_bvnum(e)) {
-    unsigned width = bv::width(e->arg(1));
-    const expr::mpz_class &num = getTerm<expr::mpz_class>(e->arg(0));
-    // -- the decimal string keeps values wider than 64 bits. Bitwuzla rejects
-    // -- values outside of [0, 2^width), so reduce modulo 2^width first.
-    mpz_t r;
-    mpz_init(r);
-    mpz_fdiv_r_2exp(r, num.get_mpz_t(), width);
-    std::string snum = expr::mpz_class(r).to_string();
-    mpz_clear(r);
-    return m_tm.mk_bv_value(m_tm.mk_bv_sort(width), snum, 10);
-  }
-
-  if (bind::isFapp(e) && bind::isFdecl(bind::fname(e))) {
-    try {
-      return declare(bind::fname(e));
-    } catch (UnsupportedExpr &ex) {
-      // -- report the constant rather than its sort
-      throw UnsupportedExpr(e, ex.what());
+  try {
+    if (bv::is_bvnum(e)) {
+      Sort sort = encode_sort(e->arg(1));
+      const expr::mpz_class &num = getTerm<expr::mpz_class>(e->arg(0));
+      // -- the decimal string keeps values wider than 64 bits. Bitwuzla
+      // -- rejects values outside of [0, 2^width), so reduce modulo 2^width.
+      mpz_t r;
+      mpz_init(r);
+      mpz_fdiv_r_2exp(r, num.get_mpz_t(), sort.bv_size());
+      std::string snum = expr::mpz_class(r).to_string();
+      mpz_clear(r);
+      return m_tm.mk_bv_value(sort, snum, 10);
     }
+    if (bind::isFapp(e) && bind::isFdecl(bind::fname(e)))
+      return declare(bind::fname(e));
+  } catch (UnsupportedExpr &ex) {
+    // -- report the numeral or constant rather than its sort
+    throw UnsupportedExpr(e, ex.what());
+  } catch (bitwuzla::Exception &ex) {
+    throw UnsupportedExpr(e, "Bitwuzla rejects the encoding: " + ex.msg());
   }
 
   throw UnsupportedExpr(e, "term not supported by Bitwuzla adapter yet");
@@ -346,6 +351,16 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
       if (!isOpX<UINT>(e->arg(0)))
         throw UnsupportedExpr(e, "expected an unsigned numeral as index");
       return m_tm.mk_term(k, args, {getTerm<unsigned>(e->arg(0))});
+    case Kind::IMPLIES:
+    case Kind::IFF:
+    case Kind::EQUAL:
+    case Kind::DISTINCT:
+      // -- binary in SeaHorn's type rules. Bitwuzla would chain more
+      // -- arguments, and SeaHorn's evaluator and Z3's encoder would each
+      // -- read them differently, so there is no agreed meaning to encode.
+      if (args.size() != 2)
+        throw UnsupportedExpr(e, "expected two arguments");
+      return m_tm.mk_term(k, args);
     case Kind::BV_UADD_OVERFLOW:
     case Kind::BV_USUB_OVERFLOW:
     case Kind::BV_UMUL_OVERFLOW:

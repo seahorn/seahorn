@@ -4,7 +4,7 @@
 #  BITWUZLA_INCLUDE_DIR - The directory containing bitwuzla/cpp/bitwuzla.h
 #  BITWUZLA_LIBRARY - The Bitwuzla shared library
 #  BITWUZLA_VERSION - The version, read from the bitwuzla.pc installed next
-#                     to the library (unset if there is none)
+#                     to the library, or else from bitwuzla::version()
 #
 # If BITWUZLA_HOME is set, only that installation is searched. Otherwise the
 # search order is Bitwuzla_ROOT, CMAKE_PREFIX_PATH, the libdir that
@@ -72,6 +72,36 @@ if (BITWUZLA_LIBRARY)
       REGEX "^Version:")
     string(REGEX REPLACE "^Version:[ \t]*" "" BITWUZLA_VERSION
       "${_BITWUZLA_PC_VERSION}")
+  endif()
+endif()
+
+# Without bitwuzla.pc, ask the library itself. A version that cannot be
+# determined is not accepted when a minimum version is required: the test
+# program below would also accept an older release with the same C++ API.
+if (BITWUZLA_LIBRARY AND BITWUZLA_INCLUDE_DIR AND NOT BITWUZLA_VERSION)
+  set(_BITWUZLA_VERSION_SRC
+    "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/BitwuzlaVersion.cpp")
+  file(WRITE "${_BITWUZLA_VERSION_SRC}" "
+#include \"bitwuzla/cpp/bitwuzla.h\"
+#include <cstdio>
+int main() { std::printf(\"%s\", bitwuzla::version()); return 0; }
+")
+  try_run(_BITWUZLA_VERSION_RUNS _BITWUZLA_VERSION_COMPILES
+    "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/BitwuzlaVersion"
+    "${_BITWUZLA_VERSION_SRC}"
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${BITWUZLA_INCLUDE_DIR}"
+    LINK_LIBRARIES "${BITWUZLA_LIBRARY}"
+    CXX_STANDARD 17
+    RUN_OUTPUT_VARIABLE _BITWUZLA_VERSION_OUT)
+  if (_BITWUZLA_VERSION_COMPILES AND "${_BITWUZLA_VERSION_RUNS}" STREQUAL "0" AND
+      _BITWUZLA_VERSION_OUT MATCHES "^([0-9]+(\\.[0-9]+)*)")
+    set(BITWUZLA_VERSION "${CMAKE_MATCH_1}")
+  elseif (Bitwuzla_FIND_VERSION)
+    message(WARNING "Ignoring ${BITWUZLA_LIBRARY}: its version is unknown "
+      "(there is no bitwuzla.pc, and a program printing "
+      "bitwuzla::version() does not run)")
+    unset(BITWUZLA_LIBRARY CACHE)
+    set(BITWUZLA_LIBRARY BITWUZLA_LIBRARY-NOTFOUND)
   endif()
 endif()
 

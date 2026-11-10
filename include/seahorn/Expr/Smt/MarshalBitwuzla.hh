@@ -13,6 +13,9 @@ namespace seahorn {
 namespace solver {
 
 /// \brief Thrown by marshal_bitwuzla for an Expr that it cannot encode
+///
+/// It holds the offending Expr, so it must be caught, and destroyed, while
+/// that Expr's ExprFactory still exists.
 class UnsupportedExpr : public std::runtime_error {
   expr::Expr m_expr;
 
@@ -27,7 +30,9 @@ public:
 /// Supports Bool and bit-vector constants and numerals, the Boolean
 /// operators, equality, and the bit-vector operators, including the overflow
 /// predicates. Everything else throws UnsupportedExpr, among it int2bv,
-/// bv2int and rotation by a term.
+/// bv2int, rotation by a term, and =>, <=>, = or distinct with other than
+/// two arguments. Errors that Bitwuzla reports while encoding (such as a
+/// width of 0) are thrown as UnsupportedExpr as well.
 ///
 /// Results are cached, so encoding the same Expr twice returns the same
 /// term, and every SeaHorn constant becomes exactly one Bitwuzla constant.

@@ -65,7 +65,12 @@ Value *extractPartialFnCall(Value *v) {
     return nullptr;
 
   // Ensures that fn is a Boolean function with a "partial" annotation.
-  const Function &F = (*CI->getCalledFunction());
+  const Function *callee = CI->getCalledFunction();
+  // An indirect predicate call has no declaration carrying a partial
+  // annotation. It still supplies an ordinary assume/assert condition.
+  if (!callee)
+    return nullptr;
+  const Function &F = *callee;
   if (!F.getReturnType() || !F.getReturnType()->isIntegerTy(1))
     return nullptr;
   if (!seahorn::isPartialFn(F))

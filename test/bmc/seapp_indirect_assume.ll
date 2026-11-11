@@ -1,3 +1,6 @@
+; SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 ; An indirect Boolean predicate used as an assume condition has no direct
 ; Function. Promoting the assume must preserve the predicate, not dereference
 ; a null callee while looking for a partial-function annotation.

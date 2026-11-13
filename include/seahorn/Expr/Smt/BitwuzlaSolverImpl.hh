@@ -30,7 +30,8 @@ namespace solver {
 /// get_model() returns a bitwuzla_model_impl, which asks this solver for
 /// values and is valid only until the next add(), check() or reset(). See
 /// BitwuzlaModelImpl.hh. While an assertion has an equality between arrays
-/// with indices narrower than 32 bits, models have no values.
+/// with indices narrower than 32 bits, or a quantifier, models have no
+/// values.
 ///
 /// Bitwuzla reports errors with exceptions. Every method catches them, so
 /// none escapes into SeaHorn, which may be compiled without them.
@@ -38,7 +39,9 @@ class bitwuzla_solver_impl : public Solver {
 public:
   using model_ref = typename Solver::model_ref;
 
-  bitwuzla_solver_impl();
+  /// \p time_limit_ms, if not 0, limits each check; a check that runs out
+  /// answers UNKNOWN. (Quantifiers can make Bitwuzla run for a long time.)
+  explicit bitwuzla_solver_impl(uint64_t time_limit_ms = 0);
   ~bitwuzla_solver_impl() override;
 
   SolverKind get_kind() const override { return SolverKind::BITWUZLA; }
@@ -87,6 +90,13 @@ private:
   bool m_narrow_array_eq = false;
   /// the terms of the assertions already searched for such an equality
   std::unordered_set<bitwuzla::Term> m_scanned_assertions;
+
+  /// An assertion since the last reset has a forall or an exists (perhaps
+  /// from an equality with a function). Reading a value may then make
+  /// Bitwuzla solve again (see BitwuzlaSolverImpl.cc), so models give none.
+  bool m_quantified = false;
+  /// the terms of the assertions already searched for a quantifier
+  std::unordered_set<bitwuzla::Term> m_scanned_quantifiers;
 
   /// Increased by add(), check() and reset(), each of which ends the life of
   /// a model. It starts at 1, so the generation 0 is never current.

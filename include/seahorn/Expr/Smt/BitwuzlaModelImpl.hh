@@ -29,9 +29,10 @@ class bitwuzla_solver_impl;
 /// an array term. It returns nondet for any term it cannot evaluate: one the
 /// encoder rejects, one of another sort, and one with an equality or
 /// disequality between arrays inside, whose value Bitwuzla 0.9.1 can get
-/// wrong. For the same reason it returns nondet for every term while an
-/// assertion has such an equality over indices narrower than 32 bits. A
-/// struct is evaluated field by field. Bitwuzla always completes its model,
+/// wrong, or with a quantifier inside. It returns nondet for every term while
+/// an assertion has such an array equality over indices narrower than 32
+/// bits, or a quantifier. A function (a lambda) has no value either. A struct
+/// is evaluated field by field. Bitwuzla always completes its model,
 /// so a constant in no assertion gets a value as well, and the \p complete
 /// flag makes no difference.
 class bitwuzla_model_impl : public Model {

@@ -52,9 +52,10 @@ static void logEncodingCheck(const std::string &verdict, long ms,
 }
 
 /// Translation validation of one formula, when --horn-bw-check-encoding is on
-static void checkEncoding(Expr exp, const bitwuzla::Term &t) {
+static void checkEncoding(Expr exp, const bitwuzla::Term &t,
+                          bitwuzla::TermManager *tm) {
   auto start = std::chrono::steady_clock::now();
-  EncodingCheck res = checkBitwuzlaEncoding(exp, t, CheckEncodingTimeout);
+  EncodingCheck res = checkBitwuzlaEncoding(exp, t, CheckEncodingTimeout, tm);
   long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start)
                 .count();
@@ -117,11 +118,38 @@ static bool hasArrayEquality(const bitwuzla::Term &t,
   return false;
 }
 
-bitwuzla_solver_impl::bitwuzla_solver_impl()
+// -- Bitwuzla 0.9.1 gives a forall in the assertions the value of its
+// -- abstraction, and for one outside them (one that preprocessing moved
+// -- into a constant's definition, or one in a term asked for) get_value
+// -- registers it and solves again (solver_engine.cpp:236-264, 500-507). So
+// -- values of a formula with quantifiers might come from different models.
+
+/// \p t has, outside of \p seen, a forall or an exists. Adds the terms it
+/// visits to \p seen.
+static bool hasQuantifier(const bitwuzla::Term &t,
+                          std::unordered_set<bitwuzla::Term> &seen) {
+  std::vector<bitwuzla::Term> todo{t};
+  while (!todo.empty()) {
+    bitwuzla::Term u = todo.back();
+    todo.pop_back();
+    if (!seen.insert(u).second)
+      continue;
+    if (u.kind() == bitwuzla::Kind::FORALL ||
+        u.kind() == bitwuzla::Kind::EXISTS)
+      return true;
+    for (const bitwuzla::Term &ch : u.children())
+      todo.push_back(ch);
+  }
+  return false;
+}
+
+bitwuzla_solver_impl::bitwuzla_solver_impl(uint64_t time_limit_ms)
     : Solver(), m_marshal(m_tm),
       m_self(std::make_shared<bitwuzla_solver_impl *>(this)) {
   // -- options must be set before the Bitwuzla instance is created
   m_options.set(Option::PRODUCE_MODELS, true);
+  if (time_limit_ms != 0)
+    m_options.set(Option::TIME_LIMIT_PER, time_limit_ms);
   m_bzla = mkBitwuzla(m_tm, m_options);
 }
 
@@ -132,7 +160,7 @@ bool bitwuzla_solver_impl::add(Expr exp) {
   try {
     bitwuzla::Term t = m_marshal.encode_term(exp);
     if (!CheckEncodingLog.empty())
-      checkEncoding(exp, t);
+      checkEncoding(exp, t, &m_tm);
     m_bzla->assert_formula(t);
     m_assertions.push_back(exp);
     if (!m_narrow_array_eq &&
@@ -141,6 +169,11 @@ bool bitwuzla_solver_impl::add(Expr exp) {
       LOG("bitwuzla", WARN << "an assertion has an equality between arrays "
                               "with narrow indices, so models have no "
                               "values";);
+    }
+    if (!m_quantified && hasQuantifier(t, m_scanned_quantifiers)) {
+      m_quantified = true;
+      LOG("bitwuzla", WARN << "an assertion has a quantifier, so models have "
+                              "no values";);
     }
     return true;
   } catch (std::exception &ex) {
@@ -189,6 +222,8 @@ void bitwuzla_solver_impl::reset() {
   m_assertions.clear();
   m_narrow_array_eq = false;
   m_scanned_assertions.clear();
+  m_quantified = false;
+  m_scanned_quantifiers.clear();
 }
 
 bitwuzla_solver_impl::model_ref bitwuzla_solver_impl::get_model() {
@@ -221,12 +256,22 @@ Expr bitwuzla_solver_impl::eval_in_model(Expr e, uint64_t generation) {
                             "an equality between arrays with narrow indices";);
     return mk<NONDET>(e->efac());
   }
+  if (m_quantified) {
+    LOG("bitwuzla", WARN << "Bitwuzla model has no values: an assertion has "
+                            "a quantifier";);
+    return mk<NONDET>(e->efac());
+  }
   try {
     bitwuzla::Term t = m_marshal.encode_term(e);
     std::unordered_set<bitwuzla::Term> seen;
     if (hasArrayEquality(t, seen, std::numeric_limits<uint64_t>::max())) {
       LOG("bitwuzla", WARN << "Bitwuzla model does not evaluate equalities "
                               "between arrays";);
+      return mk<NONDET>(e->efac());
+    }
+    std::unordered_set<bitwuzla::Term> qseen;
+    if (hasQuantifier(t, qseen)) {
+      LOG("bitwuzla", WARN << "Bitwuzla model does not evaluate quantifiers";);
       return mk<NONDET>(e->efac());
     }
     if (Expr v = decode_bitwuzla_value(m_bzla->get_value(t), e->efac()))

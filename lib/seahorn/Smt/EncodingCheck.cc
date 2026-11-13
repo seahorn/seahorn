@@ -2,7 +2,11 @@
 #include "seahorn/Expr/ExprLlvm.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 
+#include <algorithm>
+#include <cstdlib>
+#include <cstdio>
 #include <set>
+#include <unistd.h>
 #include <unordered_set>
 #include <vector>
 
@@ -105,7 +109,7 @@ void constNames(Z3_context c, Z3_ast a, std::set<std::string> &out) {
 EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
                                     const std::vector<SmtLibConst> &consts,
                                     unsigned term_bv_width,
-                                    unsigned timeout_ms) {
+                                    unsigned timeout_ms, bool quantified) {
   using V = EncodingVerdict;
   if (const char *op = notForZ3(e))
     return {V::UNCHECKED,
@@ -177,8 +181,17 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
       Z3_parse_smtlib2_string(c, script.c_str(), 0, nullptr, nullptr,
                               syms.size(), syms.data(), decls.data());
   err = z3Error(c);
-  if (!err.empty() || !parsed)
-    return {V::UNCHECKED, "Z3 cannot parse the term: " + oneLine(err)};
+  if (!err.empty() || !parsed) {
+    // -- show the text where Z3 stopped ("line 1 column N")
+    std::string near;
+    auto at = err.find("column ");
+    if (at != std::string::npos) {
+      size_t col = std::strtoul(err.c_str() + at + 7, nullptr, 10);
+      size_t from = col > 150 ? col - 150 : 0;
+      near = " near: " + oneLine(script.substr(std::min(from, script.size()), 300));
+    }
+    return {V::UNCHECKED, "Z3 cannot parse the term: " + oneLine(err) + near};
+  }
   z3::ast_vector pinnedParsed(ctx, parsed);
   if (Z3_ast_vector_size(c, parsed) != 1)
     return {V::UNCHECKED, "Z3 parsed " +
@@ -233,13 +246,67 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
   } else if (r == Z3_L_TRUE) {
     Z3_model m = Z3_solver_get_model(c, s);
     std::string values = "(no model)";
+    // -- Z3's sat is a difference only if, under its values, the other
+    // -- solver's term and Z3's encoding evaluate to different values: with
+    // -- lambdas, Z3 5.1.0 has answered sat with values on which they agree
+    bool confirmed = false;
+    // -- the other solver's term: the side of (= rhs term) that is not rhs
+    Z3_ast theirs = nullptr;
+    if (Z3_get_ast_kind(c, assignment) == Z3_APP_AST) {
+      Z3_app app = Z3_to_app(c, assignment);
+      if (Z3_get_app_num_args(c, app) == 2) {
+        Z3_ast a0 = Z3_get_app_arg(c, app, 0), a1 = Z3_get_app_arg(c, app, 1);
+        theirs = Z3_is_eq_ast(c, a0, rhsConst) ? a1 : a0;
+      }
+    }
+    if (!z3Error(c).empty())
+      theirs = nullptr;
     if (m && z3Error(c).empty()) {
       Z3_model_inc_ref(c, m);
       values = Z3_model_to_string(c, m);
+      Z3_ast va = nullptr, vb = nullptr;
+      if (theirs && Z3_model_eval(c, m, theirs, true, &va) && va &&
+          z3Error(c).empty() && Z3_model_eval(c, m, ze, true, &vb) && vb &&
+          z3Error(c).empty()) {
+        z3::ast pa(ctx, va), pb(ctx, vb);
+        confirmed = Z3_is_numeral_ast(c, va) && Z3_is_numeral_ast(c, vb)
+                        ? std::string(Z3_get_numeral_string(c, va)) !=
+                              std::string(Z3_get_numeral_string(c, vb))
+                        : (Z3_get_bool_value(c, va) != Z3_L_UNDEF &&
+                           Z3_get_bool_value(c, vb) != Z3_L_UNDEF &&
+                           Z3_get_bool_value(c, va) !=
+                               Z3_get_bool_value(c, vb));
+      }
+      if (!z3Error(c).empty())
+        confirmed = false;
       Z3_model_dec_ref(c, m);
     }
-    res = {V::DIFFERENT,
-           "Z3 finds values on which they differ: " + oneLine(values)};
+    if (quantified)
+      res = {V::UNDECIDED, "Z3 answers sat on a formula with quantifiers, "
+                           "where its answers and values are not reliable: " +
+                               oneLine(values)};
+    else
+      res = confirmed
+              ? EncodingCheck{V::DIFFERENT,
+                              "Z3 finds values on which they differ: " +
+                                  oneLine(values)}
+              : EncodingCheck{V::UNDECIDED,
+                              "Z3 answers sat, but its values do not make the "
+                              "two differ: " +
+                                  oneLine(values)};
+    // -- for debugging: the whole comparison, if a folder is named
+    if (const char *dir = std::getenv("SEAHORN_ENCODING_CHECK_DUMP")) {
+      static unsigned dumps = 0;
+      std::string path = std::string(dir) + "/different-" +
+                         std::to_string(::getpid()) + "-" +
+                         std::to_string(++dumps) + ".smt2";
+      if (FILE *f = std::fopen(path.c_str(), "w")) {
+        std::fprintf(f, "; the other solver's term:\n%s\n; Z3's encoding:\n%s\n"
+                        "; values on which they differ:\n%s\n",
+                     script.c_str(), Z3_ast_to_string(c, ze), values.c_str());
+        std::fclose(f);
+      }
+    }
   } else {
     res = {V::UNDECIDED,
            std::string("Z3 gave up: ") + Z3_solver_get_reason_unknown(c, s)};

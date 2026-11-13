@@ -2,12 +2,15 @@
 
 #include "seahorn/Expr/Smt/MarshalBitwuzla.hh"
 #include "seahorn/Expr/ExprLlvm.hh"
+#include "seahorn/Expr/ExprOpBinder.hh"
 
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "boost/lexical_cast.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <gmp.h>
 #include <utility>
 
@@ -72,8 +75,13 @@ static std::string get_name(Expr fdecl) {
   return boost::lexical_cast<std::string>(*fname);
 }
 
+static bool isBinder(Expr e) {
+  return isOpX<LAMBDA>(e) || isOpX<FORALL>(e) || isOpX<EXISTS>(e);
+}
+
 /// Exprs that are encoded without encoding any children first: Boolean
-/// values, numerals (BIND) and constants (FAPP of a declaration alone)
+/// values, numerals and bound variables (BIND), and constants (FAPP of a
+/// declaration alone)
 static bool isLeaf(Expr e) {
   return e->arity() == 0 || isOpX<BIND>(e) ||
          (bind::isFapp(e) && e->arity() == 1);
@@ -219,6 +227,15 @@ static Kind kindOf(Expr e) {
       break;
     }
     break;
+  case OpFamilyId::BindOp:
+    if (isOpX<FAPP>(e)) {
+      if (bind::isFdecl(bind::fname(e)))
+        throw UnsupportedExpr(e, "uninterpreted functions are not supported "
+                                 "by Bitwuzla adapter yet");
+      // -- the application of a term: a lambda, or an array
+      return Kind::APPLY;
+    }
+    break;
   case OpFamilyId::ArrayOp:
     switch (llvm::cast<ArrayOp>(e->op()).m_kind) {
     case ArrayOpKind::SELECT:
@@ -320,11 +337,37 @@ Term marshal_bitwuzla::declare(Expr fdecl) {
   return m_tm.mk_const(encode_sort(bind::rangeTy(fdecl)), get_name(fdecl));
 }
 
-Term marshal_bitwuzla::mkLeaf(Expr e) {
+marshal_bitwuzla::Encoded marshal_bitwuzla::mkBoundVar(Expr e) {
+  // -- de Bruijn index as in Z3: 0 is the last variable of the innermost
+  // -- binder, then the others of that binder, then the enclosing binder's
+  unsigned rest = bind::bvarId(e);
+  for (auto it = m_scopes.rbegin(), end = m_scopes.rend(); it != end; ++it) {
+    unsigned k = it->vars.size();
+    if (rest < k) {
+      Term v = it->vars[k - 1 - rest];
+      Sort declared;
+      try {
+        declared = encode_sort(bind::type(e));
+      } catch (UnsupportedExpr &ex) {
+        throw UnsupportedExpr(e, ex.what());
+      }
+      if (v.sort() != declared)
+        throw UnsupportedExpr(e, "bound variable of another sort than its "
+                                 "binder's");
+      return {v, bind::bvarId(e) + 1};
+    }
+    rest -= k;
+  }
+  throw UnsupportedExpr(e, "bound variable outside of its binder");
+}
+
+marshal_bitwuzla::Encoded marshal_bitwuzla::mkLeaf(Expr e) {
   if (isOpX<TRUE>(e))
-    return m_tm.mk_true();
+    return {m_tm.mk_true(), 0};
   if (isOpX<FALSE>(e))
-    return m_tm.mk_false();
+    return {m_tm.mk_false(), 0};
+  if (bind::isBVar(e))
+    return mkBoundVar(e);
 
   try {
     if (bv::is_bvnum(e)) {
@@ -337,10 +380,10 @@ Term marshal_bitwuzla::mkLeaf(Expr e) {
       mpz_fdiv_r_2exp(r, num.get_mpz_t(), sort.bv_size());
       std::string snum = expr::mpz_class(r).to_string();
       mpz_clear(r);
-      return m_tm.mk_bv_value(sort, snum, 10);
+      return {m_tm.mk_bv_value(sort, snum, 10), 0};
     }
     if (bind::isFapp(e) && bind::isFdecl(bind::fname(e)))
-      return declare(bind::fname(e));
+      return {declare(bind::fname(e)), 0};
   } catch (UnsupportedExpr &ex) {
     // -- report the numeral or constant rather than its sort
     throw UnsupportedExpr(e, ex.what());
@@ -355,6 +398,20 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
   Kind k = kindOf(e);
   try {
     switch (k) {
+    case Kind::APPLY:
+      return mkApp(e, args.at(0), std::vector<Term>(args.begin() + 1, args.end()));
+    case Kind::ARRAY_SELECT:
+      if (args.at(0).sort().is_fun())
+        return mkApp(e, args[0], std::vector<Term>(args.begin() + 1, args.end()));
+      return m_tm.mk_term(k, args);
+    case Kind::ARRAY_STORE:
+      if (args.size() != 3)
+        throw UnsupportedExpr(e, "expected three arguments");
+      return mkStore(e, args[0], args[1], args[2]);
+    case Kind::ITE:
+      if (args.size() != 3)
+        throw UnsupportedExpr(e, "expected three arguments");
+      return mkIte(e, args[0], args[1], args[2]);
     case Kind::BV_EXTRACT:
       return m_tm.mk_term(k, args, {bv::high(e), bv::low(e)});
     case Kind::BV_SIGN_EXTEND:
@@ -383,6 +440,8 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
       // -- read them differently, so there is no agreed meaning to encode.
       if (args.size() != 2)
         throw UnsupportedExpr(e, "expected two arguments");
+      if (k == Kind::EQUAL || k == Kind::DISTINCT)
+        return mkEq(e, k, args[0], args[1]);
       return m_tm.mk_term(k, args);
     case Kind::BV_UADD_OVERFLOW:
     case Kind::BV_USUB_OVERFLOW:
@@ -421,43 +480,200 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
   }
 }
 
+bool marshal_bitwuzla::lookup(Expr e, Encoded &out) const {
+  auto it = m_cache.find(e);
+  if (it != m_cache.end()) {
+    out = {it->second, 0};
+    return true;
+  }
+  // -- a term with a free bound variable is only valid under the binder it
+  // -- was built under, the innermost one
+  if (!m_scopes.empty()) {
+    auto jt = m_scopes.back().cache.find(e);
+    if (jt != m_scopes.back().cache.end()) {
+      out = jt->second;
+      return true;
+    }
+  }
+  return false;
+}
+
+void marshal_bitwuzla::remember(Expr e, const Encoded &enc) {
+  if (enc.fv == 0)
+    m_cache.insert({e, enc.term});
+  else if (!m_scopes.empty())
+    m_scopes.back().cache.insert({e, enc});
+  else
+    throw UnsupportedExpr(e, "term with a free bound variable");
+}
+
+Term marshal_bitwuzla::freshVar(const Sort &s, const std::string &name) {
+  // -- distinct names, so that the term prints unambiguously
+  return m_tm.mk_var(s, name + "!" + std::to_string(++m_num_vars));
+}
+
+std::vector<Term> marshal_bitwuzla::freshVars(const Sort &fun) {
+  std::vector<Term> vars;
+  for (const Sort &s : fun.fun_domain())
+    vars.push_back(freshVar(s, "x"));
+  return vars;
+}
+
+void marshal_bitwuzla::enterBinder(Expr e) {
+  Scope scope;
+  for (unsigned i = 0, sz = bind::numBound(e); i < sz; ++i) {
+    Sort s;
+    try {
+      s = encode_sort(bind::boundSort(e, i));
+    } catch (UnsupportedExpr &ex) {
+      throw UnsupportedExpr(e, ex.what());
+    }
+    if (!s.is_bv() && !s.is_bool())
+      throw UnsupportedExpr(e, "only bit-vector and Bool variables are "
+                               "supported in binders by Bitwuzla adapter");
+    scope.vars.push_back(freshVar(s, get_name(bind::decl(e, i))));
+  }
+  m_scopes.push_back(std::move(scope));
+}
+
+marshal_bitwuzla::Encoded marshal_bitwuzla::leaveBinder(Expr e) {
+  Encoded body;
+  bool found = lookup(bind::body(e), body);
+  assert(found && "the body of a binder is not encoded");
+  (void)found;
+  std::vector<Term> args = m_scopes.back().vars;
+  unsigned bound = args.size();
+  m_scopes.pop_back();
+
+  // -- Bitwuzla merges (lambda x (lambda y b)) into one function of x and y,
+  // -- which SeaHorn would apply differently
+  if (isOpX<LAMBDA>(e) && body.term.sort().is_fun())
+    throw UnsupportedExpr(e, "lambda whose body is a function");
+  args.push_back(body.term);
+  Kind k = isOpX<LAMBDA>(e)   ? Kind::LAMBDA
+           : isOpX<FORALL>(e) ? Kind::FORALL
+                              : Kind::EXISTS;
+  Term res;
+  try {
+    res = m_tm.mk_term(k, args);
+  } catch (bitwuzla::Exception &ex) {
+    throw UnsupportedExpr(e, "Bitwuzla rejects the encoding: " + ex.msg());
+  }
+  return {res, body.fv > bound ? body.fv - bound : 0};
+}
+
+Term marshal_bitwuzla::mkApp(Expr e, const Term &f,
+                             const std::vector<Term> &args) {
+  if (f.sort().is_fun()) {
+    std::vector<Term> v{f};
+    v.insert(v.end(), args.begin(), args.end());
+    return m_tm.mk_term(Kind::APPLY, v);
+  }
+  if (f.sort().is_array() && args.size() == 1)
+    return m_tm.mk_term(Kind::ARRAY_SELECT, {f, args[0]});
+  throw UnsupportedExpr(e, "application of a term that is neither a "
+                           "function nor an array of one index");
+}
+
+Term marshal_bitwuzla::mkEq(Expr e, Kind k, const Term &a, const Term &b) {
+  if (!a.sort().is_fun() && !b.sort().is_fun())
+    return m_tm.mk_term(k, {a, b});
+  // -- pointwise: Bitwuzla has no equality between functions
+  std::vector<Term> vars = freshVars((a.sort().is_fun() ? a : b).sort());
+  Term body = m_tm.mk_term(Kind::EQUAL, {mkApp(e, a, vars), mkApp(e, b, vars)});
+  vars.push_back(body);
+  Term all = m_tm.mk_term(Kind::FORALL, vars);
+  return k == Kind::DISTINCT ? m_tm.mk_term(Kind::NOT, {all}) : all;
+}
+
+Term marshal_bitwuzla::mkIte(Expr e, const Term &c, const Term &t,
+                             const Term &f) {
+  if (!t.sort().is_fun() && !f.sort().is_fun())
+    return m_tm.mk_term(Kind::ITE, {c, t, f});
+  // -- inside a lambda: Bitwuzla 0.9.1 aborts on an ite between lambdas
+  std::vector<Term> vars = freshVars((t.sort().is_fun() ? t : f).sort());
+  Term body = m_tm.mk_term(Kind::ITE, {c, mkApp(e, t, vars), mkApp(e, f, vars)});
+  vars.push_back(body);
+  return m_tm.mk_term(Kind::LAMBDA, vars);
+}
+
+Term marshal_bitwuzla::mkStore(Expr e, const Term &a, const Term &i,
+                               const Term &v) {
+  if (!a.sort().is_fun())
+    return m_tm.mk_term(Kind::ARRAY_STORE, {a, i, v});
+  if (a.sort().fun_domain().size() != 1)
+    throw UnsupportedExpr(e, "store into a function of more than one argument");
+  Term x = freshVar(a.sort().fun_domain()[0], "x");
+  Term body = m_tm.mk_term(
+      Kind::ITE, {m_tm.mk_term(Kind::EQUAL, {x, i}), v, mkApp(e, a, {x})});
+  return m_tm.mk_term(Kind::LAMBDA, {x, body});
+}
+
 Term marshal_bitwuzla::encode_term(Expr root) {
-  // -- an explicit stack: the formulas of long paths can be very deep
+  // -- an explicit stack: the formulas of long paths can be very deep. The
+  // -- flag is set once the children are pushed (or, for a binder, its body).
   std::vector<std::pair<Expr, bool>> todo{{root, false}};
   std::vector<Term> args;
+  try {
+    while (!todo.empty()) {
+      Expr e = todo.back().first;
+      Encoded enc;
+      if (!todo.back().second) {
+        if (lookup(e, enc)) {
+          todo.pop_back();
+          continue;
+        }
+        if (isBinder(e)) {
+          todo.back().second = true;
+          enterBinder(e);
+          todo.push_back({bind::body(e), false});
+          continue;
+        }
+        if (isLeaf(e)) {
+          remember(e, mkLeaf(e));
+          todo.pop_back();
+          continue;
+        }
+        // -- reject an unsupported operator before encoding its arguments,
+        // -- so that the error names the operator
+        kindOf(e);
+        todo.back().second = true;
+        auto range = termArgs(e);
+        for (unsigned i = range.first; i < range.second; ++i)
+          if (!lookup(e->arg(i), enc))
+            todo.push_back({e->arg(i), false});
+        continue;
+      }
 
-  while (!todo.empty()) {
-    Expr e = todo.back().first;
-    if (m_cache.count(e)) {
       todo.pop_back();
-      continue;
+      if (isBinder(e)) {
+        // -- its body is encoded, and its scope is the innermost
+        remember(e, leaveBinder(e));
+        continue;
+      }
+      // -- all term arguments are encoded
+      auto range = termArgs(e);
+      args.clear();
+      unsigned fv = 0;
+      for (unsigned i = range.first; i < range.second; ++i) {
+        bool found = lookup(e->arg(i), enc);
+        assert(found && "an argument is not encoded");
+        (void)found;
+        args.push_back(enc.term);
+        fv = std::max(fv, enc.fv);
+      }
+      remember(e, {mkNode(e, args), fv});
     }
-    if (isLeaf(e)) {
-      m_cache.insert({e, mkLeaf(e)});
-      todo.pop_back();
-      continue;
-    }
-
-    auto range = termArgs(e);
-    if (!todo.back().second) {
-      // -- reject an unsupported operator before encoding its arguments, so
-      // -- that the error names the operator
-      kindOf(e);
-      todo.back().second = true;
-      for (unsigned i = range.first; i < range.second; ++i)
-        if (!m_cache.count(e->arg(i)))
-          todo.push_back({e->arg(i), false});
-      continue;
-    }
-
-    // -- all term arguments are encoded
-    args.clear();
-    for (unsigned i = range.first; i < range.second; ++i)
-      args.push_back(m_cache.at(e->arg(i)));
-    m_cache.insert({e, mkNode(e, args)});
-    todo.pop_back();
+  } catch (...) {
+    // -- leave the encoder usable
+    m_scopes.clear();
+    throw;
   }
-  return m_cache.at(root);
+  Encoded res;
+  bool found = lookup(root, res);
+  assert(found && res.fv == 0);
+  (void)found;
+  return res.term;
 }
 
 /// An array value: a chain of stores of values over a constant array of a

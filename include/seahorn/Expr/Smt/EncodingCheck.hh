@@ -50,10 +50,16 @@ struct SmtLibConst {
 ///
 /// Uses only Z3's C API with explicit error checks, so it behaves the same
 /// whether or not SeaHorn is compiled with exceptions.
+///
+/// If \p quantified (the term has a quantifier or an equality with a
+/// function), a difference that Z3 finds is reported UNDECIDED: Z3 5.1.0 has
+/// answered sat, and even evaluated its values, wrongly on equalities with
+/// lambdas. A proof that the two are equal is still SAME.
 EncodingCheck checkSmtLibTermWithZ3(expr::Expr e, const std::string &term,
                                     const std::vector<SmtLibConst> &consts,
                                     unsigned term_bv_width,
-                                    unsigned timeout_ms);
+                                    unsigned timeout_ms,
+                                    bool quantified = false);
 
 } // namespace solver
 } // namespace seahorn

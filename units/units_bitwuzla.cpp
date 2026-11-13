@@ -14,8 +14,14 @@
 #include "boost/lexical_cast.hpp"
 #include "llvm/Support/CommandLine.h"
 
+#include <csignal>
+#include <cstdio>
+#include <dirent.h>
 #include <cstdlib>
 #include <fstream>
+#include <poll.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -69,6 +75,16 @@ struct Env {
   Expr arrc(const std::string &name, unsigned iw, unsigned vw) {
     return bind::mkConst(mkTerm<std::string>(name, efac),
                          sort::arrayTy(bvsort(iw), bvsort(vw)));
+  }
+  /// the bound variable of de Bruijn index \p i, a bit-vector of width \p w
+  Expr bvar(unsigned i, unsigned w) { return bind::bvar(i, bvsort(w)); }
+  /// a declaration of a bound variable of width \p w, for a binder
+  Expr bdecl(const std::string &name, unsigned w) {
+    return bind::fname(bind::mkConst(mkTerm<std::string>(name, efac), bvsort(w)));
+  }
+  /// (lambda (name : bv(w)) body), where body refers to it as bvar(0, w)
+  Expr lam(const std::string &name, unsigned w, Expr body) {
+    return mk<LAMBDA>(bdecl(name, w), body);
   }
 
   bz::Result check(Expr e) {
@@ -130,7 +146,9 @@ void termsOf(Expr e, ExprSet &seen, ExprVector &out) {
   if (!seen.insert(e).second)
     return;
   out.push_back(e);
-  if (bind::IsConst()(e) || bv::is_bvnum(e))
+  // -- the body of a binder is not a closed term (plan 1.7)
+  if (bind::IsConst()(e) || bv::is_bvnum(e) || isOpX<LAMBDA>(e) ||
+      isOpX<FORALL>(e) || isOpX<EXISTS>(e))
     return;
   if (isOpX<BEXTRACT>(e)) {
     termsOf(e->arg(2), seen, out);
@@ -148,13 +166,27 @@ void termsOf(Expr e, ExprSet &seen, ExprVector &out) {
     termsOf(e->arg(i), seen, out);
 }
 
+/// \p e is a function, built as the fuzzer builds them: a lambda, an ite
+/// of functions, or a store into a function
+bool isFunctionTerm(Expr e) {
+  if (isOpX<LAMBDA>(e))
+    return true;
+  if (isOpX<ITE>(e))
+    return isFunctionTerm(e->arg(1)) || isFunctionTerm(e->arg(2));
+  if (isOpX<STORE>(e))
+    return isFunctionTerm(e->arg(0));
+  return false;
+}
+
 /// \p e is a term of array sort, built as the fuzzer builds them: an array
 /// constant, const-array, store, or ite of arrays
 bool isArrayTerm(Expr e) {
-  if (isOpX<STORE>(e) || isOpX<CONST_ARRAY>(e))
+  if (isOpX<STORE>(e))
+    return isArrayTerm(e->arg(0));
+  if (isOpX<CONST_ARRAY>(e))
     return true;
   if (isOpX<ITE>(e))
-    return isArrayTerm(e->arg(1));
+    return isArrayTerm(e->arg(1)) && isArrayTerm(e->arg(2));
   return bind::IsConst()(e) && isOpX<ARRAY_TY>(bind::rangeTy(bind::fname(e)));
 }
 
@@ -172,6 +204,16 @@ bool anySubterm(Expr e, const std::function<bool(Expr)> &pred) {
     todo.insert(todo.end(), x->args_begin(), x->args_end());
   }
   return false;
+}
+
+/// Bitwuzla gets a quantifier for \p e: it has a forall or an exists, or
+/// an equality or disequality with a function (stated pointwise)
+bool needsQuantifier(Expr e) {
+  return anySubterm(e, [](Expr x) {
+    return isOpX<FORALL>(x) || isOpX<EXISTS>(x) ||
+           ((isOpX<EQ>(x) || isOpX<NEQ>(x)) &&
+            (isFunctionTerm(x->arg(0)) || isFunctionTerm(x->arg(1))));
+  });
 }
 
 /// \p e has an equality or disequality between arrays inside
@@ -547,6 +589,14 @@ class RandomFormulas {
   std::map<unsigned, ExprVector> m_pool;
   // -- the arrays built for the current formula, by index and element width
   std::map<std::pair<unsigned, unsigned>, ExprVector> m_arrays;
+  // -- the functions (lambdas) built for the current formula, likewise
+  std::map<std::pair<unsigned, unsigned>, ExprVector> m_funcs;
+
+public:
+  /// also build stores into functions (only for the expansion test)
+  bool m_function_stores = false;
+
+private:
 
   unsigned pick(unsigned n) {
     return std::uniform_int_distribution<unsigned>(0, n - 1)(m_rng);
@@ -590,7 +640,7 @@ class RandomFormulas {
   }
   Expr reused(unsigned w) {
     ExprVector &p = m_pool[w];
-    return p.empty() || !chance(55) ? Expr() : p[pick(p.size())];
+    return p.empty() || !chance(60) ? Expr() : p[pick(p.size())];
   }
   ExprVector bvArgs(unsigned n, unsigned w, unsigned depth) {
     ExprVector args;
@@ -607,6 +657,7 @@ public:
   Expr formula() {
     m_pool.clear();
     m_arrays.clear();
+    m_funcs.clear();
     m_main = 1 + pick(4);
     ExprVector conj;
     for (unsigned i = 0, n = 2 + pick(4); i < n; ++i)
@@ -648,7 +699,7 @@ public:
           binop<UMUL_NO_OVERFLOW>(), binop<SMUL_NO_OVERFLOW>(),
           binop<SMUL_NO_UNDERFLOW>()};
       unsigned w = width();
-      switch (pick(8)) {
+      switch (pick(10)) {
       case 0:
         e = mk<NEG>(boolean(d));
         break;
@@ -672,6 +723,20 @@ public:
         unsigned iw = indexWidth(), vw = 1 + pick(4);
         e = pick(2) ? mk<EQ>(array(iw, vw, d), array(iw, vw, d))
                     : mk<NEQ>(array(iw, vw, d), array(iw, vw, d));
+        break;
+      }
+      // -- (no equality with a function: random ones made both solvers run
+      // -- for minutes and Z3 undecided or wrong, so the formula check could
+      // -- not judge them. The unit tests, SeaHorn's lambda-mode formulas in
+      // -- the formula check, and the memphi examples have them.)
+      case 7:
+      case 8: {
+        // -- a quantifier over a narrow bit-vector
+        Expr x = boundConst(m_main);
+        Expr body = cmps[pick(cmps.size())](mk<BADD>(x, bv(m_main, d)),
+                                            bv(m_main, d));
+        e = pick(2) ? bind::abs<FORALL>(ExprVector{x}, body)
+                    : bind::abs<EXISTS>(ExprVector{x}, body);
         break;
       }
       default:
@@ -700,10 +765,18 @@ public:
       static const std::vector<BinOp> muls = {binop<BMUL>(),  binop<BUDIV>(),
                                               binop<BSDIV>(), binop<BUREM>(),
                                               binop<BSREM>(), binop<BSMOD>()};
-      switch (pick(12)) {
+      switch (pick(14)) {
       case 0:
         e = pick(2) ? mk<BNOT>(bv(w, d)) : mk<BNEG>(bv(w, d));
         break;
+      case 12:
+      case 13: {
+        // -- the application of a function, by fapp or select
+        unsigned iw = indexWidth();
+        e = pick(2) ? mk<FAPP>(function(iw, w, d), bv(iw, d))
+                    : op::array::select(function(iw, w, d), bv(iw, d));
+        break;
+      }
       case 10:
       case 11: {
         unsigned iw = indexWidth();
@@ -763,6 +836,64 @@ public:
     return e;
   }
 
+  /// The constant that the body of a lambda or quantifier over bit-vectors
+  /// of width \p w uses for the variable, before abs makes it bound
+  Expr boundConst(unsigned w) { return m_env.bvc("lx" + std::to_string(w), w); }
+  /// (lambda x body), also when x does not occur in \p body
+  Expr lambdaOf(Expr x, Expr body) {
+    Expr r = bind::abs<LAMBDA>(ExprVector{x}, body);
+    return isOpX<LAMBDA>(r) ? r : mk<LAMBDA>(bind::fname(x), body);
+  }
+
+  /// A function (a lambda) from bit-vectors of width \p iw to width \p vw
+  Expr function(unsigned iw, unsigned vw, unsigned depth) {
+    ExprVector &p = m_funcs[{iw, vw}];
+    if (!p.empty() && chance(25))
+      return p[pick(p.size())];
+    Expr e;
+    unsigned d = depth == 0 ? 0 : depth - 1;
+    Expr x = boundConst(iw);
+    if (m_function_stores && depth > 0 && chance(20)) {
+      e = op::array::store(function(iw, vw, d), bv(iw, d), bv(vw, d));
+    } else if (depth == 0 || chance(20)) {
+      // -- an array wrapped as SeaHorn's lambda mode does, or a constant
+      e = chance(70) ? lambdaOf(x, op::array::select(array(iw, vw, d), x))
+                     : mk<LAMBDA>(m_env.bdecl("k", iw), bv(vw, d));
+    } else {
+      // -- (no store into a function: SeaHorn does not build one, unit tests
+      // -- have it, and Z3 is incomplete on its own encoding of its
+      // -- equality with an array)
+      switch (pick(3)) {
+      case 0: // -- a store, as SeaHorn's lambda memory builds it
+        e = lambdaOf(x, mk<ITE>(mk<EQ>(x, bv(iw, d)), bv(vw, d),
+                                mk<FAPP>(function(iw, vw, d), x)));
+        break;
+      case 1:
+        e = mk<ITE>(boolean(d), function(iw, vw, d), function(iw, vw, d));
+        break;
+      default: // -- the variable anywhere in the body
+        e = lambdaOf(x, mk<ITE>(mk<BULT>(x, bv(iw, d)), bv(vw, d),
+                                mk<FAPP>(function(iw, vw, d),
+                                         mk<BADD>(x, bv(iw, d)))));
+        break;
+      }
+    }
+    p.push_back(e);
+    return e;
+  }
+
+  /// A formula with an equality or disequality between a function and a
+  /// function or an array, over indices of 1-3 bits
+  Expr withFunctionEquality() {
+    Expr base = formula();
+    unsigned iw = 1 + pick(3), vw = 1 + pick(4);
+    Expr a = function(iw, vw, 3);
+    Expr b = pick(2) ? function(iw, vw, 3) : array(iw, vw, 3);
+    if (pick(2))
+      std::swap(a, b);
+    return mk<AND>(base, pick(2) ? mk<EQ>(a, b) : mk<NEQ>(a, b));
+  }
+
   /// An array from bit-vectors of width \p iw to width \p vw
   Expr array(unsigned iw, unsigned vw, unsigned depth) {
     ExprVector &p = m_arrays[{iw, vw}];
@@ -789,6 +920,43 @@ unsigned envOr(const char *name, unsigned dflt) {
   const char *v = std::getenv(name);
   return v ? static_cast<unsigned>(std::strtoul(v, nullptr, 10)) : dflt;
 }
+
+/// Bitwuzla 0.9.1 looks at its time limit only in the bit-vector solver,
+/// not in its quantifier procedure, which can run on for hours (seen in the
+/// 1.7 fuzzing). So a check of a formula with quantifiers is first run in a
+/// child process, killed after \p ms of wall-clock time. If the child
+/// finishes, the same (deterministic) check is run here, and its answer and
+/// model are used; otherwise UNKNOWN, and \p timedOut is set.
+SolverResult boundedCheck(Solver &s, unsigned ms, bool &timedOut) {
+  timedOut = false;
+  int fds[2];
+  if (pipe(fds) != 0)
+    return s.check();
+  pid_t pid = fork();
+  if (pid == 0) {
+    close(fds[0]);
+    char c = static_cast<char>(s.check());
+    ssize_t w = write(fds[1], &c, 1);
+    (void)w;
+    _exit(0);
+  }
+  close(fds[1]);
+  struct pollfd pfd = {fds[0], POLLIN, 0};
+  char c;
+  bool done = pid > 0 && poll(&pfd, 1, static_cast<int>(ms)) > 0 &&
+              read(fds[0], &c, 1) == 1;
+  if (pid > 0) {
+    if (!done)
+      kill(pid, SIGKILL);
+    waitpid(pid, nullptr, 0);
+  }
+  close(fds[0]);
+  if (!done) {
+    timedOut = true;
+    return SolverResult::UNKNOWN;
+  }
+  return s.check();
+}
 } // namespace
 
 TEST_CASE("bitwuzla.random formulas agree with z3") {
@@ -804,15 +972,27 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   // -- Z3's time limit for each formula check
   const unsigned check_ms = envOr("BITWUZLA_FUZZ_CHECK_MS", 10000);
 
-  // -- one adapter for every formula: reset() must clear everything
-  bitwuzla_solver_impl adapter;
+  // -- one adapter for every formula: reset() must clear everything. Each
+  // -- check is limited (quantifiers can make either solver run long); a
+  // -- check that runs out is unknown.
+  const unsigned solve_ms = envOr("BITWUZLA_FUZZ_SOLVE_MS", 5000);
+  const unsigned wall_ms = 4 * solve_ms;
+  bitwuzla_solver_impl adapter(solve_ms);
   Solver &s = adapter;
+  ZParams<EZ3> zparams(z3);
+  zparams.set("timeout", solve_ms);
+  // -- quantified checks killed after wall_ms (boundedCheck)
+  unsigned bw_timeouts = 0;
 
   unsigned sat = 0, unsat = 0, z3_unknown = 0, disagreements = 0,
            bad_models = 0;
   // -- Bitwuzla's unknowns, and those on a formula without an equality of
   // -- arrays and a const-array; formulas with an array
   unsigned bw_unknown = 0, unexplained_unknown = 0, with_arrays = 0;
+  // -- plan 1.7: formulas with a lambda, with a quantifier (for Bitwuzla);
+  // -- Z3's unknowns on formulas without one; functions given no value
+  unsigned with_lambdas = 0, with_quantifiers = 0, z3_unknown_plain = 0,
+           functions_refused = 0;
   // -- formulas the encoder rejects (none should be)
   unsigned not_encoded = 0;
   // -- terms evaluated through the model; values that are not values, or not
@@ -830,6 +1010,11 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     f = i % 2 == 0 ? gen.formula() : mk<NEG>(f);
     if (anySubterm(f, [](Expr x) { return isOpX<SELECT>(x) || isArrayTerm(x); }))
       ++with_arrays;
+    if (anySubterm(f, [](Expr x) { return isOpX<LAMBDA>(x); }))
+      ++with_lambdas;
+    const bool quantified = needsQuantifier(f);
+    if (quantified)
+      ++with_quantifiers;
 
     // -- every generated formula must encode. Caught here: an UnsupportedExpr
     // -- that escaped the test case would outlive env's ExprFactory and crash
@@ -841,28 +1026,40 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
       MESSAGE("formula " << i << ": not encoded: " << ex.what());
       continue;
     }
-    auto ec = checkBitwuzlaEncoding(f, ft, check_ms);
+    auto ec = checkBitwuzlaEncoding(f, ft, check_ms, &env.tm);
     ++encoding[ec.verdict];
     if (ec.verdict != EncodingVerdict::SAME)
       MESSAGE("formula " << i << ": encoding check says "
                          << std::string(verdictName(ec.verdict)) << ": "
                          << ec.detail << "\n  formula: " << *f);
 
+    // -- BITWUZLA_FUZZ_TRACE=1 prints each formula before it is solved
+    if (envOr("BITWUZLA_FUZZ_TRACE", 0))
+      llvm::errs() << "formula " << i << ": " << *f << "\n";
     s.reset();
     REQUIRE(s.add(f));
-    SolverResult r = s.check();
+    bool timedOut = false;
+    SolverResult r = quantified ? boundedCheck(s, wall_ms, timedOut) : s.check();
+    if (timedOut)
+      ++bw_timeouts;
     ZSolver<EZ3> zs(z3);
+    zs.set(zparams);
     zs.assertExpr(f);
     boost::tribool zr = zs.solve();
     if (boost::indeterminate(zr)) {
+      // -- Z3 is incomplete with quantifiers; nothing else may be unknown
       ++z3_unknown;
+      if (!quantified) {
+        ++z3_unknown_plain;
+        MESSAGE("formula " << i << ": unknown to z3");
+      }
       continue;
     }
     if (r == SolverResult::UNKNOWN) {
       ++bw_unknown;
-      if (!hasArrayEquality(f) || !anySubterm(f, [](Expr x) {
-            return isOpX<CONST_ARRAY>(x);
-          })) {
+      if (!quantified && (!hasArrayEquality(f) || !anySubterm(f, [](Expr x) {
+                            return isOpX<CONST_ARRAY>(x);
+                          }))) {
         ++unexplained_unknown;
         MESSAGE("formula " << i << ": Bitwuzla answers unknown");
       }
@@ -880,9 +1077,10 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     }
     ++sat;
 
-    // -- with an equality of narrow arrays in f, the model must have no
-    // -- values at all (Bitwuzla may give constants wrong ones)
-    if (hasNarrowArrayEquality(f)) {
+    // -- with an equality of narrow arrays in f, or a quantifier, the model
+    // -- must have no values at all (Bitwuzla may give constants wrong ones,
+    // -- or solve again while values are read)
+    if (hasNarrowArrayEquality(f) || quantified) {
       ++refused_models;
       Solver::model_ref model = s.get_model();
       ExprSet seen;
@@ -932,6 +1130,7 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     for (auto &tv : values)
       filter(tv.first, bind::IsConst(), std::inserter(consts, consts.begin()));
     ZSolver<EZ3> certify(z3);
+    certify.set(zparams);
     certify.assertExpr(f);
     bool all_values = true;
     for (Expr c : consts) {
@@ -961,6 +1160,17 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
     for (auto &tv : values) {
       ++evaluated;
       Expr v = tv.second;
+      if (isFunctionTerm(tv.first)) {
+        // -- a function has no value (plan 1.7)
+        if (isOpX<NONDET>(v)) {
+          ++functions_refused;
+        } else {
+          ++not_refused;
+          MESSAGE("formula " << i << ": the model gives " << *v
+                             << " for the function " << *tv.first);
+        }
+        continue;
+      }
       if (hasArrayEquality(tv.first)) {
         // -- Bitwuzla can get these wrong, so the model must not answer
         if (isOpX<NONDET>(v)) {
@@ -1012,7 +1222,12 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
                   << non_values << " not values, " << refused
                   << " refused (array equality), " << not_refused
                   << " not refused; " << refused_models
-                  << " sat models without values (narrow array equality)");
+                  << " sat models without values (narrow array equality or "
+                     "quantifier); "
+                  << with_lambdas << " with lambdas, " << with_quantifiers
+                  << " with quantifiers, " << functions_refused
+                  << " functions without value; " << bw_timeouts
+                  << " quantified checks killed after " << wall_ms << " ms");
   // -- every formula Bitwuzla got is Z3's formula, not only equisatisfiable
   CHECK(encoding[EncodingVerdict::SAME] == 2 * n);
   CHECK(not_encoded == 0);
@@ -1024,7 +1239,7 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   CHECK(bw_unknown <= 2 * n / 10);
   CHECK(not_refused == 0);
   CHECK(bad_models == 0);
-  CHECK(z3_unknown == 0);
+  CHECK(z3_unknown_plain == 0);
   CHECK(non_values == 0);
   CHECK(value_mismatches == 0);
   // -- every sat formula has at least one term
@@ -1035,6 +1250,120 @@ TEST_CASE("bitwuzla.random formulas agree with z3") {
   CHECK(sat >= 2 * n / 4);
   CHECK(unsat >= 2 * n / 4);
   CHECK(with_arrays >= 2 * n / 4);
+  CHECK(with_lambdas >= 2 * n / 4);
+  CHECK(with_quantifiers >= 2 * n / 10);
+}
+
+namespace {
+/// The index width of a function or array term built by the fuzzer
+unsigned functionIndexWidth(Expr f) {
+  if (isOpX<LAMBDA>(f))
+    return bv::width(bind::boundSort(f, 0));
+  if (isOpX<ITE>(f))
+    return functionIndexWidth(f->arg(1));
+  if (isOpX<STORE>(f))
+    return functionIndexWidth(f->arg(0));
+  return indexWidthOf(f);
+}
+
+/// \p e with each equality or disequality that has a function on a side
+/// replaced by one equality per index (2^w of them), so that Z3 gets no
+/// equality between lambdas, on which it is incomplete and even wrong
+Expr expandFunctionEqualities(Expr e, ExprMap &cache) {
+  auto it = cache.find(e);
+  if (it != cache.end())
+    return it->second;
+  Expr res = e;
+  if ((isOpX<EQ>(e) || isOpX<NEQ>(e)) &&
+      (isFunctionTerm(e->arg(0)) || isFunctionTerm(e->arg(1)))) {
+    Expr a = expandFunctionEqualities(e->arg(0), cache);
+    Expr b = expandFunctionEqualities(e->arg(1), cache);
+    unsigned w = functionIndexWidth(isFunctionTerm(a) ? a : b);
+    ExprVector eqs;
+    for (unsigned i = 0; i < (1u << w); ++i) {
+      Expr idx = bv::bvnum(expr::mpz_class(i), w, e->efac());
+      eqs.push_back(mk<EQ>(op::array::select(a, idx), op::array::select(b, idx)));
+    }
+    Expr all = eqs.size() == 1 ? eqs[0] : mknary<AND>(eqs);
+    res = isOpX<EQ>(e) ? all : mk<NEG>(all);
+  } else if (e->arity() > 0) {
+    ExprVector args;
+    bool changed = false;
+    for (unsigned i = 0, sz = e->arity(); i < sz; ++i) {
+      args.push_back(expandFunctionEqualities(e->arg(i), cache));
+      changed |= args.back() != e->arg(i);
+    }
+    if (changed)
+      res = e->efac().mkNary(e->op(), args);
+  }
+  cache.insert({e, res});
+  return res;
+}
+} // namespace
+
+TEST_CASE("bitwuzla.function equalities against an expansion") {
+  // -- plan 1.7, after the review: random formulas with an equality between a
+  // -- function and a function or array, over indices of 1-3 bits, and with
+  // -- stores into functions. Bitwuzla gets each equality as a forall; Z3
+  // -- gets the formula with the equality expanded over every index.
+  Env env;
+  EZ3 z3(env.efac);
+  RandomFormulas gen(env, envOr("BITWUZLA_FUZZ_SEED", 1) + 1000);
+  gen.m_function_stores = true;
+  const unsigned n = envOr("BITWUZLA_FUZZ_N", 300) / 2;
+  const unsigned solve_ms = envOr("BITWUZLA_FUZZ_SOLVE_MS", 5000);
+  const unsigned wall_ms = 4 * solve_ms;
+  bitwuzla_solver_impl adapter(solve_ms);
+  Solver &s = adapter;
+  ZParams<EZ3> zparams(z3);
+  zparams.set("timeout", solve_ms);
+  unsigned bw_timeouts = 0;
+  unsigned agree = 0, disagree = 0, bw_unknown = 0, z3_unknown = 0, sat = 0,
+           unsat = 0;
+  Expr f;
+  for (unsigned i = 0; i < 2 * n; ++i) {
+    f = i % 2 == 0 ? gen.withFunctionEquality() : mk<NEG>(f);
+    ExprMap cache;
+    Expr g = expandFunctionEqualities(f, cache);
+    REQUIRE(g != f);
+    s.reset();
+    REQUIRE(s.add(f));
+    bool timedOut = false;
+    SolverResult r = boundedCheck(s, wall_ms, timedOut);
+    if (timedOut)
+      ++bw_timeouts;
+    ZSolver<EZ3> zs(z3);
+    zs.set(zparams);
+    zs.assertExpr(g);
+    boost::tribool zr = zs.solve();
+    if (boost::indeterminate(zr)) {
+      ++z3_unknown;
+      continue;
+    }
+    if (r == SolverResult::UNKNOWN) {
+      ++bw_unknown;
+      continue;
+    }
+    if (r == (zr ? SolverResult::SAT : SolverResult::UNSAT)) {
+      ++agree;
+      ++(zr ? sat : unsat);
+    } else {
+      ++disagree;
+      MESSAGE("formula " << i << ": z3 says " << (zr ? "sat" : "unsat")
+                         << " on the expansion of " << *f);
+    }
+  }
+  MESSAGE((2 * n) << " formulas with function equalities: " << agree
+                  << " agree with z3 on the expansion (" << sat << " sat, "
+                  << unsat << " unsat), " << disagree << " disagree, "
+                  << bw_unknown << " unknown to Bitwuzla (" << bw_timeouts
+                  << " killed after " << wall_ms << " ms), " << z3_unknown
+                  << " unknown to z3");
+  CHECK(disagree == 0);
+  // -- both answers, and few unknowns, or the test proves little
+  CHECK(sat >= 2 * n / 10);
+  CHECK(unsat >= 2 * n / 10);
+  CHECK(agree >= 2 * n * 8 / 10);
 }
 
 TEST_CASE("bitwuzla.encoding check") {
@@ -2158,6 +2487,596 @@ TEST_CASE("bitwuzla.encoding check with arrays") {
   Expr e2 = mk<EQ>(select(c, j), v);
   Expr wrong2 = mk<EQ>(select(constArray(env.bvsort(64), env.num(0, 8)), j), v);
   CHECK(verdict(e2, env.m.encode_term(wrong2)) == EncodingVerdict::DIFFERENT);
+}
+
+
+TEST_CASE("bitwuzla.lambdas") {
+  // -- plan 1.7: lambdas are Bitwuzla functions; fapp, select and store on
+  // -- them; scoping of bound variables
+  Env env;
+  using namespace op::array;
+  Expr p = env.bvc("p", 8), q = env.bvc("q", 8), v = env.bvc("v", 8);
+  Expr i = env.bvc("i", 8), j = env.bvc("j", 8);
+  Expr A = env.arrc("A", 8, 8);
+  Expr x0 = env.bvar(0, 8);
+  Expr inc = env.lam("x", 8, mk<BADD>(x0, env.num(1, 8)));
+  // -- L1: application
+  CHECK(env.valid(mk<EQ>(mk<FAPP>(inc, env.num(3, 8)), env.num(4, 8))));
+  Expr mem = env.lam("addr", 8,
+                     mk<ITE>(mk<EQ>(x0, p), v, select(A, x0)));
+  CHECK(env.valid(mk<EQ>(mk<FAPP>(mem, p), v)));
+  CHECK(env.valid(mk<IMPL>(mk<NEQ>(q, p),
+                           mk<EQ>(mk<FAPP>(mem, q), select(A, q)))));
+  CHECK_FALSE(env.valid(mk<EQ>(mk<FAPP>(mem, q), select(A, q))));
+  // -- select and store on a lambda behave as on an array
+  CHECK(env.valid(mk<EQ>(select(mem, i), mk<FAPP>(mem, i))));
+  Expr st = store(mem, i, env.num(9, 8));
+  CHECK(env.valid(mk<EQ>(select(st, i), env.num(9, 8))));
+  CHECK(env.valid(mk<IMPL>(mk<NEQ>(i, j),
+                           mk<EQ>(select(st, j), mk<FAPP>(mem, j)))));
+
+  // -- L2: the same open body under two lambdas means each one's variable
+  Expr body = mk<BADD>(x0, env.num(1, 8));
+  Expr la = env.lam("a", 8, body), lb = env.lam("b", 8, body);
+  CHECK(env.valid(mk<AND>(mk<EQ>(mk<FAPP>(la, env.num(3, 8)), env.num(4, 8)),
+                          mk<EQ>(mk<FAPP>(lb, env.num(10, 8)),
+                                 env.num(11, 8)))));
+  // -- bvar(1) under a nested binder is the outer variable:
+  // -- (lambda x. (lambda y. x - y)(1))(5) = 4
+  Expr inner = env.lam("y", 8, mk<BSUB>(env.bvar(1, 8), env.bvar(0, 8)));
+  Expr outer = env.lam("x", 8, mk<FAPP>(inner, env.num(1, 8)));
+  CHECK(env.valid(mk<EQ>(mk<FAPP>(outer, env.num(5, 8)), env.num(4, 8))));
+  // -- two variables: index 0 is the last one, as in Z3, and the arguments
+  // -- of an application keep their order: (lambda a b. a - b)(5, 1) = 4
+  Expr sub2 = mk<LAMBDA>(env.bdecl("a", 8), env.bdecl("b", 8),
+                         mk<BSUB>(env.bvar(1, 8), env.bvar(0, 8)));
+  CHECK(env.valid(mk<EQ>(mk<FAPP>(sub2, env.num(5, 8), env.num(1, 8)),
+                         env.num(4, 8))));
+  // -- one inner lambda that uses the enclosing variable, under two
+  // -- different enclosing lambdas: each must see its own variable
+  Expr usesOuter = env.lam("y", 8, env.bvar(1, 8));
+  Expr outerA = env.lam("a", 8, mk<BADD>(mk<FAPP>(usesOuter, env.num(0, 8)),
+                                         env.num(1, 8)));
+  Expr outerB = env.lam("b", 8, mk<BADD>(mk<FAPP>(usesOuter, env.num(0, 8)),
+                                         env.num(2, 8)));
+  CHECK(env.valid(mk<AND>(mk<EQ>(mk<FAPP>(outerA, env.num(3, 8)), env.num(4, 8)),
+                          mk<EQ>(mk<FAPP>(outerB, env.num(10, 8)),
+                                 env.num(12, 8)))));
+  // -- a bound variable outside its binder, or of another sort, is rejected
+  Expr b0 = env.bvar(0, 8);
+  CHECK(env.rejects(mk<EQ>(b0, p), b0));
+  Expr wrongSort = env.bvar(0, 4);
+  Expr lw = env.lam("w", 8, mk<EQ>(wrongSort, env.num(0, 4)));
+  CHECK(env.rejects(mk<FAPP>(lw, p), wrongSort));
+  // -- and the encoder still works after a rejection inside a binder: its
+  // -- scope is gone, so a free bvar is still rejected
+  CHECK(env.valid(mk<EQ>(mk<FAPP>(inc, env.num(7, 8)), env.num(8, 8))));
+  CHECK(env.rejects(mk<EQ>(b0, q), b0));
+
+  // -- L5: rejected shapes, naming the culprit
+  Expr nested = env.lam("u", 8, env.lam("w", 8, env.bvar(1, 8)));
+  CHECK(env.rejects(mk<EQ>(mk<FAPP>(mk<FAPP>(nested, p), q), p), nested));
+  Expr adecl = bind::fname(
+      bind::mkConst(mkTerm<std::string>("m", env.efac),
+                    sort::arrayTy(env.bvsort(8), env.bvsort(8))));
+  Expr overArray = mk<LAMBDA>(adecl, select(bind::bvar(0, sort::arrayTy(
+                                                     env.bvsort(8),
+                                                     env.bvsort(8))),
+                                            p));
+  CHECK(env.rejects(mk<EQ>(mk<FAPP>(overArray, A), p), overArray));
+  Expr f = bind::fdecl(mkTerm<std::string>("f", env.efac),
+                       ExprVector{env.bvsort(8), env.bvsort(8)});
+  Expr fp = bind::fapp(f, p);
+  CHECK(env.rejects(mk<EQ>(fp, p), fp));
+  // -- C1: the other rejections of 1.7, each naming its culprit
+  {
+    // -- a bound variable of a sort Bitwuzla lacks, under a bit-vector binder
+    Expr intVar = bind::bvar(0, sort::intTy(env.efac));
+    CHECK(env.rejects(mk<EQ>(mk<FAPP>(env.lam("x", 8, intVar), p), p),
+                      intVar));
+    // -- a binder over a variable of such a sort
+    Expr ndecl = bind::fname(bind::mkConst(mkTerm<std::string>("n", env.efac),
+                                           sort::intTy(env.efac)));
+    Expr overInt = mk<FORALL>(ndecl, mk<TRUE>(env.efac));
+    CHECK(env.rejects(overInt, overInt));
+    // -- a forall whose body is not a formula: Bitwuzla rejects it
+    Expr bvBody = mk<FORALL>(env.bdecl("z", 8), env.bvar(0, 8));
+    CHECK(env.rejects(mk<EQ>(mk<ITE>(bvBody, p, q), p), bvBody));
+    // -- ite and store with two arguments
+    Expr ite2 = mknary<ITE>(ExprVector{env.boolc("c"), p});
+    CHECK(env.rejects(mk<EQ>(ite2, p), ite2));
+    Expr store2 = mknary<STORE>(ExprVector{A, p});
+    CHECK(env.rejects(mk<EQ>(select(store2, p), p), store2));
+    // -- the application of a bit-vector
+    Expr appBv = mk<FAPP>(p, q);
+    CHECK(env.rejects(mk<EQ>(appBv, p), appBv));
+    // -- a store into a function of two arguments
+    Expr two = mk<LAMBDA>(env.bdecl("a", 8), env.bdecl("b", 8), env.bvar(1, 8));
+    Expr storeTwo = store(two, p, q);
+    CHECK(env.rejects(mk<EQ>(mk<FAPP>(storeTwo, p, q), p), storeTwo));
+    // -- a leaf that is no constant, numeral or bound variable
+    Expr num = mkTerm<expr::mpz_class>(expr::mpz_class(5ul), env.efac);
+    CHECK(env.rejects(num, num));
+  }
+  // -- and the solver answers unknown on each, then correctly after reset
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  for (Expr bad : {mk<EQ>(mk<FAPP>(mk<FAPP>(nested, p), q), p),
+                   mk<EQ>(mk<FAPP>(overArray, A), p), mk<EQ>(fp, p)}) {
+    INFO(*bad);
+    CHECK(s.add(mk<NEQ>(mk<FAPP>(inc, p), mk<BADD>(p, env.num(1, 8)))));
+    CHECK_FALSE(s.add(bad));
+    CHECK(s.check() == SolverResult::UNKNOWN);
+    s.reset();
+    CHECK(s.add(mk<NEQ>(mk<FAPP>(inc, p), mk<BADD>(p, env.num(1, 8)))));
+    CHECK(s.check() == SolverResult::UNSAT);
+    s.reset();
+  }
+}
+
+TEST_CASE("bitwuzla.equality and ite with functions") {
+  // -- L3: equality with a function is pointwise; ite over functions
+  Env env;
+  using namespace op::array;
+  const SolverResult SAT = SolverResult::SAT, UNSAT = SolverResult::UNSAT;
+  Expr p = env.bvc("p", 8), c = env.boolc("c");
+  Expr A = env.arrc("A", 8, 8), B = env.arrc("B", 8, 8);
+  Expr x0 = env.bvar(0, 8);
+  Expr lamB = env.lam("addr", 8, mk<ITE>(mk<EQ>(x0, p), env.num(7, 8),
+                                         select(B, x0)));
+  // -- array = lambda, as a memory PHI asserts it
+  CHECK(adapterCheck({mk<EQ>(A, lamB)}) == SAT);
+  CHECK(adapterCheck({mk<EQ>(A, lamB),
+                      mk<NEQ>(select(A, p), env.num(7, 8))}) == UNSAT);
+  CHECK(adapterCheck({mk<IMPL>(c, mk<EQ>(A, lamB)),
+                      mk<NEQ>(select(A, p), env.num(7, 8))}) == SAT);
+  CHECK(adapterCheck({mk<IMPL>(c, mk<EQ>(A, lamB)), c,
+                      mk<NEQ>(select(A, p), env.num(7, 8))}) == UNSAT);
+  // -- lambda = lambda, and !=
+  Expr l1 = env.lam("x", 8, mk<BADD>(x0, env.num(1, 8)));
+  Expr l1b = env.lam("y", 8, mk<BADD>(env.num(1, 8), x0));
+  Expr l2 = env.lam("z", 8, mk<BADD>(x0, env.num(2, 8)));
+  CHECK(adapterCheck({mk<NEQ>(l1, l1b)}) == UNSAT);
+  CHECK(adapterCheck({mk<NEQ>(l1, l2)}) == SAT);
+  CHECK(adapterCheck({mk<EQ>(l1, l2)}) == UNSAT);
+  // -- ite over lambdas: no crash, and the right answer
+  Expr it = mk<ITE>(c, l1, l2);
+  CHECK(adapterCheck({c, mk<NEQ>(mk<FAPP>(it, env.num(3, 8)),
+                                 env.num(4, 8))}) == UNSAT);
+  CHECK(adapterCheck({mk<NEG>(c), mk<EQ>(select(it, env.num(3, 8)),
+                                         env.num(5, 8))}) == SAT);
+  // -- ite of an array and a lambda
+  Expr mixed = mk<ITE>(c, A, l1);
+  CHECK(adapterCheck({mk<NEG>(c), mk<NEQ>(mk<FAPP>(mixed, p),
+                                          mk<BADD>(p, env.num(1, 8)))}) ==
+        UNSAT);
+}
+
+TEST_CASE("bitwuzla.time limit") {
+  // -- factoring a 40-bit number takes Bitwuzla about 2 s (probe17g); with a
+  // -- 50 ms limit the check runs out and answers unknown
+  Env env;
+  Expr x = env.bvc("fx", 40), y = env.bvc("fy", 40);
+  Expr n = bv::bvnum(expr::mpz_class("1099503239183"), 40, env.efac);
+  ExprVector f{mk<EQ>(mk<BMUL>(x, y), n), mk<BUGT>(x, env.num(1, 40)),
+               mk<BUGT>(y, env.num(1, 40)), mk<UMUL_NO_OVERFLOW>(x, y)};
+  bitwuzla_solver_impl limited(50);
+  for (Expr e : f)
+    CHECK(limited.add(e));
+  CHECK(limited.check() == SolverResult::UNKNOWN);
+  // -- without a limit it is sat
+  bitwuzla_solver_impl unlimited;
+  for (Expr e : f)
+    CHECK(unlimited.add(e));
+  CHECK(unlimited.check() == SolverResult::SAT);
+}
+
+TEST_CASE("bitwuzla.quantifiers") {
+  // -- L4: small forall and exists formulas over bit-vectors
+  Env env;
+  const SolverResult SAT = SolverResult::SAT, UNSAT = SolverResult::UNSAT;
+  Expr x0 = env.bvar(0, 4), y = env.bvc("y4", 4);
+  auto all = [&](Expr body) { return mk<FORALL>(env.bdecl("x", 4), body); };
+  auto some = [&](Expr body) { return mk<EXISTS>(env.bdecl("x", 4), body); };
+  CHECK(adapterCheck({mk<NEG>(all(mk<EQ>(mk<BADD>(x0, env.num(0, 4)), x0)))}) ==
+        UNSAT);
+  CHECK(adapterCheck({mk<NEG>(some(mk<EQ>(mk<BADD>(x0, env.num(1, 4)),
+                                          env.num(0, 4))))}) == UNSAT);
+  CHECK(adapterCheck({all(mk<EQ>(x0, y))}) == UNSAT);
+  // -- squares mod 16 are 0, 1, 4 and 9
+  CHECK(adapterCheck({some(mk<EQ>(mk<BMUL>(x0, x0), env.num(2, 4)))}) ==
+        UNSAT);
+  CHECK(adapterCheck({some(mk<EQ>(mk<BMUL>(x0, x0), y))}) == SAT);
+  // -- Bool bound variables
+  auto allB = [&](Expr body) {
+    return mk<FORALL>(bind::fname(env.boolc("b")), body);
+  };
+  Expr b0 = bind::bvar(0, sort::boolTy(env.efac));
+  CHECK(adapterCheck({mk<NEG>(allB(mk<OR>(b0, mk<NEG>(b0))))}) == UNSAT);
+  CHECK(adapterCheck({allB(mk<OR>(b0, env.boolc("pb")))}) == SAT);
+  CHECK(adapterCheck({allB(mk<OR>(b0, env.boolc("pb"))),
+                      mk<NEG>(env.boolc("pb"))}) == UNSAT);
+  // -- forall y' . y' <= y (unsigned) forces y = 15
+  CHECK(adapterCheck({all(mk<BULE>(x0, y)), mk<NEQ>(y, env.num(15, 4))}) ==
+        UNSAT);
+}
+
+TEST_CASE("bitwuzla.model with lambdas and quantifiers") {
+  Env env;
+  EZ3 z3(env.efac);
+  using namespace op::array;
+  Expr p = env.bvc("p", 8), x = env.bvc("x", 8), A = env.arrc("A", 8, 8);
+  Expr x0 = env.bvar(0, 8);
+  Expr mem = env.lam("addr", 8,
+                     mk<ITE>(mk<EQ>(x0, p), env.num(7, 8), select(A, x0)));
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  CHECK(s.add(mk<EQ>(mk<FAPP>(mem, x), env.num(3, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  // -- M1: a function has no value; an application has, and Z3 agrees
+  CHECK(isOpX<NONDET>(m->eval(mem, true)));
+  CHECK(isOpX<NONDET>(m->eval(mk<ITE>(env.boolc("c"), mem, mem), true)));
+  Expr vx = m->eval(x, true), vp = m->eval(p, true), vA = m->eval(A, true);
+  REQUIRE(isUnsignedBvNum(vx));
+  CHECK(m->eval(mk<FAPP>(mem, x), true) == env.num(3, 8));
+  Expr app = mk<FAPP>(mem, mk<BADD>(x, env.num(1, 8)));
+  Expr vapp = m->eval(app, false);
+  REQUIRE(isUnsignedBvNum(vapp));
+  CHECK(z3Valid(z3, mk<IMPL>(mk<AND>(mk<EQ>(x, vx), mk<EQ>(p, vp),
+                                     mk<EQ>(A, vA)),
+                             mk<EQ>(app, vapp))));
+  // -- M2: a term with a quantifier inside has no value
+  Expr all = mk<FORALL>(env.bdecl("y", 8), mk<EQ>(env.bvar(0, 8), x));
+  CHECK(isOpX<NONDET>(m->eval(all, true)));
+  CHECK(isOpX<NONDET>(m->eval(mk<EQ>(A, mem), true)));
+  // -- also below the top of the term
+  CHECK(isOpX<NONDET>(m->eval(mk<AND>(mk<EQ>(x, x), all), true)));
+  CHECK(isOpX<NONDET>(m->eval(mk<ITE>(mk<EQ>(A, mem), x, p), true)));
+  CHECK(m->eval(x, false) == vx);
+  // -- while an assertion has a quantifier (here from an equality with a
+  // -- function), no term has a value
+  CHECK(s.add(mk<EQ>(A, mem)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref mq = s.get_model();
+  for (Expr t : {x, p, mk<FAPP>(mem, x), mk<EQ>(x, x)}) {
+    INFO(*t);
+    CHECK(isOpX<NONDET>(mq->eval(t, true)));
+  }
+  Expr st = mq->eval(strct::mk(x, p), true);
+  REQUIRE(isOpX<MK_STRUCT>(st));
+  CHECK(isOpX<NONDET>(st->arg(0)));
+  // -- and after reset, values come back
+  s.reset();
+  CHECK(s.add(mk<EQ>(x, env.num(5, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(5, 8));
+  // -- a forall written in SeaHorn sets the guard too
+  CHECK(s.add(mk<FORALL>(env.bdecl("y", 8),
+                         mk<EQ>(mk<BAND>(env.bvar(0, 8), env.num(0, 8)),
+                                env.num(0, 8)))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(isOpX<NONDET>(s.get_model()->eval(x, true)));
+}
+
+TEST_CASE("bitwuzla.encoding check with lambdas") {
+  // -- F1: terms with binders, printed with lets at the top (Bitwuzla's own
+  // -- printer gets let scopes wrong under binders)
+  Env env;
+  using namespace op::array;
+  auto verdict = [&](Expr e, const bz::Term &t, bz::TermManager *tm) {
+    auto ec = checkBitwuzlaEncoding(e, t, 10000, tm);
+    INFO(verdictName(ec.verdict) << ": " << ec.detail);
+    return ec.verdict;
+  };
+  Expr p = env.bvc("p", 8), q = env.bvc("q", 8), c = env.boolc("c");
+  Expr A = env.arrc("A", 8, 8), B = env.arrc("B", 8, 8);
+  Expr x0 = env.bvar(0, 8);
+  Expr mem = env.lam("addr", 8,
+                     mk<ITE>(mk<EQ>(x0, p), env.num(7, 8), select(A, x0)));
+  // -- shared inside and outside binders, as in probe17d
+  Expr s1 = mk<BADD>(p, q), s2 = mk<BADD>(s1, s1);
+  Expr inner = env.lam("y", 8, mk<ITE>(mk<EQ>(x0, s2), mk<BADD>(s2, s2),
+                                       select(A, mk<BADD>(x0, s1))));
+  Expr outer = env.lam("x", 8, mk<ITE>(mk<EQ>(x0, s2),
+                                       mk<FAPP>(inner, s1),
+                                       mk<FAPP>(inner, mk<BADD>(x0, s1))));
+  Expr all = mk<FORALL>(env.bdecl("z", 8),
+                        mk<BULE>(mk<BAND>(env.bvar(0, 8), p), p));
+  for (Expr e : {mk<EQ>(mk<FAPP>(mem, q), env.num(3, 8)),
+                 mk<EQ>(select(store(mem, q, p), p), q),
+                 mk<IMPL>(c, mk<EQ>(B, mem)), mk<NEQ>(B, mem),
+                 mk<EQ>(mk<FAPP>(mk<ITE>(c, mem, B), q), p),
+                 mk<AND>(mk<EQ>(mk<FAPP>(outer, s2), s1),
+                         mk<EQ>(mk<FAPP>(inner, s1), s2)),
+                 all}) {
+    INFO(*e);
+    CHECK(verdict(e, env.m.encode_term(e), &env.tm) == EncodingVerdict::SAME);
+  }
+  // -- a wrong encoding is found
+  Expr e = mk<EQ>(mk<FAPP>(mem, q), env.num(3, 8));
+  Expr mem2 = env.lam("addr", 8,
+                      mk<ITE>(mk<EQ>(x0, q), env.num(7, 8), select(A, x0)));
+  Expr wrong = mk<EQ>(mk<FAPP>(mem2, q), env.num(3, 8));
+  CHECK(verdict(e, env.m.encode_term(wrong), &env.tm) ==
+        EncodingVerdict::DIFFERENT);
+  Expr wrongAll = mk<FORALL>(env.bdecl("z", 8),
+                             mk<BULT>(mk<BAND>(env.bvar(0, 8), p), p));
+  // -- with a quantifier, Z3's sat is not trusted (it has answered sat
+  // -- wrongly on equal formulas with lambdas): the wrong encoding is
+  // -- UNDECIDED, never SAME (criterion F1 asked for DIFFERENT here)
+  CHECK(verdict(all, env.m.encode_term(wrongAll), &env.tm) ==
+        EncodingVerdict::UNDECIDED);
+  // -- without the TermManager, a term with binders is not checked
+  CHECK(verdict(e, env.m.encode_term(e), nullptr) ==
+        EncodingVerdict::UNCHECKED);
+  // -- nested binders with the same name, the inner one using the outer
+  // -- variable: printed names must keep them apart
+  Expr nestedSame = env.lam("v", 8, mk<BADD>(mk<FAPP>(env.lam("v", 8,
+                                             mk<BADD>(env.bvar(1, 8),
+                                                      env.bvar(0, 8))),
+                                             env.num(1, 8)),
+                                             env.bvar(0, 8)));
+  Expr eNested = mk<EQ>(mk<FAPP>(nestedSame, q), p);
+  CHECK(verdict(eNested, env.m.encode_term(eNested), &env.tm) ==
+        EncodingVerdict::SAME);
+  // -- an open subterm shared inside and outside a nested binder
+  Expr shared = mk<BADD>(x0, env.num(1, 8));
+  Expr sharedIn = env.lam("y", 8, mk<BADD>(mk<BADD>(env.bvar(1, 8), env.num(1, 8)),
+                                           env.bvar(0, 8)));
+  Expr sharedOut = env.lam("x", 8, mk<ITE>(mk<EQ>(shared, p),
+                                           mk<FAPP>(sharedIn, shared), shared));
+  Expr eShared = mk<EQ>(mk<FAPP>(sharedOut, q), p);
+  CHECK(verdict(eShared, env.m.encode_term(eShared), &env.tm) ==
+        EncodingVerdict::SAME);
+  // -- a binder of two variables
+  Expr all2 = mk<FORALL>(env.bdecl("a", 8), env.bdecl("b", 8),
+                         mk<BULE>(mk<BAND>(env.bvar(1, 8), env.bvar(0, 8)),
+                                  env.bvar(1, 8)));
+  CHECK(verdict(all2, env.m.encode_term(all2), &env.tm) ==
+        EncodingVerdict::SAME);
+  // -- a wrong pointwise encoding prints with no quantifier (= B mem2), so
+  // -- Z3 can show values; with a quantifier in the term, it stays UNDECIDED
+  Expr eB = mk<EQ>(B, mem);
+  CHECK(verdict(eB, env.m.encode_term(mk<EQ>(B, mem2)), &env.tm) ==
+        EncodingVerdict::UNDECIDED);
+
+  // -- only an encoder's pointwise equality is printed as an equality: not
+  // -- an exists, and not with the variables in another order (either would
+  // -- make SAME of two different formulas)
+  {
+    bz::Sort b8 = env.tm.mk_bv_sort(8);
+    bz::Term a = env.m.encode_term(A), b = env.m.encode_term(B);
+    bz::Term xv = env.tm.mk_var(b8, "ex!1");
+    bz::Term ex = env.tm.mk_term(
+        bz::Kind::EXISTS,
+        {xv, env.tm.mk_term(bz::Kind::EQUAL,
+                            {env.tm.mk_term(bz::Kind::ARRAY_SELECT, {a, xv}),
+                             env.tm.mk_term(bz::Kind::ARRAY_SELECT, {b, xv})})});
+    CHECK(verdict(mk<EQ>(A, B), ex, &env.tm) != EncodingVerdict::SAME);
+    // -- f = g = (lambda a b. a): forall x y. f(x, y) = g(y, x) is false,
+    // -- f = g is true
+    Expr first = mk<LAMBDA>(env.bdecl("a", 8), env.bdecl("b", 8),
+                            env.bvar(1, 8));
+    bz::Term f2 = env.m.encode_term(first);
+    bz::Term u = env.tm.mk_var(b8, "u!1"), w = env.tm.mk_var(b8, "w!1");
+    bz::Term swapped = env.tm.mk_term(
+        bz::Kind::FORALL,
+        {u, w, env.tm.mk_term(bz::Kind::EQUAL,
+                              {env.tm.mk_term(bz::Kind::APPLY, {f2, u, w}),
+                               env.tm.mk_term(bz::Kind::APPLY, {f2, w, u})})});
+    CHECK(verdict(mk<EQ>(first, first), swapped, &env.tm) !=
+          EncodingVerdict::SAME);
+  }
+  // -- two bound variables of one name are not checked (printed, they could
+  // -- be read as one): forall x. exists x. x + p = x + 1
+  {
+    bz::Sort b8 = env.tm.mk_bv_sort(8);
+    bz::Term v1 = env.tm.mk_var(b8, "x"), v2 = env.tm.mk_var(b8, "x");
+    bz::Term tp = env.m.encode_term(p);
+    bz::Term dup = env.tm.mk_term(
+        bz::Kind::FORALL,
+        {v1, env.tm.mk_term(
+                 bz::Kind::EXISTS,
+                 {v2, env.tm.mk_term(
+                          bz::Kind::EQUAL,
+                          {env.tm.mk_term(bz::Kind::BV_ADD, {v1, tp}),
+                           env.tm.mk_term(bz::Kind::BV_ADD,
+                                          {v2, env.tm.mk_bv_one(b8)})})})});
+    Expr eDup = mk<EQ>(p, env.num(1, 8));
+    auto ec = checkBitwuzlaEncoding(eDup, dup, 10000, &env.tm);
+    CHECK(ec.verdict == EncodingVerdict::UNCHECKED);
+    CHECK(ec.detail.find("two variables") != std::string::npos);
+  }
+  // -- a forall whose sides are not applied to its variable is no pointwise
+  // -- equality: forall x. A[p] = B[p] is not A = B
+  {
+    bz::Sort b8 = env.tm.mk_bv_sort(8);
+    bz::Term a = env.m.encode_term(A), b = env.m.encode_term(B);
+    bz::Term tp = env.m.encode_term(p), xv = env.tm.mk_var(b8, "xa!1");
+    bz::Term atP = env.tm.mk_term(
+        bz::Kind::FORALL,
+        {xv, env.tm.mk_term(bz::Kind::EQUAL,
+                            {env.tm.mk_term(bz::Kind::ARRAY_SELECT, {a, tp}),
+                             env.tm.mk_term(bz::Kind::ARRAY_SELECT, {b, tp})})});
+    CHECK(verdict(mk<EQ>(A, B), atP, &env.tm) != EncodingVerdict::SAME);
+  }
+  // -- a constant may not take the check's own let names
+  Expr bwc = env.bvc("_bwc1", 8);
+  Expr eBwc = mk<EQ>(mk<FAPP>(mem, bwc), p);
+  {
+    auto ec = checkBitwuzlaEncoding(eBwc, env.m.encode_term(eBwc), 10000,
+                                    &env.tm);
+    CHECK(ec.verdict == EncodingVerdict::UNCHECKED);
+    CHECK(ec.detail.find("check's definitions") != std::string::npos);
+  }
+  // -- probe17i: open terms shared across nested lambdas inside one closed
+  // -- lambda; Bitwuzla's lets get this wrong too, so definitions are
+  // -- printed without them
+  {
+    Expr zc = env.bvc("zc", 8), yc = env.bvc("yc", 8), xc = env.bvc("xc", 8);
+    Expr s1 = mk<BADD>(zc, q), s2 = mk<BADD>(s1, s1), s3 = mk<BMUL>(s2, s1);
+    Expr in = bind::abs<LAMBDA>(ExprVector{yc},
+                                mk<ITE>(mk<EQ>(yc, s3), mk<BADD>(s2, s2),
+                                        select(A, mk<BADD>(yc, s1))));
+    Expr out = bind::abs<LAMBDA>(
+        ExprVector{xc},
+        mk<ITE>(mk<EQ>(xc, s2),
+                mk<BADD>(mk<FAPP>(in, s3), mk<BADD>(xc, xc)),
+                mk<FAPP>(in, mk<BADD>(xc, s1))));
+    Expr body = mk<AND>(mk<EQ>(mk<FAPP>(out, s2), mk<BADD>(s3, s3)),
+                        mk<EQ>(mk<FAPP>(in, s1), s2));
+    Expr wrap = bind::abs<LAMBDA>(ExprVector{zc},
+                                  mk<ITE>(body, env.num(1, 8), env.num(0, 8)));
+    REQUIRE(isOpX<LAMBDA>(wrap));
+    Expr e17i = mk<EQ>(mk<FAPP>(wrap, q), env.num(1, 8));
+    CHECK(verdict(e17i, env.m.encode_term(e17i), &env.tm) ==
+          EncodingVerdict::SAME);
+  }
+  // -- fuzz formula 207 (seed 2): Z3 answered sat and evaluated its values
+  // -- as a difference, though the two are the same formula. With an
+  // -- equality between lambdas (a quantifier for Bitwuzla), that must not
+  // -- become DIFFERENT.
+  {
+    Expr x3b = env.bvc("x3b", 3), x3a = env.bvc("x3a", 3);
+    Expr x2b = env.bvc("x2b", 2), x13a = env.bvc("x13a", 13);
+    Expr A23 = env.arrc("A2_3a", 2, 3);
+    Expr p0 = env.boolc("p0"), p1 = env.boolc("p1");
+    Expr b2 = env.bvar(0, 2);
+    Expr C = constArray(env.bvsort(2), x3b);
+    Expr L1 = env.lam("lx2", 2, select(C, b2));
+    Expr L2 = env.lam("lx2", 2, select(A23, b2));
+    Expr L3 = env.lam("lx2", 2, mk<ITE>(mk<EQ>(b2, x2b), x3a, mk<FAPP>(L2, b2)));
+    Expr I = mk<ITE>(p1, mk<ITE>(p1, L1, L2), L3);
+    Expr f207 = mk<NEG>(mknary<AND>(ExprVector{
+        mk<BUGT>(mk<BNEG>(bv::zext(env.num(1, 1), 13)), x13a),
+        mk<NEQ>(I, C), mk<NEG>(p0), mk<NEQ>(I, C)}));
+    CHECK(verdict(f207, env.m.encode_term(f207), &env.tm) !=
+          EncodingVerdict::DIFFERENT);
+  }
+  // -- a quantified formula whose difference Z3 can confirm (its rewriter
+  // -- removes both quantifiers: forall z. z <= 255 is true, forall z.
+  // -- z < 0 is false) is still UNDECIDED: with a quantifier, Z3's sat is
+  // -- never taken as a difference, confirmed or not
+  {
+    Expr z = env.bvar(0, 8);
+    Expr allTrue = mk<FORALL>(env.bdecl("z", 8), mk<BULE>(z, env.num(255, 8)));
+    Expr allFalse = mk<FORALL>(env.bdecl("z", 8), mk<BULT>(z, env.num(0, 8)));
+    CHECK(verdict(allTrue, env.m.encode_term(allTrue), &env.tm) ==
+          EncodingVerdict::SAME);
+    CHECK(verdict(allTrue, env.m.encode_term(allFalse), &env.tm) ==
+          EncodingVerdict::UNDECIDED);
+  }
+  // -- C1: more shapes that are no pointwise equality, and variable names
+  // -- the check refuses
+  {
+    bz::Sort b8 = env.tm.mk_bv_sort(8);
+    bz::Term tp = env.m.encode_term(p);
+    // -- f(p) = g(p) for every x is true; f = g is false
+    Expr zeroAtP = env.lam("x", 8, mk<ITE>(mk<EQ>(x0, p), env.num(0, 8), x0));
+    Expr zeroAtP1 = env.lam("x", 8, mk<ITE>(mk<EQ>(x0, p), env.num(0, 8),
+                                            mk<BADD>(x0, env.num(1, 8))));
+    bz::Term f1 = env.m.encode_term(zeroAtP), g1 = env.m.encode_term(zeroAtP1);
+    bz::Term xv = env.tm.mk_var(b8, "xf!1");
+    bz::Term atP = env.tm.mk_term(
+        bz::Kind::FORALL,
+        {xv, env.tm.mk_term(bz::Kind::EQUAL,
+                            {env.tm.mk_term(bz::Kind::APPLY, {f1, tp}),
+                             env.tm.mk_term(bz::Kind::APPLY, {g1, tp})})});
+    CHECK(verdict(mk<EQ>(zeroAtP, zeroAtP1), atP, &env.tm) !=
+          EncodingVerdict::SAME);
+    // -- a side whose function uses the variable: forall x.
+    // -- (lambda y. y + x)(x) = inc(x) is false; inc = inc is true
+    Expr inc = env.lam("x", 8, mk<BADD>(x0, env.num(1, 8)));
+    bz::Term yv = env.tm.mk_var(b8, "yo!1"), xo = env.tm.mk_var(b8, "xo!1");
+    bz::Term open = env.tm.mk_term(
+        bz::Kind::LAMBDA, {yv, env.tm.mk_term(bz::Kind::BV_ADD, {yv, xo})});
+    bz::Term openSide = env.tm.mk_term(
+        bz::Kind::FORALL,
+        {xo, env.tm.mk_term(
+                 bz::Kind::EQUAL,
+                 {env.tm.mk_term(bz::Kind::APPLY, {open, xo}),
+                  env.tm.mk_term(bz::Kind::APPLY,
+                                 {env.m.encode_term(inc), xo})})});
+    CHECK(verdict(mk<EQ>(inc, inc), openSide, &env.tm) !=
+          EncodingVerdict::SAME);
+    // -- a variable without a name, or with one of the check's names
+    for (bz::Term v : {env.tm.mk_var(b8), env.tm.mk_var(b8, "_bwc7")}) {
+      bz::Term t = env.tm.mk_term(
+          bz::Kind::FORALL,
+          {v, env.tm.mk_term(bz::Kind::EQUAL, {env.tm.mk_term(
+                                                   bz::Kind::BV_AND, {v, tp}),
+                                               env.tm.mk_term(
+                                                   bz::Kind::BV_AND,
+                                                   {tp, v})})});
+      auto ec = checkBitwuzlaEncoding(mk<TRUE>(env.efac), t, 10000, &env.tm);
+      INFO(ec.detail);
+      CHECK(ec.verdict == EncodingVerdict::UNCHECKED);
+      CHECK((ec.detail.find("has no name") != std::string::npos ||
+             ec.detail.find("the name of variable _bwc7") != std::string::npos));
+    }
+  }
+  // -- C1: SEAHORN_ENCODING_CHECK_DUMP writes the comparison of a sat
+  // -- check to a file in the folder it names
+  {
+    std::string tmpl = std::string(std::getenv("TMPDIR") ? std::getenv("TMPDIR")
+                                                         : "/tmp") +
+                       "/bwdump.XXXXXX";
+    std::vector<char> buf(tmpl.begin(), tmpl.end());
+    buf.push_back('\0');
+    REQUIRE(mkdtemp(buf.data()) != nullptr);
+    std::string dir(buf.data());
+    setenv("SEAHORN_ENCODING_CHECK_DUMP", dir.c_str(), 1);
+    EncodingVerdict v = verdict(e, env.m.encode_term(wrong), &env.tm);
+    unsetenv("SEAHORN_ENCODING_CHECK_DUMP");
+    CHECK(v == EncodingVerdict::DIFFERENT);
+    std::vector<std::string> files;
+    if (DIR *d = opendir(dir.c_str())) {
+      while (struct dirent *ent = readdir(d))
+        if (std::string(ent->d_name).rfind("different-", 0) == 0)
+          files.push_back(dir + "/" + ent->d_name);
+      closedir(d);
+    }
+    REQUIRE(files.size() == 1);
+    std::ifstream in(files[0]);
+    std::string text((std::istreambuf_iterator<char>(in)),
+                     std::istreambuf_iterator<char>());
+    CHECK(text.find("; Z3's encoding:") != std::string::npos);
+    CHECK(text.find("; values on which they differ:") != std::string::npos);
+    std::remove(files[0].c_str());
+    rmdir(dir.c_str());
+  }
+  // -- a free variable is reported as such
+  {
+    bz::Sort b8 = env.tm.mk_bv_sort(8);
+    bz::Term fv = env.tm.mk_var(b8, "free!1"), bv = env.tm.mk_var(b8, "bnd!1");
+    bz::Term lamFree = env.tm.mk_term(
+        bz::Kind::LAMBDA, {bv, env.tm.mk_term(bz::Kind::BV_ADD, {bv, fv})});
+    bz::Term t = env.tm.mk_term(
+        bz::Kind::EQUAL, {env.tm.mk_term(bz::Kind::APPLY,
+                                         {lamFree, env.m.encode_term(q)}),
+                          env.m.encode_term(p)});
+    auto ec = checkBitwuzlaEncoding(mk<EQ>(q, p), t, 10000, &env.tm);
+    CHECK(ec.verdict == EncodingVerdict::UNCHECKED);
+    CHECK(ec.detail.find("free variable") != std::string::npos);
+  }
+  // -- a term Z3 cannot parse: the message shows where
+  {
+    std::vector<seahorn::solver::SmtLibConst> consts{{"p", 8}};
+    auto ec = checkSmtLibTermWithZ3(mk<EQ>(p, p), "(= p (no_such_function p))",
+                                    consts, 0, 10000);
+    CHECK(ec.verdict == EncodingVerdict::UNCHECKED);
+    CHECK(ec.detail.find("near:") != std::string::npos);
+  }
+
+  // -- a bound variable named like a constant is not checked
+  bz::Sort bv8 = env.tm.mk_bv_sort(8);
+  bz::Term k = env.tm.mk_const(bv8, "k"), vk = env.tm.mk_var(bv8, "k");
+  bz::Term clash = env.tm.mk_term(
+      bz::Kind::FORALL, {vk, env.tm.mk_term(bz::Kind::BV_ULE, {vk, k})});
+  Expr kc = env.bvc("k", 8);
+  CHECK(verdict(mk<FORALL>(env.bdecl("v", 8), mk<BULE>(env.bvar(0, 8), kc)),
+                clash, &env.tm) == EncodingVerdict::UNCHECKED);
 }
 
 #endif

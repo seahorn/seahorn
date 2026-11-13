@@ -3,8 +3,8 @@
 #include "seahorn/Expr/Smt/EZ3.hh"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <set>
 #include <unistd.h>
 #include <unordered_set>
@@ -108,8 +108,8 @@ void constNames(Z3_context c, Z3_ast a, std::set<std::string> &out) {
 
 EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
                                     const std::vector<SmtLibConst> &consts,
-                                    unsigned term_bv_width,
-                                    unsigned timeout_ms, bool quantified) {
+                                    unsigned term_bv_width, unsigned timeout_ms,
+                                    bool quantified) {
   using V = EncodingVerdict;
   if (const char *op = notForZ3(e))
     return {V::UNCHECKED,
@@ -188,7 +188,8 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
     if (at != std::string::npos) {
       size_t col = std::strtoul(err.c_str() + at + 7, nullptr, 10);
       size_t from = col > 150 ? col - 150 : 0;
-      near = " near: " + oneLine(script.substr(std::min(from, script.size()), 300));
+      near = " near: " +
+             oneLine(script.substr(std::min(from, script.size()), 300));
     }
     return {V::UNCHECKED, "Z3 cannot parse the term: " + oneLine(err) + near};
   }
@@ -269,13 +270,13 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
           z3Error(c).empty() && Z3_model_eval(c, m, ze, true, &vb) && vb &&
           z3Error(c).empty()) {
         z3::ast pa(ctx, va), pb(ctx, vb);
-        confirmed = Z3_is_numeral_ast(c, va) && Z3_is_numeral_ast(c, vb)
-                        ? std::string(Z3_get_numeral_string(c, va)) !=
-                              std::string(Z3_get_numeral_string(c, vb))
-                        : (Z3_get_bool_value(c, va) != Z3_L_UNDEF &&
-                           Z3_get_bool_value(c, vb) != Z3_L_UNDEF &&
-                           Z3_get_bool_value(c, va) !=
-                               Z3_get_bool_value(c, vb));
+        confirmed =
+            Z3_is_numeral_ast(c, va) && Z3_is_numeral_ast(c, vb)
+                ? std::string(Z3_get_numeral_string(c, va)) !=
+                      std::string(Z3_get_numeral_string(c, vb))
+                : (Z3_get_bool_value(c, va) != Z3_L_UNDEF &&
+                   Z3_get_bool_value(c, vb) != Z3_L_UNDEF &&
+                   Z3_get_bool_value(c, va) != Z3_get_bool_value(c, vb));
       }
       if (!z3Error(c).empty())
         confirmed = false;
@@ -286,7 +287,8 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
                            "where its answers and values are not reliable: " +
                                oneLine(values)};
     else
-      res = confirmed
+      res =
+          confirmed
               ? EncodingCheck{V::DIFFERENT,
                               "Z3 finds values on which they differ: " +
                                   oneLine(values)}
@@ -301,8 +303,9 @@ EncodingCheck checkSmtLibTermWithZ3(Expr e, const std::string &term,
                          std::to_string(::getpid()) + "-" +
                          std::to_string(++dumps) + ".smt2";
       if (FILE *f = std::fopen(path.c_str(), "w")) {
-        std::fprintf(f, "; the other solver's term:\n%s\n; Z3's encoding:\n%s\n"
-                        "; values on which they differ:\n%s\n",
+        std::fprintf(f,
+                     "; the other solver's term:\n%s\n; Z3's encoding:\n%s\n"
+                     "; values on which they differ:\n%s\n",
                      script.c_str(), Z3_ast_to_string(c, ze), values.c_str());
         std::fclose(f);
       }

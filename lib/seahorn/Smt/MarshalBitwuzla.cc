@@ -399,10 +399,12 @@ Term marshal_bitwuzla::mkNode(Expr e, const std::vector<Term> &args) {
   try {
     switch (k) {
     case Kind::APPLY:
-      return mkApp(e, args.at(0), std::vector<Term>(args.begin() + 1, args.end()));
+      return mkApp(e, args.at(0),
+                   std::vector<Term>(args.begin() + 1, args.end()));
     case Kind::ARRAY_SELECT:
       if (args.at(0).sort().is_fun())
-        return mkApp(e, args[0], std::vector<Term>(args.begin() + 1, args.end()));
+        return mkApp(e, args[0],
+                     std::vector<Term>(args.begin() + 1, args.end()));
       return m_tm.mk_term(k, args);
     case Kind::ARRAY_STORE:
       if (args.size() != 3)
@@ -592,7 +594,8 @@ Term marshal_bitwuzla::mkIte(Expr e, const Term &c, const Term &t,
     return m_tm.mk_term(Kind::ITE, {c, t, f});
   // -- inside a lambda: Bitwuzla 0.9.1 aborts on an ite between lambdas
   std::vector<Term> vars = freshVars((t.sort().is_fun() ? t : f).sort());
-  Term body = m_tm.mk_term(Kind::ITE, {c, mkApp(e, t, vars), mkApp(e, f, vars)});
+  Term body =
+      m_tm.mk_term(Kind::ITE, {c, mkApp(e, t, vars), mkApp(e, f, vars)});
   vars.push_back(body);
   return m_tm.mk_term(Kind::LAMBDA, vars);
 }

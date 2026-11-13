@@ -102,8 +102,7 @@ static std::string printWithLets(const bitwuzla::Term &t,
     Term sides[2];
     for (int k = 0; k < 2; ++k) {
       const Term side = body[k];
-      if (side.kind() == bitwuzla::Kind::APPLY &&
-          side.num_children() == n) {
+      if (side.kind() == bitwuzla::Kind::APPLY && side.num_children() == n) {
         for (size_t i = 1; i < n; ++i)
           if (side[i] != u[i - 1])
             return false;

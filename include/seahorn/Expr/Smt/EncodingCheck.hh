@@ -57,8 +57,7 @@ struct SmtLibConst {
 /// lambdas. A proof that the two are equal is still SAME.
 EncodingCheck checkSmtLibTermWithZ3(expr::Expr e, const std::string &term,
                                     const std::vector<SmtLibConst> &consts,
-                                    unsigned term_bv_width,
-                                    unsigned timeout_ms,
+                                    unsigned term_bv_width, unsigned timeout_ms,
                                     bool quantified = false);
 
 } // namespace solver

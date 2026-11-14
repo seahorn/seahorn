@@ -38,7 +38,8 @@
 /// - nsw / nuw on add, sub, mul, shl become sea's no-wrap promises (the
 ///   VC ignores them, as SeaHorn does; sea-wrap-flags assumes or asserts
 ///   them);
-/// - intrinsics with a sea op (min/max, bswap, fshl/fshr) map 1:1;
+/// - intrinsics with a sea op (min/max, abs, bswap, fshl/fshr) map 1:1;
+///   abs's is_int_min_poison becomes the nsw promise of sea.abs;
 ///   {iN, i1} = *.with.overflow becomes the plain op and a sea.uaddo / saddo /
 ///   ... op, which the extractvalues of the result pick; llvm.expect is its
 ///   argument; cttz / ctlz (a zero input is the width, also with
@@ -1591,6 +1592,24 @@ bool Exporter::exportIntrinsic(const CallBase &CB, Intrinsic::ID id) {
     op = "bswap";
     nargs = 1;
     break;
+  case Intrinsic::abs: {
+    // sea.abs: ite(x <s 0, 0 - x, x), INT_MIN is its own result;
+    // is_int_min_poison (an immarg) becomes the op's nsw, sea's no-wrap
+    // promise on the negation (sea-wrap-flags assumes or asserts it)
+    if (!CB.getType()->isIntegerTy()) {
+      error("vector intrinsics are not supported", &CB);
+      return true;
+    }
+    auto x = val(CB.getArgOperand(0), CB);
+    if (!x)
+      return true;
+    bool poison = cast<ConstantInt>(CB.getArgOperand(1))->isOne();
+    std::string n = fresh();
+    os << "  " << n << " = sea.abs " << *x << (poison ? " nsw" : "") << " : "
+       << *type(CB.getType(), &CB) << l << "\n";
+    names[&CB] = n;
+    return true;
+  }
   case Intrinsic::ctpop:
     op = "ctpop";
     nargs = 1;

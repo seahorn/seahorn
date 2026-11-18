@@ -47,8 +47,9 @@ add_test(NAME Smt_Solver_Tests COMMAND units_yices2)
 if (BITWUZLA_FOUND)
   add_executable(units_bitwuzla EXCLUDE_FROM_ALL units_bitwuzla.cpp)
   llvm_config(units_bitwuzla ${LLVM_LINK_COMPONENTS})
-  target_link_libraries(units_bitwuzla PRIVATE ${USED_LIBS_Z3_TESTS}
-    ${BITWUZLA_LIBRARY})
+  # -- seahorn.LIB for Path BMC's MUC (PathBmcMuc.cc), run on the adapter
+  target_link_libraries(units_bitwuzla PRIVATE seahorn.LIB
+    ${USED_LIBS_Z3_TESTS} ${BITWUZLA_LIBRARY})
   # Bitwuzla reports errors with exceptions (see lib/seahorn/Smt)
   target_compile_options(units_bitwuzla PRIVATE -fexceptions)
   add_custom_target(test_bitwuzla units_bitwuzla DEPENDS units_bitwuzla)

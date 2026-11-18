@@ -7,13 +7,18 @@
 #include "seahorn/Expr/ExprOpBinder.hh"
 #include "seahorn/Expr/ExprVisitor.hh"
 #include "seahorn/Expr/Smt/BitwuzlaEncodingCheck.hh"
+#include "seahorn/Expr/Smt/BitwuzlaSmtLib.hh"
 #include "seahorn/Expr/Smt/BitwuzlaSolverImpl.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"
 #include "seahorn/Expr/Smt/MarshalBitwuzla.hh"
+#include "seahorn/PathBmcMuc.hh"
 
+#include "bitwuzla/cpp/parser.h"
 #include "boost/lexical_cast.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -24,6 +29,7 @@
 #include <map>
 #include <poll.h>
 #include <random>
+#include <sstream>
 #include <string>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -36,12 +42,14 @@
 
 using namespace expr;
 using namespace seahorn;
+using seahorn::solver::betaReduce;
 using seahorn::solver::bitwuzla_solver_impl;
 using seahorn::solver::checkBitwuzlaEncoding;
 using seahorn::solver::checkSmtLibTermWithZ3;
 using seahorn::solver::decode_bitwuzla_value;
 using seahorn::solver::EncodingVerdict;
 using seahorn::solver::marshal_bitwuzla;
+using seahorn::solver::printSmtLib;
 using seahorn::solver::Solver;
 using seahorn::solver::SolverResult;
 using seahorn::solver::UnsupportedExpr;
@@ -254,6 +262,11 @@ bool isArrayValue(Expr v) {
   }
   return isOpX<CONST_ARRAY>(v) && isOpX<BVSORT>(v->arg(0)) &&
          isUnsignedBvNum(v->arg(1));
+}
+
+/// \p v as the assumptions of check_with_assumptions
+Solver::expr_const_it_range lits(const ExprVector &v) {
+  return llvm::make_range(v.cbegin(), v.cend());
 }
 } // namespace
 
@@ -928,17 +941,18 @@ unsigned envOr(const char *name, unsigned dflt) {
 /// not in its quantifier procedure, which can run on for hours (seen in the
 /// 1.7 fuzzing). So a check of a formula with quantifiers is first run in a
 /// child process, killed after \p ms of wall-clock time. If the child
-/// finishes, the same (deterministic) check is run here, and its answer and
-/// model are used; otherwise UNKNOWN, and \p timedOut is set.
-SolverResult boundedCheck(Solver &s, unsigned ms, bool &timedOut) {
+/// finishes, the same (deterministic) check \p f is run here, and its answer
+/// and model are used; otherwise UNKNOWN, and \p timedOut is set.
+SolverResult boundedCall(const std::function<SolverResult()> &f, unsigned ms,
+                         bool &timedOut) {
   timedOut = false;
   int fds[2];
   if (pipe(fds) != 0)
-    return s.check();
+    return f();
   pid_t pid = fork();
   if (pid == 0) {
     close(fds[0]);
-    char c = static_cast<char>(s.check());
+    char c = static_cast<char>(f());
     ssize_t w = write(fds[1], &c, 1);
     (void)w;
     _exit(0);
@@ -958,7 +972,55 @@ SolverResult boundedCheck(Solver &s, unsigned ms, bool &timedOut) {
     timedOut = true;
     return SolverResult::UNKNOWN;
   }
-  return s.check();
+  return f();
+}
+
+SolverResult boundedCheck(Solver &s, unsigned ms, bool &timedOut) {
+  return boundedCall([&] { return s.check(); }, ms, timedOut);
+}
+
+/// What \p f returns, computed in a child process killed after \p ms of
+/// wall-clock time (for Bitwuzla's parser, which checks what it reads);
+/// "timeout" if it was killed
+std::string boundedString(const std::function<std::string()> &f, unsigned ms) {
+  int fds[2];
+  if (pipe(fds) != 0)
+    return f();
+  pid_t pid = fork();
+  if (pid == 0) {
+    close(fds[0]);
+    std::string s = f();
+    ssize_t w = write(fds[1], s.data(), s.size());
+    (void)w;
+    _exit(0);
+  }
+  close(fds[1]);
+  std::string out;
+  bool done = false;
+  auto start = std::chrono::steady_clock::now();
+  while (pid > 0) {
+    long left = static_cast<long>(ms) -
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - start)
+                    .count();
+    struct pollfd pfd = {fds[0], POLLIN, 0};
+    if (left <= 0 || poll(&pfd, 1, static_cast<int>(left)) <= 0)
+      break;
+    char buf[4096];
+    ssize_t n = read(fds[0], buf, sizeof(buf));
+    if (n <= 0) {
+      done = true; // -- the child closed the pipe: it is finished
+      break;
+    }
+    out.append(buf, static_cast<size_t>(n));
+  }
+  if (pid > 0) {
+    if (!done)
+      kill(pid, SIGKILL);
+    waitpid(pid, nullptr, 0);
+  }
+  close(fds[0]);
+  return done ? out : std::string("timeout");
 }
 } // namespace
 
@@ -1601,12 +1663,16 @@ TEST_CASE("bitwuzla.encoding check option") {
   CHECK(s.add(mk<EQ>(mk<BADD>(x, x), env.num(4, 8))));
   CHECK_FALSE(s.add(mk<EQ>(i, i)));
   CHECK(s.check() == SolverResult::UNKNOWN);
+  // -- and every assumption (plan 1.8)
+  ExprVector as{mk<BULT>(x, env.num(2, 8)), mk<EQ>(i, i)};
+  CHECK(s.check_with_assumptions(lits(as)) == SolverResult::UNKNOWN);
 
   std::ifstream in(path);
   std::vector<std::string> verdicts;
   for (std::string line; std::getline(in, line);)
     verdicts.push_back(line.substr(0, line.find('\t')));
-  CHECK(verdicts == std::vector<std::string>{"SAME", "SAME", "NOT-ENCODED"});
+  CHECK(verdicts == std::vector<std::string>{"SAME", "SAME", "NOT-ENCODED",
+                                             "SAME", "NOT-ENCODED"});
   std::remove(path.c_str());
 }
 
@@ -2108,6 +2174,16 @@ TEST_CASE("bitwuzla.model print") {
   // -- after reset, only the new assertions' constants
   s.reset();
   CHECK(s.add(mk<NEG>(q)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(printed(s.get_model()) == "q = " + str(mk<FALSE>(env.efac)) + "\n");
+
+  // -- after an assumption check, the assumptions' constants too (plan 1.8)
+  Expr y = env.bvc("y", 8);
+  ExprVector as{mk<EQ>(y, env.num(7, 8))};
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
+  CHECK(printed(s.get_model()) == "q = " + str(mk<FALSE>(env.efac)) +
+                                      "\ny = " + str(env.num(7, 8)) + "\n");
+  // -- and not after a plain check
   REQUIRE(s.check() == SolverResult::SAT);
   CHECK(printed(s.get_model()) == "q = " + str(mk<FALSE>(env.efac)) + "\n");
 }
@@ -3085,6 +3161,1701 @@ TEST_CASE("bitwuzla.encoding check with lambdas") {
   Expr kc = env.bvc("k", 8);
   CHECK(verdict(mk<FORALL>(env.bdecl("v", 8), mk<BULE>(env.bvar(0, 8), kc)),
                 clash, &env.tm) == EncodingVerdict::UNCHECKED);
+}
+
+// -- the rest of the interface (plan 1.8): scopes, assumptions, cores and
+// -- SMT-LIB output
+
+namespace {
+/// Z3's encoder, with its context open, to parse what the adapter prints
+class OpenEZ3 : public EZ3 {
+public:
+  explicit OpenEZ3(ExprFactory &efac) : EZ3(efac) {}
+  using EZ3::get_ctx;
+  using EZ3::toAst;
+};
+
+ExprVector concat(const ExprVector &a, const ExprVector &b) {
+  ExprVector out(a);
+  out.insert(out.end(), b.begin(), b.end());
+  return out;
+}
+
+std::string answerName(SolverResult r) {
+  switch (r) {
+  case SolverResult::SAT:
+    return "sat";
+  case SolverResult::UNSAT:
+    return "unsat";
+  case SolverResult::UNKNOWN:
+    return "unknown";
+  case SolverResult::ERROR:
+    break;
+  }
+  return "error";
+}
+
+/// Z3's answer on the conjunction of \p es, from a fresh solver
+SolverResult z3Check(EZ3 &z3, const ExprVector &es, unsigned ms = 10000) {
+  ZSolver<EZ3> zs(z3);
+  ZParams<EZ3> params(z3);
+  params.set("timeout", ms);
+  zs.set(params);
+  for (Expr e : es)
+    zs.assertExpr(e);
+  boost::tribool r = zs.solve();
+  if (boost::indeterminate(r))
+    return SolverResult::UNKNOWN;
+  return r ? SolverResult::SAT : SolverResult::UNSAT;
+}
+
+/// What \p f writes to stderr, where ERR and WARN go
+std::string stderrOf(const std::function<void()> &f) {
+  const char *dir = std::getenv("TMPDIR");
+  std::string tmpl = std::string(dir ? dir : "/tmp") + "/units_bitwuzla_XXXXXX";
+  std::vector<char> path(tmpl.begin(), tmpl.end());
+  path.push_back('\0');
+  int fd = mkstemp(path.data());
+  REQUIRE(fd >= 0);
+  llvm::errs().flush();
+  fflush(stderr);
+  int saved = dup(2);
+  dup2(fd, 2);
+  f();
+  llvm::errs().flush();
+  fflush(stderr);
+  dup2(saved, 2);
+  close(saved);
+  close(fd);
+  std::ifstream in(path.data());
+  std::stringstream text;
+  text << in.rdbuf();
+  unlink(path.data());
+  return text.str();
+}
+
+/// What \p s writes with to_smt_lib
+std::string smtLibOf(Solver &s) {
+  std::string out;
+  llvm::raw_string_ostream os(out);
+  s.to_smt_lib(os);
+  os.flush();
+  return out;
+}
+
+std::string trimmed(const std::string &s) {
+  size_t b = s.find_first_not_of(" \t\r\n");
+  if (b == std::string::npos)
+    return "";
+  return s.substr(b, s.find_last_not_of(" \t\r\n") - b + 1);
+}
+
+/// What Z3 answers on the script \p text (a fresh context): sat, unsat,
+/// unknown, or its error messages
+std::string z3Reads(const std::string &text, unsigned ms = 10000) {
+  z3::context ctx;
+  std::string script =
+      "(set-option :timeout " + std::to_string(ms) + ")\n" + text;
+  Z3_string out = Z3_eval_smtlib2_string(ctx, script.c_str());
+  if (Z3_get_error_code(ctx) != Z3_OK)
+    return std::string("error: ") +
+           Z3_get_error_msg(ctx, Z3_get_error_code(ctx));
+  return trimmed(out ? out : "");
+}
+
+/// What Bitwuzla's parser answers on the script \p text (a fresh term
+/// manager): sat, unsat, unknown, or its error
+std::string bitwuzlaReads(const std::string &text, unsigned ms = 10000) {
+  bz::TermManager tm;
+  bz::Options options;
+  options.set(bz::Option::TIME_LIMIT_PER, ms);
+  std::ostringstream out;
+  try {
+    bz::parser::Parser parser(tm, options, "smt2", &out);
+    parser.parse(text, false, false);
+  } catch (std::exception &ex) {
+    return std::string("error: ") + ex.what();
+  }
+  return trimmed(out.str());
+}
+
+/// Z3 proves the formula of the script \p text equal to the conjunction of
+/// \p es: SAME, DIFFERENT, or UNDECIDED; UNCHECKED if it cannot parse it.
+/// Constants are matched by name, as in the formula check.
+EncodingVerdict printedMeans(OpenEZ3 &z3, ExprFactory &efac,
+                             const std::string &text, const ExprVector &es,
+                             unsigned ms = 10000) {
+  z3::context &ctx = z3.get_ctx();
+  try {
+    z3::expr printed = z3::mk_and(ctx.parse_string(text.c_str()));
+    Expr conj = mknary<AND>(mk<TRUE>(efac), es);
+    z3::expr meant(ctx, static_cast<Z3_ast>(z3.toAst(conj)));
+    z3::solver s(ctx);
+    z3::params p(ctx);
+    p.set("timeout", ms);
+    s.set(p);
+    s.add(printed != meant);
+    switch (s.check()) {
+    case z3::unsat:
+      return EncodingVerdict::SAME;
+    case z3::sat:
+      return EncodingVerdict::DIFFERENT;
+    case z3::unknown:
+      break;
+    }
+    return EncodingVerdict::UNDECIDED;
+  } catch (z3::exception &ex) {
+    MESSAGE("z3: " << ex.msg());
+    return EncodingVerdict::UNCHECKED;
+  }
+}
+
+/// The names \p text declares, each as often as it declares it
+std::vector<std::string> declaredNames(const std::string &text) {
+  std::vector<std::string> names;
+  const std::string decl = "(declare-const ";
+  for (size_t at = text.find(decl); at != std::string::npos;
+       at = text.find(decl, at + 1)) {
+    size_t b = at + decl.size();
+    size_t e = text[b] == '|' ? text.find('|', b + 1) + 1 : text.find(' ', b);
+    names.push_back(text.substr(b, e - b));
+  }
+  return names;
+}
+
+/// MucWithAssumptions::unsat_core with simplify set (PathBmcMuc.cc:12-64,
+/// SeaHorn 839a3d57), copied because it is private there: the same calls to
+/// the solver, then the same unwrapping of the core
+ExprVector mucMinimised(Solver &solver, const ExprVector &f) {
+  solver.reset();
+  ExprVector assumptions;
+  for (Expr v : f) {
+    Expr a = bind::boolConst(mk<ASM>(v));
+    assumptions.push_back(a);
+    solver.add(mk<IMPL>(a, v));
+  }
+  ExprVector core;
+  solver.push();
+  SolverResult res = solver.check_with_assumptions(lits(assumptions));
+  if (res == SolverResult::UNSAT)
+    solver.unsat_core(core);
+  solver.pop();
+  REQUIRE(res == SolverResult::UNSAT);
+  while (core.size() < assumptions.size()) {
+    assumptions.assign(core.begin(), core.end());
+    core.clear();
+    solver.push();
+    res = solver.check_with_assumptions(lits(assumptions));
+    REQUIRE(res == SolverResult::UNSAT);
+    solver.unsat_core(core);
+    solver.pop();
+  }
+  for (unsigned i = 0; i < core.size();) {
+    Expr saved = core[i];
+    core[i] = core.back();
+    res = solver.check_with_assumptions(
+        llvm::make_range(core.cbegin(), core.cend() - 1));
+    if (res == SolverResult::SAT) {
+      core[i++] = saved;
+    } else {
+      REQUIRE(res == SolverResult::UNSAT);
+      core.pop_back();
+    }
+  }
+  ExprVector out;
+  for (Expr c : core)
+    out.push_back(bind::fname(bind::fname(c))->arg(0));
+  return out;
+}
+} // namespace
+
+TEST_CASE("bitwuzla.scopes") {
+  Env env;
+  EZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8);
+
+  // -- the checkpoint of the interface contract (plan acceptance 1)
+  CHECK(s.add(mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(255, 8));
+  s.push();
+  CHECK(s.add(mk<EQ>(x, env.num(0, 8))));
+  CHECK(s.check() == SolverResult::UNSAT);
+  s.pop();
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  CHECK(m->eval(x, true) == env.num(255, 8));
+  s.reset();
+  CHECK(isOpX<NONDET>(m->eval(x, true)));
+  // -- no assertion is left: x = 0 is sat
+  CHECK(s.add(mk<EQ>(x, env.num(0, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(0, 8));
+
+  // -- nested scopes: each check agrees with Z3 on the assertions of the
+  // -- scopes still open
+  s.reset();
+  std::vector<ExprVector> levels{{}};
+  auto add = [&](Expr e) {
+    CHECK(s.add(e));
+    levels.back().push_back(e);
+  };
+  auto push = [&] {
+    s.push();
+    levels.push_back({});
+  };
+  auto pop = [&] {
+    s.pop();
+    levels.pop_back();
+  };
+  auto check = [&](SolverResult expected) {
+    ExprVector all;
+    for (auto &l : levels)
+      all.insert(all.end(), l.begin(), l.end());
+    CHECK(s.check() == expected);
+    CHECK(z3Check(z3, all) == expected);
+  };
+  add(mk<BULT>(x, env.num(100, 8)));
+  check(SolverResult::SAT);
+  push();
+  add(mk<EQ>(y, env.num(99, 8)));
+  check(SolverResult::SAT);
+  push();
+  add(mk<BUGT>(x, y));
+  check(SolverResult::UNSAT);
+  push();
+  check(SolverResult::UNSAT);
+  pop();
+  check(SolverResult::UNSAT);
+  pop();
+  check(SolverResult::SAT);
+  push();
+  add(mk<EQ>(x, y));
+  check(SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(99, 8));
+  pop();
+  pop();
+  check(SolverResult::SAT);
+  add(mk<EQ>(x, env.num(200, 8)));
+  check(SolverResult::UNSAT);
+
+  // -- an assertion it cannot encode, inside a scope: unknown until its pop
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  Expr bad = mk<EQ>(mk<BV2INT>(x), i);
+  s.reset();
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  s.push();
+  CHECK_FALSE(s.add(bad));
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  s.push();
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  s.pop();
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  s.pop();
+  CHECK(s.check() == SolverResult::SAT);
+  CHECK(s.add(mk<EQ>(x, env.num(2, 8))));
+  CHECK(s.check() == SolverResult::UNSAT);
+  // -- one from before a push stays after its pop
+  s.reset();
+  CHECK_FALSE(s.add(bad));
+  s.push();
+  s.pop();
+  CHECK(s.check() == SolverResult::UNKNOWN);
+
+  // -- pop with no scope open: an error, and unknown until reset
+  s.reset();
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  std::string err = stderrOf([&] { s.pop(); });
+  CHECK(err.find("pop without a push") != std::string::npos);
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  s.push();
+  s.pop();
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  ExprVector one{mk<EQ>(x, env.num(1, 8))};
+  CHECK(s.check_with_assumptions(lits(one)) == SolverResult::UNKNOWN);
+  std::string text;
+  err = stderrOf([&] { text = smtLibOf(s); });
+  CHECK(text.rfind("; Bitwuzla adapter: no formula written", 0) == 0);
+  CHECK(text.find("(assert") == std::string::npos);
+  CHECK(err.find("no SMT-LIB formula written") != std::string::npos);
+  s.reset();
+  CHECK(s.check() == SolverResult::SAT);
+
+  // -- push and pop end the life of models and cores
+  CHECK(s.add(mk<EQ>(x, env.num(3, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  m = s.get_model();
+  s.push();
+  CHECK(isOpX<NONDET>(m->eval(x, true)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  m = s.get_model();
+  CHECK(m->eval(x, true) == env.num(3, 8));
+  s.pop();
+  CHECK(isOpX<NONDET>(m->eval(x, true)));
+  ExprVector four{mk<EQ>(x, env.num(4, 8))};
+  REQUIRE(s.check_with_assumptions(lits(four)) == SolverResult::UNSAT);
+  s.push();
+  ExprVector core;
+  err = stderrOf([&] { s.unsat_core(core); });
+  CHECK(core.empty());
+  CHECK(err.find("unsat_core needs") != std::string::npos);
+  REQUIRE(s.check_with_assumptions(lits(four)) == SolverResult::UNSAT);
+  s.pop();
+  err = stderrOf([&] { s.unsat_core(core); });
+  CHECK(core.empty());
+  CHECK(err.find("unsat_core needs") != std::string::npos);
+}
+
+TEST_CASE("bitwuzla.scopes restore the model guards") {
+  // -- an assertion with a quantifier, or with an equality of narrow arrays,
+  // -- inside a scope removes model values until its pop; added again, it
+  // -- removes them again
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8);
+  Expr q = mk<FORALL>(env.bdecl("z", 8),
+                      mk<BULE>(env.bvar(0, 8), env.num(255, 8))); // -- valid
+  Expr withQ = mk<AND>(q, mk<EQ>(y, env.num(1, 8)));
+  Expr A = env.arrc("A", 2, 8), B = env.arrc("B", 2, 8);
+  Expr withEq = mk<OR>(mk<EQ>(A, B), mk<EQ>(y, env.num(2, 8)));
+  CHECK(s.add(mk<EQ>(x, env.num(5, 8))));
+  auto value = [&] {
+    REQUIRE(s.check() == SolverResult::SAT);
+    return s.get_model()->eval(x, true);
+  };
+  CHECK(value() == env.num(5, 8));
+  for (Expr g : {withQ, withEq}) {
+    for (int round = 0; round < 2; ++round) {
+      s.push();
+      CHECK(s.add(g));
+      CHECK(isOpX<NONDET>(value()));
+      s.pop();
+      CHECK(value() == env.num(5, 8));
+    }
+  }
+  // -- a guard set before a push stays after its pop
+  s.push();
+  CHECK(s.add(withQ));
+  s.push();
+  s.pop();
+  CHECK(isOpX<NONDET>(value()));
+  s.pop();
+  CHECK(value() == env.num(5, 8));
+
+  // -- an assumption with either: no values for that check only
+  for (Expr g : {withQ, withEq}) {
+    ExprVector as{g};
+    REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
+    CHECK(isOpX<NONDET>(s.get_model()->eval(x, true)));
+    CHECK(value() == env.num(5, 8));
+  }
+}
+
+TEST_CASE("bitwuzla.assumptions") {
+  Env env;
+  EZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), p = env.boolc("p"),
+       q = env.boolc("q");
+  Expr T = mk<TRUE>(env.efac), F = mk<FALSE>(env.efac);
+  ExprVector assertions{mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8)),
+                        mk<IMPL>(p, mk<EQ>(y, env.num(0, 8))),
+                        mk<IMPL>(q, mk<EQ>(y, env.num(1, 8)))};
+  for (Expr e : assertions)
+    CHECK(s.add(e));
+  // -- the answer under the assumptions \p as, also Z3's
+  auto expect = [&](const ExprVector &as, SolverResult r) {
+    CHECK(s.check_with_assumptions(lits(as)) == r);
+    CHECK(z3Check(z3, concat(assertions, as)) == r);
+  };
+  expect({mk<EQ>(x, env.num(0, 8))}, SolverResult::UNSAT);
+  expect({mk<EQ>(x, env.num(255, 8))}, SolverResult::SAT);
+  expect({p}, SolverResult::SAT);
+  expect({mk<NEG>(p)}, SolverResult::SAT);
+  expect({p, q}, SolverResult::UNSAT);
+  expect({mk<AND>(p, q)}, SolverResult::UNSAT);
+  expect({mk<OR>(p, q)}, SolverResult::SAT);
+  expect({p, p}, SolverResult::SAT);
+  expect({p, q, p, q}, SolverResult::UNSAT);
+  expect({T}, SolverResult::SAT);
+  expect({F}, SolverResult::UNSAT);
+  expect({T, p}, SolverResult::SAT);
+  expect({}, SolverResult::SAT);
+  // -- they are not assertions: without them, it is sat
+  CHECK(s.check() == SolverResult::SAT);
+  expect({mk<EQ>(y, env.num(7, 8))}, SolverResult::SAT);
+
+  // -- a sat model satisfies the assumptions
+  ExprVector a{mk<EQ>(y, env.num(7, 8)), mk<NEG>(q)};
+  REQUIRE(s.check_with_assumptions(lits(a)) == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  CHECK(m->eval(y, true) == env.num(7, 8));
+  CHECK(m->eval(q, true) == F);
+  CHECK(m->eval(p, true) == F);
+  CHECK(m->eval(x, true) == env.num(255, 8));
+
+  // -- one it cannot encode, or that is not Bool: only that check is
+  // -- unknown (Bitwuzla itself would take a bit-vector)
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  ExprVector bad{p, mk<EQ>(mk<BV2INT>(x), i)};
+  CHECK(s.check_with_assumptions(lits(bad)) == SolverResult::UNKNOWN);
+  expect({p}, SolverResult::SAT);
+  ExprVector notBool{p, x};
+  CHECK(s.check_with_assumptions(lits(notBool)) == SolverResult::UNKNOWN);
+  ExprVector notBool1{mk<BADD>(x, y)};
+  CHECK(s.check_with_assumptions(lits(notBool1)) == SolverResult::UNKNOWN);
+  expect({p, q}, SolverResult::UNSAT);
+
+  // -- an assertion it cannot encode makes assumption checks unknown too
+  s.push();
+  CHECK_FALSE(s.add(mk<EQ>(mk<BV2INT>(x), i)));
+  ExprVector justP{p};
+  CHECK(s.check_with_assumptions(lits(justP)) == SolverResult::UNKNOWN);
+  s.pop();
+  expect({p}, SolverResult::SAT);
+}
+
+TEST_CASE("bitwuzla.the first assumption check keeps the scopes") {
+  // -- it turns on unsat assumptions: a new Bitwuzla instance, which gets
+  // -- the assertions again, each in its scope
+  Env env;
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), p = env.boolc("p");
+  CHECK(s.add(mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8))));
+  s.push(); // -- an empty scope
+  CHECK(s.add(mk<IMPL>(p, mk<EQ>(y, env.num(3, 8)))));
+  s.push();
+  CHECK(s.add(mk<NEQ>(y, env.num(3, 8))));
+  s.push(); // -- another empty one, still open
+  ExprVector as{p};
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  ExprVector core;
+  s.unsat_core(core);
+  CHECK(core == as);
+  s.pop();
+  CHECK(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  s.pop(); // -- y != 3 goes
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
+  CHECK(s.get_model()->eval(y, true) == env.num(3, 8));
+  s.pop(); // -- p => y = 3 goes
+  CHECK(s.add(mk<NEQ>(y, env.num(3, 8))));
+  CHECK(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
+  REQUIRE(s.check() == SolverResult::SAT);
+  CHECK(s.get_model()->eval(x, true) == env.num(255, 8));
+  // -- reset turns it off: the formula of "bitwuzla.model after an equality
+  // -- of narrow arrays", sat without it and unknown with it (Bitwuzla
+  // -- 0.9.1), is sat again
+  using namespace op::array;
+  Expr q = env.boolc("q");
+  Expr c3 = constArray(env.bvsort(2), env.num(3, 8));
+  Expr c7 = constArray(env.bvsort(2), env.num(7, 8));
+  Expr all7 = c3;
+  for (unsigned n = 0; n < 4; ++n)
+    all7 = store(all7, env.num(n, 2), env.num(7, 8));
+  Expr narrow = mk<EQ>(q, mk<EQ>(all7, c7));
+  CHECK(s.add(narrow));
+  CHECK(s.check() == SolverResult::UNKNOWN);
+  s.reset();
+  CHECK(s.add(narrow));
+  CHECK(s.check() == SolverResult::SAT);
+  // -- and the next assumption check turns it on again
+  CHECK(s.add(mk<IMPL>(p, mk<EQ>(x, env.num(1, 8)))));
+  CHECK(s.add(mk<EQ>(x, env.num(2, 8))));
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  core.clear();
+  s.unsat_core(core);
+  CHECK(core == as);
+
+  // -- an assertion it could not encode, before the first assumption check,
+  // -- still makes checks unknown until its pop
+  bitwuzla_solver_impl other;
+  Solver &t = other;
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  CHECK(t.add(mk<EQ>(x, env.num(1, 8))));
+  t.push();
+  CHECK_FALSE(t.add(mk<EQ>(mk<BV2INT>(x), i)));
+  CHECK(t.check_with_assumptions(lits(as)) == SolverResult::UNKNOWN);
+  t.pop();
+  CHECK(t.check_with_assumptions(lits(as)) == SolverResult::SAT);
+}
+
+TEST_CASE("bitwuzla.unsat cores") {
+  Env env;
+  EZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), p = env.boolc("p"),
+       q = env.boolc("q"), r = env.boolc("r");
+  Expr F = mk<FALSE>(env.efac);
+  ExprVector assertions{mk<IMPL>(p, mk<EQ>(x, env.num(0, 8))),
+                        mk<IMPL>(q, mk<EQ>(x, env.num(1, 8))),
+                        mk<IMPL>(r, mk<EQ>(y, env.num(2, 8)))};
+  for (Expr e : assertions)
+    CHECK(s.add(e));
+  // -- \p core is a core of \p as: each element one of them (the same Expr),
+  // -- each once, in their order, and Z3 proves it unsat with the assertions
+  auto isCore = [&](const ExprVector &core, const ExprVector &as) {
+    long last = -1;
+    for (Expr c : core) {
+      auto it = std::find(as.begin(), as.end(), c);
+      if (it == as.end() || it - as.begin() <= last)
+        return false;
+      last = it - as.begin();
+    }
+    return z3Check(z3, concat(assertions, core)) == SolverResult::UNSAT;
+  };
+  ExprVector as{r, q, p};
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  ExprVector core;
+  s.unsat_core(core);
+  CHECK(isCore(core, as));
+  CHECK(std::count(core.begin(), core.end(), p) == 1);
+  CHECK(std::count(core.begin(), core.end(), q) == 1);
+  // -- appended to what out has; asked twice, the same
+  ExprVector out{x};
+  s.unsat_core(out);
+  REQUIRE(out.size() == core.size() + 1);
+  CHECK(out[0] == x);
+  CHECK(ExprVector(out.begin() + 1, out.end()) == core);
+
+  // -- duplicates come back once
+  ExprVector dup{q, p, q, p};
+  REQUIRE(s.check_with_assumptions(lits(dup)) == SolverResult::UNSAT);
+  core.clear();
+  s.unsat_core(core);
+  CHECK(core == ExprVector({q, p}));
+  // -- false is a core by itself
+  ExprVector withFalse{r, F};
+  REQUIRE(s.check_with_assumptions(lits(withFalse)) == SolverResult::UNSAT);
+  core.clear();
+  s.unsat_core(core);
+  CHECK(core == ExprVector({F}));
+  // -- unsat assertions: the core is empty
+  s.push();
+  CHECK(s.add(mk<EQ>(x, env.num(5, 8))));
+  CHECK(s.add(mk<EQ>(x, env.num(6, 8))));
+  ExprVector justP{p};
+  REQUIRE(s.check_with_assumptions(lits(justP)) == SolverResult::UNSAT);
+  core.clear();
+  s.unsat_core(core);
+  CHECK(core.empty());
+  // -- after a plain unsat check: empty, and no error
+  REQUIRE(s.check() == SolverResult::UNSAT);
+  std::string err = stderrOf([&] { s.unsat_core(core); });
+  CHECK(core.empty());
+  CHECK(err.empty());
+  s.pop();
+
+  // -- at any other time: nothing, and an error
+  auto noCore = [&](const char *when) {
+    ExprVector c;
+    std::string e = stderrOf([&] { s.unsat_core(c); });
+    CHECK_MESSAGE(c.empty(), when);
+    CHECK_MESSAGE(e.find("unsat_core needs") != std::string::npos, when);
+  };
+  REQUIRE(s.check_with_assumptions(lits(justP)) == SolverResult::SAT);
+  noCore("after sat");
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  CHECK(s.add(mk<TRUE>(env.efac)));
+  noCore("after add");
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  REQUIRE(s.check() == SolverResult::SAT);
+  noCore("after another check");
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  ExprVector bad{p, q, mk<EQ>(mk<BV2INT>(x), i)};
+  REQUIRE(s.check_with_assumptions(lits(bad)) == SolverResult::UNKNOWN);
+  noCore("after unknown");
+  // -- an assumption check ends the core and the model of the check before
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  REQUIRE(s.check_with_assumptions(lits(justP)) == SolverResult::SAT);
+  noCore("after an assumption check that is sat");
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  CHECK(isOpX<NONDET>(m->eval(y, true)));
+  std::string merr = stderrOf([&] { m = s.get_model(); });
+  CHECK(merr.find("get_model needs the last check to be sat") !=
+        std::string::npos);
+  CHECK(isOpX<NONDET>(m->eval(y, true)));
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  s.reset();
+  noCore("after reset");
+  bitwuzla_solver_impl fresh;
+  ExprVector c;
+  fresh.unsat_core(c);
+  CHECK(c.empty());
+}
+
+TEST_CASE("bitwuzla.unsat cores for Path BMC's MUC") {
+  // -- Path BMC's own MUC classes (PathBmcMuc.cc), on the Bitwuzla adapter:
+  // -- x < 10, y = x + 5 and y > 20 are a minimal unsat core, among
+  // -- constraints that do not matter
+  Env env;
+  EZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), z = env.bvc("z", 8);
+  ExprVector f{
+      mk<NEQ>(x, env.num(7, 8)),   mk<BULT>(x, env.num(10, 8)),
+      mk<EQ>(z, env.num(3, 8)),    mk<EQ>(y, mk<BADD>(x, env.num(5, 8))),
+      mk<BUGT>(y, env.num(20, 8)), mk<BULT>(z, x)};
+  auto subset = [&](const ExprVector &c) {
+    return std::all_of(c.begin(), c.end(), [&](Expr e) {
+      return std::find(f.begin(), f.end(), e) != f.end();
+    });
+  };
+  auto unsat = [&](const ExprVector &c) {
+    return z3Check(z3, c) == SolverResult::UNSAT;
+  };
+  auto minimal = [&](const ExprVector &c) {
+    for (size_t k = 0; k < c.size(); ++k) {
+      ExprVector d(c);
+      d.erase(d.begin() + k);
+      if (z3Check(z3, d) != SolverResult::SAT)
+        return false;
+    }
+    return true;
+  };
+  {
+    path_bmc::MucWithAssumptions muc(bzla);
+    ExprVector core;
+    muc.run(f, core);
+    CHECK(!core.empty());
+    CHECK(subset(core));
+    CHECK(unsat(core));
+  }
+  {
+    // -- its minimisation, which is private there: the same calls
+    ExprVector core = mucMinimised(bzla, f);
+    CHECK(subset(core));
+    CHECK(unsat(core));
+    CHECK(minimal(core));
+    CHECK(core.size() == 3);
+  }
+  {
+    path_bmc::MucDeletion muc(bzla, 10);
+    ExprVector core;
+    muc.run(f, core);
+    CHECK(subset(core));
+    CHECK(unsat(core));
+    CHECK(minimal(core));
+  }
+  {
+    // -- with push and pop
+    path_bmc::MucBinarySearch muc(bzla, 10);
+    ExprVector core;
+    muc.run(f, core);
+    CHECK(subset(core));
+    CHECK(unsat(core));
+    CHECK(minimal(core));
+  }
+  // -- the assumption names hold the constraints: printed, the formula is
+  // -- read by both parsers
+  Solver &s = bzla;
+  s.reset();
+  for (Expr v : f)
+    CHECK(s.add(mk<IMPL>(bind::boolConst(mk<ASM>(v)), v)));
+  REQUIRE(s.check() == SolverResult::SAT);
+  std::string text = smtLibOf(s);
+  CHECK(z3Reads(text) == "sat");
+  CHECK(bitwuzlaReads(text) == "sat");
+}
+
+TEST_CASE("bitwuzla.to_smt_lib") {
+  Env env;
+  OpenEZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8), p = env.boolc("p"),
+       q = env.boolc("q");
+  // -- s's assertions, \p as, printed: both parsers read the text with the
+  // -- answer of the check here, no lambda is left, and, without a
+  // -- quantifier, Z3 proves the text equal to \p as
+  auto printsAs = [&](const ExprVector &as, bool quantified) {
+    SolverResult r = s.check();
+    REQUIRE((r == SolverResult::SAT || r == SolverResult::UNSAT));
+    std::string text = smtLibOf(s);
+    CHECK(text.find("lambda") == std::string::npos);
+    CHECK(z3Reads(text) == answerName(r));
+    CHECK(bitwuzlaReads(text) == answerName(r));
+    if (!quantified)
+      CHECK(printedMeans(z3, env.efac, text, as) == EncodingVerdict::SAME);
+    return text;
+  };
+  auto assertAll = [&](const ExprVector &as) {
+    s.reset();
+    for (Expr e : as)
+      CHECK(s.add(e));
+  };
+
+  // -- Bool and bit-vectors, sat and unsat
+  ExprVector bvs{mk<EQ>(mk<BADD>(x, env.num(1, 8)), env.num(0, 8)),
+                 mk<XOR>(p, q), mk<BULT>(y, mk<BMUL>(x, y)),
+                 mk<EQ>(bv::extract(3, 0, x), env.num(15, 4))};
+  assertAll(bvs);
+  printsAs(bvs, false);
+  bvs.push_back(mk<EQ>(mk<BMUL>(y, y), env.num(2, 8)));
+  assertAll(bvs);
+  printsAs(bvs, false);
+
+  // -- arrays
+  Expr A = env.arrc("A", 32, 8), B = env.arrc("B", 32, 8);
+  Expr i32 = env.bvc("i32", 32), j32 = env.bvc("j32", 32);
+  ExprVector arrs{
+      mk<EQ>(op::array::select(op::array::store(A, i32, x), j32), y),
+      mk<NEQ>(x, y), mk<NEQ>(A, B),
+      mk<EQ>(op::array::select(mk<CONST_ARRAY>(env.bvsort(32), x), j32), x)};
+  assertAll(arrs);
+  printsAs(arrs, false);
+  // -- bit-vectors only in the sorts of arrays: Bitwuzla's printer would say
+  // -- QF_A, and its parser would reject the script (found by the fuzzer)
+  ExprVector onlyArrays{mk<NEQ>(A, B), env.boolc("p")};
+  assertAll(onlyArrays);
+  CHECK(printsAs(onlyArrays, false).rfind("(set-logic ALL)", 0) == 0);
+
+  // -- lambdas: a memory of five stores, read at x and at x + 1
+  Expr M = env.arrc("M", 8, 8);
+  Expr mem = env.lam("a", 8, op::array::select(M, env.bvar(0, 8)));
+  for (int k = 0; k < 5; ++k)
+    mem = env.lam(
+        "a", 8,
+        mk<ITE>(mk<EQ>(env.bvar(0, 8), env.bvc("p" + std::to_string(k), 8)),
+                env.bvc("v" + std::to_string(k), 8),
+                mk<FAPP>(mem, env.bvar(0, 8))));
+  ExprVector lams{mk<EQ>(mk<FAPP>(mem, x), y),
+                  mk<NEQ>(y, op::array::select(M, x)),
+                  mk<EQ>(mk<FAPP>(mem, mk<BADD>(x, env.num(1, 8))), x)};
+  assertAll(lams);
+  std::string lamText = printsAs(lams, false);
+
+  // -- quantifiers: a pointwise equality of memories, forall and exists
+  Expr mem2 = env.lam(
+      "b", 8,
+      mk<ITE>(mk<EQ>(env.bvar(0, 8), x), y, mk<FAPP>(mem, env.bvar(0, 8))));
+  ExprVector quants{
+      mk<EQ>(mem2, mem), mk<NEQ>(y, mk<FAPP>(mem, x)),
+      mk<FORALL>(env.bdecl("z", 8), mk<BULE>(env.bvar(0, 8), env.num(255, 8))),
+      mk<EXISTS>(env.bdecl("w", 8), mk<BUGT>(env.bvar(0, 8), x))};
+  assertAll(quants);
+  CHECK(s.check() == SolverResult::UNSAT); // -- (mem2 = mem) says mem(x) = y
+  printsAs(quants, true);
+  ExprVector quants2{mk<EQ>(mem2, mem), quants[2],
+                     mk<EQ>(y, op::array::select(M, x))};
+  assertAll(quants2);
+  CHECK(s.check() == SolverResult::SAT);
+  printsAs(quants2, true);
+
+  // -- scopes: the text pushes before each deeper one
+  s.reset();
+  CHECK(s.add(mk<BULT>(x, env.num(10, 8))));
+  s.push();
+  CHECK(s.add(mk<EQ>(y, mk<BADD>(x, x))));
+  s.push();
+  CHECK(s.add(mk<BUGT>(y, env.num(30, 8))));
+  std::string scoped =
+      printsAs({mk<BULT>(x, env.num(10, 8)), mk<EQ>(y, mk<BADD>(x, x)),
+                mk<BUGT>(y, env.num(30, 8))},
+               false);
+  CHECK(scoped.find("(push 1)") != std::string::npos);
+  CHECK(scoped.find("(push 1)", scoped.find("(push 1)") + 1) !=
+        std::string::npos);
+  s.pop();
+  printsAs({mk<BULT>(x, env.num(10, 8)), mk<EQ>(y, mk<BADD>(x, x))}, false);
+  // -- two scopes opened with nothing between them: two pushes
+  s.reset();
+  CHECK(s.add(mk<BULT>(x, env.num(10, 8))));
+  s.push();
+  s.push();
+  CHECK(s.add(mk<BUGT>(x, env.num(3, 8))));
+  std::string jump = smtLibOf(s);
+  CHECK(jump.find("(push 1)\n(push 1)\n(assert") != std::string::npos);
+
+  // -- after a check, it is still the formula asserted (Bitwuzla's own
+  // -- printer would give its preprocessed formula, here empty)
+  ExprVector simple{mk<EQ>(mk<BADD>(y, env.num(1, 8)), env.num(0, 8))};
+  assertAll(simple);
+  REQUIRE(s.check() == SolverResult::SAT);
+  std::string after = smtLibOf(s);
+  CHECK(after.find("bvadd") != std::string::npos);
+  CHECK(printedMeans(z3, env.efac, after, simple) == EncodingVerdict::SAME);
+
+  // -- nothing asserted
+  s.reset();
+  std::string empty = smtLibOf(s);
+  CHECK(empty.find("(assert") == std::string::npos);
+  CHECK(z3Reads(empty) == "sat");
+  CHECK(bitwuzlaReads(empty) == "sat");
+
+  // -- an assertion it could not encode: only a comment, and an error; its
+  // -- pop brings the formula back
+  Expr i = bind::intConst(mkTerm<std::string>("i", env.efac));
+  s.reset();
+  CHECK(s.add(mk<EQ>(x, env.num(1, 8))));
+  s.push();
+  CHECK_FALSE(s.add(mk<EQ>(mk<BV2INT>(x), i)));
+  std::string text;
+  std::string err = stderrOf([&] { text = smtLibOf(s); });
+  CHECK(text.rfind("; Bitwuzla adapter: no formula written", 0) == 0);
+  CHECK(text.find("(assert") == std::string::npos);
+  CHECK(text.find("(check-sat") == std::string::npos);
+  CHECK(err.find("no SMT-LIB formula written") != std::string::npos);
+  s.pop();
+  printsAs({mk<EQ>(x, env.num(1, 8))}, false);
+
+  // -- printing ends neither a model nor a core
+  s.reset();
+  CHECK(s.add(mk<IMPL>(p, mk<EQ>(x, env.num(3, 8)))));
+  CHECK(s.add(mk<EQ>(y, env.num(4, 8))));
+  REQUIRE(s.check() == SolverResult::SAT);
+  Solver::model_ref m = s.get_model();
+  smtLibOf(s);
+  CHECK(m->eval(y, true) == env.num(4, 8));
+  ExprVector as{p, mk<EQ>(x, env.num(5, 8))};
+  REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::UNSAT);
+  smtLibOf(s);
+  ExprVector core;
+  s.unsat_core(core);
+  CHECK(core == as);
+
+  // -- a binder in a binder's body, with a term over the outer variable
+  // -- used both inside the inner binder and outside it (where Bitwuzla's
+  // -- lets would leave their scope)
+  Expr z = env.bvar(0, 8), w = env.bvar(0, 8), zIn = env.bvar(1, 8);
+  Expr fOut = mk<BADD>(mk<BNOT>(z), mk<BNOT>(z));
+  Expr fIn = mk<BADD>(mk<BNOT>(zIn), mk<BNOT>(zIn));
+  Expr nestedQ = mk<FORALL>(
+      env.bdecl("z", 8),
+      mk<OR>(mk<EQ>(fOut, env.num(7, 8)),
+             mk<EXISTS>(env.bdecl("w", 8), mk<EQ>(mk<BADD>(fIn, w), x))));
+  assertAll({nestedQ});
+  printsAs({nestedQ}, true);
+  Expr fz = mk<BNOT>(z), fzIn = mk<BNOT>(zIn);
+  Expr innerFirst = mk<FORALL>(
+      env.bdecl("z", 8),
+      mk<OR>(mk<EXISTS>(env.bdecl("w", 8),
+                        mk<EQ>(mk<BADD>(mk<BADD>(fzIn, fzIn), w), x)),
+             mk<EQ>(fz, env.num(7, 8))));
+  assertAll({innerFirst});
+  printsAs({innerFirst}, true);
+}
+
+TEST_CASE("bitwuzla.to_smt_lib names") {
+  // -- names that would not print as themselves are renamed, to names used
+  // -- nowhere; each case is sat or unsat depending on the names staying
+  // -- apart
+  bz::TermManager tm;
+  bz::Sort b8 = tm.mk_bv_sort(8), b16 = tm.mk_bv_sort(16),
+           bo = tm.mk_bool_sort();
+  // -- both parsers read the text of \p ts with Bitwuzla's answer on \p ts,
+  // -- and no name is declared twice
+  auto readsAs = [&](const std::vector<bz::Term> &ts, const char *want) {
+    bz::Options o;
+    bz::Bitwuzla b(tm, o);
+    for (const bz::Term &t : ts)
+      b.assert_formula(t);
+    std::ostringstream answer;
+    answer << b.check_sat();
+    CHECK(answer.str() == want);
+    std::string text = printSmtLib(tm, ts, std::vector<size_t>(ts.size(), 0));
+    CHECK(z3Reads(text) == want);
+    CHECK(bitwuzlaReads(text) == want);
+    std::vector<std::string> names = declaredNames(text);
+    std::sort(names.begin(), names.end());
+    CHECK(std::adjacent_find(names.begin(), names.end()) == names.end());
+    return text;
+  };
+  auto distinct = [&](std::vector<bz::Term> ts) {
+    return tm.mk_term(bz::Kind::DISTINCT, ts);
+  };
+  // -- one name, one sort; and a constant named like the first renaming
+  bz::Term d1 = tm.mk_const(b8, "dup"), d2 = tm.mk_const(b8, "dup"),
+           d3 = tm.mk_const(b8, "dup!1");
+  readsAs({distinct({d1, d2, d3})}, "sat");
+  // -- one name, two sorts
+  bz::Term w8 = tm.mk_const(b8, "w"), w16 = tm.mk_const(b16, "w");
+  readsAs({tm.mk_term(bz::Kind::EQUAL,
+                      {tm.mk_term(bz::Kind::BV_ZERO_EXTEND, {w8}, {8}), w16}),
+           tm.mk_term(bz::Kind::EQUAL, {w8, tm.mk_bv_value_uint64(b8, 3)})},
+          "sat");
+  // -- | and backslash
+  bz::Term bar = tm.mk_const(bo, "a|b"), bs = tm.mk_const(bo, "a\\b"),
+           ab = tm.mk_const(bo, "a_b");
+  readsAs({bar, tm.mk_term(bz::Kind::NOT, {bs}), ab}, "sat");
+  readsAs({bar, tm.mk_term(bz::Kind::NOT, {bar})}, "unsat");
+  // -- names like the printer's own, reserved words, a leading digit, an
+  // -- empty name and none
+  std::vector<bz::Term> odd;
+  for (const char *n : {"@def0", "@def1", "@bzla.const_1", "_let0", "and",
+                        "forall", "true", "1x", ""})
+    odd.push_back(tm.mk_const(b8, n));
+  odd.push_back(tm.mk_const(b8));
+  // -- shared subterms, so that the printer defines @def0 and @def1
+  bz::Term sum = tm.mk_term(bz::Kind::BV_ADD, {odd[0], odd[1]});
+  bz::Term prod = tm.mk_term(bz::Kind::BV_MUL, {sum, sum});
+  readsAs({distinct(odd), tm.mk_term(bz::Kind::BV_ULT, {prod, odd[2]}),
+           tm.mk_term(bz::Kind::BV_ULT, {prod, odd[3]})},
+          "sat");
+  readsAs({tm.mk_term(bz::Kind::BV_ULT, {odd[4], odd[7]}),
+           tm.mk_term(bz::Kind::BV_ULT, {odd[7], odd[4]})},
+          "unsat");
+  // -- names Bitwuzla's parser reserves, quoted or not (review of step
+  // -- 1.8): sorts, rotations, floating-point, keywords, parentheses
+  std::vector<bz::Term> taken;
+  for (const char *n : {"Bool", "BitVec", "Array", "bvrol", "fp", "RNE", "/",
+                        "+oo", "to_fp", ":named", "(", "get-interpolant"})
+    taken.push_back(tm.mk_const(b8, n));
+  readsAs({distinct(taken)}, "sat");
+
+  // -- a variable whose name must change (reserved): still a variable, not
+  // -- also declared as a constant
+  bz::Term vb = tm.mk_var(b8, "Bool");
+  std::string vbText = readsAs(
+      {tm.mk_term(bz::Kind::FORALL,
+                  {vb, tm.mk_term(bz::Kind::BV_ULE,
+                                  {vb, tm.mk_bv_value_uint64(b8, 255)})})},
+      "sat");
+  CHECK(declaredNames(vbText).empty());
+  readsAs({tm.mk_term(bz::Kind::EXISTS,
+                      {vb, tm.mk_term(bz::Kind::DISTINCT, {vb, vb})})},
+          "unsat");
+  // -- constants named like the definitions, with terms used twice
+  bz::Term def1 = tm.mk_const(b8, "def!1"), def2 = tm.mk_const(b8, "def!2");
+  bz::Term twice = tm.mk_term(bz::Kind::BV_ADD, {def1, def2});
+  std::string defText =
+      readsAs({tm.mk_term(bz::Kind::EQUAL,
+                          {tm.mk_term(bz::Kind::BV_MUL, {twice, twice}), def1}),
+               tm.mk_term(bz::Kind::DISTINCT, {def1, def2})},
+              "sat");
+  CHECK(defText.find("(define-const") != std::string::npos);
+  // -- a function constant (not from the encoder: it rejects them)
+  bz::Term uf = tm.mk_const(tm.mk_fun_sort({b8, b16}, bo), "g");
+  bz::Term x8 = tm.mk_const(b8, "x8"), x16 = tm.mk_const(b16, "x16");
+  readsAs(
+      {tm.mk_term(bz::Kind::APPLY, {uf, x8, x16}),
+       tm.mk_term(bz::Kind::NOT,
+                  {tm.mk_term(bz::Kind::APPLY, {uf, x8, tm.mk_bv_zero(b16)})})},
+      "sat");
+
+  // -- a variable named like a constant: it must not capture it
+  bz::Term k = tm.mk_const(b8, "k"), vk = tm.mk_var(b8, "k");
+  bz::Term all =
+      tm.mk_term(bz::Kind::FORALL, {vk, tm.mk_term(bz::Kind::BV_ULE, {vk, k})});
+  std::string text =
+      readsAs({all, tm.mk_term(bz::Kind::DISTINCT,
+                               {k, tm.mk_bv_value_uint64(b8, 255)})},
+              "unsat");
+  // -- (whichever is met first keeps the name): the variable's name is no
+  // -- constant's
+  size_t at = text.find("(forall ((");
+  REQUIRE(at != std::string::npos);
+  at += std::string("(forall ((").size();
+  std::string vname = text.substr(at, text.find(' ', at) - at);
+  std::vector<std::string> cnames = declaredNames(text);
+  CHECK(std::find(cnames.begin(), cnames.end(), vname) == cnames.end());
+
+  // -- Path BMC's assumption constants, named after their constraint
+  Env env;
+  Expr p = env.boolc("p"), q = env.boolc("q");
+  Expr asm1 = bind::boolConst(mk<ASM>(mk<OR>(p, q)));
+  Expr asm2 = bind::boolConst(mk<ASM>(mk<AND>(p, mk<NEG>(q))));
+  bz::Term t1 = env.m.encode_term(asm1), t2 = env.m.encode_term(asm2);
+  bz::Options o;
+  bz::Bitwuzla b(env.tm, o);
+  std::vector<bz::Term> ts{t1, env.tm.mk_term(bz::Kind::NOT, {t2})};
+  for (auto &t : ts)
+    b.assert_formula(t);
+  REQUIRE(b.check_sat() == bz::Result::SAT);
+  std::string asmText = printSmtLib(env.tm, ts, {0, 0});
+  CHECK(z3Reads(asmText) == "sat");
+  CHECK(bitwuzlaReads(asmText) == "sat");
+}
+
+TEST_CASE("bitwuzla.beta reduction") {
+  bz::TermManager tm;
+  bz::Sort b8 = tm.mk_bv_sort(8), a8 = tm.mk_array_sort(b8, b8);
+  // -- Bitwuzla proves \p t equal to \p r
+  auto equal = [&](const bz::Term &t, const bz::Term &r) {
+    bz::Options o;
+    bz::Bitwuzla b(tm, o);
+    b.assert_formula(tm.mk_term(bz::Kind::DISTINCT, {t, r}));
+    return b.check_sat() == bz::Result::UNSAT;
+  };
+  auto has = [&](const bz::Term &t, bz::Kind k) {
+    std::unordered_set<bz::Term> seen;
+    std::vector<bz::Term> todo{t};
+    while (!todo.empty()) {
+      bz::Term u = todo.back();
+      todo.pop_back();
+      if (!seen.insert(u).second)
+        continue;
+      if (u.kind() == k)
+        return true;
+      for (const bz::Term &c : u.children())
+        todo.push_back(c);
+    }
+    return false;
+  };
+  auto var = [&](const char *n) { return tm.mk_var(b8, n); };
+  auto lambda = [&](const bz::Term &v, const bz::Term &body) {
+    return tm.mk_term(bz::Kind::LAMBDA, {v, body});
+  };
+  auto apply = [&](const bz::Term &f, std::vector<bz::Term> args) {
+    args.insert(args.begin(), f);
+    return tm.mk_term(bz::Kind::APPLY, args);
+  };
+  bz::Term A = tm.mk_const(a8, "A"), x = tm.mk_const(b8, "x"),
+           y = tm.mk_const(b8, "y");
+
+  // -- a memory of 300 stores, as lambdas, read at two addresses
+  bz::Term a0 = var("a0");
+  bz::Term mem = lambda(a0, tm.mk_term(bz::Kind::ARRAY_SELECT, {A, a0}));
+  for (int k = 0; k < 300; ++k) {
+    bz::Term a = var("a");
+    bz::Term pk = tm.mk_const(b8, "p" + std::to_string(k));
+    bz::Term vk = tm.mk_const(b8, "v" + std::to_string(k));
+    mem = lambda(
+        a, tm.mk_term(bz::Kind::ITE, {tm.mk_term(bz::Kind::EQUAL, {a, pk}), vk,
+                                      apply(mem, {a})}));
+  }
+  std::vector<bz::Term> reads{apply(mem, {x}), apply(mem, {y})};
+  std::vector<bz::Term> red = betaReduce(tm, reads);
+  for (int k = 0; k < 2; ++k) {
+    CHECK_FALSE(has(red[k], bz::Kind::LAMBDA));
+    CHECK_FALSE(has(red[k], bz::Kind::APPLY));
+    CHECK(equal(reads[k], red[k]));
+  }
+
+  // -- a lambda of two variables (Bitwuzla nests them): the arguments in
+  // -- their order
+  bz::Term u = var("u"), w = var("w");
+  bz::Term sub = tm.mk_term(bz::Kind::LAMBDA,
+                            {u, w, tm.mk_term(bz::Kind::BV_SUB, {u, w})});
+  bz::Term seven = tm.mk_bv_value_uint64(b8, 7),
+           three = tm.mk_bv_value_uint64(b8, 3);
+  bz::Term r = betaReduce(tm, {apply(sub, {seven, three})})[0];
+  CHECK_FALSE(has(r, bz::Kind::LAMBDA));
+  CHECK(equal(r, tm.mk_bv_value_uint64(b8, 4)));
+
+  // -- under a binder, applied to its variable
+  bz::Term small = lambda(a0, tm.mk_term(bz::Kind::ARRAY_SELECT, {A, a0}));
+  bz::Term b0 = var("b0");
+  small = lambda(
+      b0, tm.mk_term(bz::Kind::ITE, {tm.mk_term(bz::Kind::EQUAL, {b0, x}), y,
+                                     apply(small, {b0})}));
+  bz::Term z = var("z");
+  bz::Term pw =
+      tm.mk_term(bz::Kind::FORALL,
+                 {z, tm.mk_term(bz::Kind::EQUAL,
+                                {apply(small, {z}),
+                                 tm.mk_term(bz::Kind::ARRAY_SELECT, {A, z})})});
+  bz::Term pwr = betaReduce(tm, {pw})[0];
+  CHECK_FALSE(has(pwr, bz::Kind::LAMBDA));
+  CHECK(has(pwr, bz::Kind::FORALL));
+  CHECK(equal(pw, pwr));
+
+  // -- a binder whose body is the variable replaced (allowed: it does not
+  // -- bind it)
+  bz::Sort bo = tm.mk_bool_sort();
+  bz::Term bvar = tm.mk_var(bo, "b"), uvar = var("u2");
+  bz::Term pc = tm.mk_const(bo, "pc");
+  bz::Term ex =
+      apply(lambda(bvar, tm.mk_term(bz::Kind::EXISTS, {uvar, bvar})), {pc});
+  bz::Term exr = betaReduce(tm, {ex})[0];
+  CHECK_FALSE(has(exr, bz::Kind::LAMBDA));
+  CHECK(equal(ex, exr));
+
+  // -- inside a constant array's value
+  bz::Term inc = lambda(u, tm.mk_term(bz::Kind::BV_ADD, {u, tm.mk_bv_one(b8)}));
+  bz::Term ca = tm.mk_term(bz::Kind::ARRAY_SELECT,
+                           {tm.mk_const_array(a8, apply(inc, {x})), y});
+  bz::Term car = betaReduce(tm, {ca})[0];
+  CHECK_FALSE(has(car, bz::Kind::LAMBDA));
+  CHECK(equal(ca, car));
+  // -- the application of an uninterpreted function stays, with a lambda
+  // -- in its argument reduced; so does one of a lambda whose body is one
+  bz::Term uf = tm.mk_const(tm.mk_fun_sort({b8}, b8), "g");
+  bz::Term gapp = apply(uf, {apply(inc, {x})});
+  bz::Term gr = betaReduce(tm, {gapp})[0];
+  CHECK_FALSE(has(gr, bz::Kind::LAMBDA));
+  CHECK(gr.kind() == bz::Kind::APPLY);
+  CHECK(equal(gapp, gr));
+
+  // -- a lambda that is not applied stays, and printSmtLib says so
+  bz::Term f = lambda(u, tm.mk_term(bz::Kind::BV_ADD, {u, x}));
+  bz::Term g = lambda(w, tm.mk_term(bz::Kind::BV_ADD, {w, y}));
+  bool left = false;
+  std::string text =
+      printSmtLib(tm, {tm.mk_term(bz::Kind::EQUAL, {f, g})}, {0}, &left);
+  CHECK(left);
+  CHECK(text.find("lambda") != std::string::npos);
+  printSmtLib(tm, {tm.mk_term(bz::Kind::EQUAL, {apply(f, {y}), x})}, {0},
+              &left);
+  CHECK_FALSE(left);
+
+  // -- a binder that binds one of the variables being replaced, with
+  // -- another free in it: refused, not captured. The encoder makes a new
+  // -- variable for every binder, so it never builds this, but Bitwuzla
+  // -- accepts it.
+  bz::Term ru = var("ru"), rw = var("rw");
+  bz::Term rebinding = tm.mk_term(
+      bz::Kind::LAMBDA,
+      {ru, rw,
+       tm.mk_term(bz::Kind::AND,
+                  {tm.mk_term(bz::Kind::FORALL,
+                              {ru, tm.mk_term(bz::Kind::EQUAL, {ru, rw})}),
+                   tm.mk_term(bz::Kind::EQUAL, {ru, x})})});
+  CHECK_THROWS_AS(betaReduce(tm, {apply(rebinding, {seven, three})}),
+                  std::runtime_error);
+
+  // -- deep terms: no recursion
+  bz::Term v = var("v"), body = v;
+  for (int k = 0; k < 100000; ++k)
+    body = tm.mk_term(bz::Kind::BV_ADD, {body, tm.mk_bv_one(b8)});
+  bz::Term deep = betaReduce(tm, {apply(lambda(v, body), {x})})[0];
+  CHECK_FALSE(has(deep, bz::Kind::LAMBDA));
+  CHECK_FALSE(has(deep, bz::Kind::APPLY));
+}
+
+TEST_CASE("bitwuzla.random scopes, assumptions and cores agree with z3") {
+  // -- BITWUZLA_FUZZ_N random scripts from seed BITWUZLA_FUZZ_SEED. Each
+  // -- resets the adapter and takes 16 random steps (add, push, pop, check,
+  // -- check_with_assumptions, to_smt_lib) over the random-formula
+  // -- generator's formulas. Every answer is compared with Z3's on the
+  // -- assertions of the scopes still open and the assumptions; Z3 checks
+  // -- every core and every model; both parsers read every printed formula.
+  Env env;
+  OpenEZ3 z3(env.efac);
+  const unsigned seed = envOr("BITWUZLA_FUZZ_SEED", 1);
+  const unsigned scripts = std::max(1u, envOr("BITWUZLA_FUZZ_N", 300));
+  const unsigned solve_ms = envOr("BITWUZLA_FUZZ_SOLVE_MS", 5000);
+  const unsigned wall_ms = 4 * solve_ms;
+  // -- formulas other than the first fuzzer's, for the same seed
+  RandomFormulas gen(env, seed + 1000003);
+  std::mt19937 rng(seed);
+  auto pick = [&](unsigned n) {
+    return std::uniform_int_distribution<unsigned>(0, n - 1)(rng);
+  };
+  bitwuzla_solver_impl adapter(solve_ms);
+  Solver &s = adapter;
+  auto anyOf = [](const ExprVector &es, bool (*pred)(Expr)) {
+    return std::any_of(es.begin(), es.end(), pred);
+  };
+
+  unsigned not_encoded = 0, checks = 0, in_scope = 0, assumed = 0, sat = 0,
+           unsat = 0, bw_unknown = 0, unexplained_unknown = 0, bw_timeouts = 0,
+           history_unknown = 0, z3_unknown = 0, z3_unknown_plain = 0,
+           disagreements = 0;
+  unsigned cores = 0, bad_cores = 0, smaller_cores = 0, cores_undecided = 0;
+  unsigned models = 0, bad_models = 0, non_values = 0, refused_models = 0;
+  unsigned prints = 0, print_errors = 0, print_disagreements = 0,
+           print_lambdas = 0, print_unknown = 0;
+  std::map<EncodingVerdict, unsigned> printed, printed_quantified;
+  // -- the failure paths (review of step 1.8): assertions and assumptions
+  // -- it cannot encode, pops with no scope open; checks and prints that
+  // -- must then answer unknown or print no formula, and those that did not
+  unsigned bad_adds = 0, bad_assumption_checks = 0, lost_pops = 0,
+           forced_checks = 0, forced_prints = 0, forced_wrong = 0;
+  // -- an assertion no encoder takes (bv2int), and a non-Bool assumption
+  const Expr notEncoded =
+      mk<EQ>(mk<BV2INT>(env.bvc("xbad", 8)),
+             bind::intConst(mkTerm<std::string>("ibad", env.efac)));
+  const Expr notBool = env.bvc("xbad", 8);
+
+  for (unsigned k = 0; k < scripts; ++k) {
+    s.reset();
+    std::vector<ExprVector> levels{{}};
+    // -- the formulas of a script share constants and subterms. Every other
+    // -- script has no quantifier and no equality of narrow arrays, so that
+    // -- its models have values and its printed formulas are compared
+    const bool plain = k % 2 == 1;
+    auto atom = [&](bool first) {
+      Expr e;
+      for (unsigned tries = 0; tries < 50; ++tries) {
+        e = first && tries == 0 ? gen.formula() : gen.boolean(2);
+        if (!plain || (!needsQuantifier(e) && !hasNarrowArrayEquality(e)))
+          break;
+      }
+      return e;
+    };
+    ExprVector atoms{atom(true)};
+    for (unsigned i = 0; i < 5; ++i)
+      atoms.push_back(atom(false));
+    // -- activation literals, as Path BMC's MUC uses them
+    ExprVector acts;
+    bool ok = true;
+    for (unsigned i = 0; i < 4 && ok; ++i) {
+      Expr a = env.boolc("act" + std::to_string(i));
+      acts.push_back(a);
+      Expr e = mk<IMPL>(a, atoms[pick(atoms.size())]);
+      ok = s.add(e);
+      levels[0].push_back(e);
+    }
+    // -- BITWUZLA_FUZZ_TRACE=1 prints every step
+    const bool trace = envOr("BITWUZLA_FUZZ_TRACE", 0);
+    // -- a check of this script met an equality of arrays with a
+    // -- const-array (unknown to Bitwuzla with unsat assumptions on)
+    bool constArraySeen = false;
+    // -- the scopes with an assertion not encoded; the scopes lost (a pop
+    // -- with none open); every eighth script takes these paths
+    std::vector<bool> badLevel{false};
+    bool lost = false;
+    const bool failures = k % 8 == 5;
+    for (unsigned step = 0; step < 16 && ok; ++step) {
+      unsigned c = pick(100);
+      if (c < 25 && failures && pick(6) == 0) {
+        // -- not encoded: add says so, and checks answer unknown until the
+        // -- pop of its scope
+        ++bad_adds;
+        if (s.add(notEncoded)) {
+          ++forced_wrong;
+          MESSAGE("script " << k << ": an assertion not encoded is taken");
+        }
+        badLevel.back() = true;
+        continue;
+      }
+      if (c < 25) {
+        Expr e = pick(2) ? atoms[pick(atoms.size())] : atom(false);
+        ok = s.add(e);
+        levels.back().push_back(e);
+        if (trace)
+          llvm::errs() << "script " << k << " step " << step << ": add " << *e
+                       << (ok ? "" : " (not encoded)") << "\n";
+        continue;
+      }
+      if (c < 37) {
+        if (levels.size() < 5) {
+          s.push();
+          levels.push_back({});
+          badLevel.push_back(false);
+          if (trace)
+            llvm::errs() << "script " << k << " step " << step << ": push\n";
+        }
+        continue;
+      }
+      if (c < 47) {
+        if (levels.size() > 1) {
+          s.pop();
+          levels.pop_back();
+          badLevel.pop_back();
+          if (trace)
+            llvm::errs() << "script " << k << " step " << step << ": pop\n";
+        } else if (failures && pick(4) == 0) {
+          // -- with no scope open: lost until the next reset
+          ++lost_pops;
+          stderrOf([&] { s.pop(); });
+          lost = true;
+        }
+        continue;
+      }
+      ExprVector all;
+      for (auto &l : levels)
+        all.insert(all.end(), l.begin(), l.end());
+
+      if (c < 92) {
+        // -- a check; with assumptions from 62 on
+        ExprVector as;
+        if (c >= 62) {
+          for (unsigned n = 1 + pick(4), i = 0; i < n; ++i) {
+            switch (pick(6)) {
+            case 0:
+            case 1:
+              as.push_back(acts[pick(acts.size())]);
+              break;
+            case 2:
+              as.push_back(atoms[pick(atoms.size())]);
+              break;
+            case 3:
+              as.push_back(mk<NEG>(acts[pick(acts.size())]));
+              break;
+            case 4:
+              as.push_back(env.boolc("p" + std::to_string(pick(3))));
+              break;
+            default:
+              as.push_back(pick(4) == 0 ? mk<FALSE>(env.efac)
+                                        : mk<TRUE>(env.efac));
+            }
+            if (pick(5) == 0)
+              as.push_back(as[pick(as.size())]); // -- a duplicate
+          }
+        }
+        // -- an assumption it cannot encode, or not Bool: this check only
+        // -- answers unknown, and gives no core
+        bool badAssumption = false;
+        if (!as.empty() && failures && pick(4) == 0) {
+          badAssumption = true;
+          as.insert(as.begin() + pick(as.size() + 1),
+                    pick(2) ? notEncoded : notBool);
+        }
+        if (lost || badAssumption ||
+            std::find(badLevel.begin(), badLevel.end(), true) !=
+                badLevel.end()) {
+          ++forced_checks;
+          bad_assumption_checks += badAssumption;
+          SolverResult r =
+              as.empty() ? s.check() : s.check_with_assumptions(lits(as));
+          ExprVector core;
+          stderrOf([&] { s.unsat_core(core); });
+          if (r != SolverResult::UNKNOWN || !core.empty()) {
+            ++forced_wrong;
+            MESSAGE("script " << k << ": " << answerName(r) << " with "
+                              << core.size()
+                              << " in the core, where it must be unknown");
+          }
+          continue;
+        }
+        ExprVector both = concat(all, as);
+        const bool quantified = anyOf(both, needsQuantifier);
+        auto run = [&] {
+          return as.empty() ? s.check() : s.check_with_assumptions(lits(as));
+        };
+        bool timedOut = false;
+        auto started = std::chrono::steady_clock::now();
+        SolverResult r =
+            quantified ? boundedCall(run, wall_ms, timedOut) : run();
+        long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::steady_clock::now() - started)
+                      .count();
+        ++checks;
+        if (trace) {
+          llvm::errs() << "script " << k << " step " << step << ": check";
+          for (Expr e : as)
+            llvm::errs() << " [" << *e << "]";
+          llvm::errs() << " -> " << answerName(r) << "\n";
+        }
+        if (levels.size() > 1)
+          ++in_scope;
+        if (!as.empty())
+          ++assumed;
+        if (timedOut)
+          ++bw_timeouts;
+        SolverResult zr = z3Check(z3, both, solve_ms);
+        if (zr == SolverResult::UNKNOWN) {
+          ++z3_unknown;
+          if (!quantified) {
+            ++z3_unknown_plain;
+            MESSAGE("script " << k << ": unknown to z3");
+          }
+          continue;
+        }
+        bool constArrayEq = anyOf(both, hasArrayEquality) &&
+                            std::any_of(both.begin(), both.end(), [](Expr e) {
+                              return anySubterm(e, [](Expr x) {
+                                return isOpX<CONST_ARRAY>(x);
+                              });
+                            });
+        const bool seenBefore = constArraySeen;
+        constArraySeen = constArraySeen || constArrayEq;
+        if (r == SolverResult::UNKNOWN) {
+          ++bw_unknown;
+          if (!quantified && !constArrayEq) {
+            std::string text;
+            for (Expr e : all)
+              text += "\n  assertion: " + boost::lexical_cast<std::string>(*e);
+            for (Expr e : as)
+              text += "\n  assumption: " + boost::lexical_cast<std::string>(*e);
+            // -- the same check on an adapter with no earlier checks: an
+            // -- answer there means the unknown comes from this one's history
+            bitwuzla_solver_impl fresh(solve_ms);
+            for (Expr e : all)
+              fresh.add(e);
+            SolverResult fr = as.empty()
+                                  ? fresh.check()
+                                  : fresh.check_with_assumptions(lits(as));
+            // -- seen twice (seeds 3 and 8 at 2000 scripts): after a check
+            // -- that met a const-array equality, the same instance answered
+            // -- unknown where a fresh one answers. Counted apart; not a
+            // -- criterion met (D1 is about the formula checked).
+            if (seenBefore && fr != SolverResult::UNKNOWN)
+              ++history_unknown;
+            else
+              ++unexplained_unknown;
+            MESSAGE("script " << k << ": Bitwuzla answers unknown after " << ms
+                              << " ms; a fresh adapter answers "
+                              << answerName(fr) << text);
+          }
+          continue;
+        }
+        if (r != zr) {
+          ++disagreements;
+          MESSAGE("script " << k << " (seed " << seed << "), step " << step
+                            << ": Bitwuzla says " << answerName(r) << ", z3 "
+                            << answerName(zr));
+          continue;
+        }
+        if (r == SolverResult::UNSAT) {
+          ++unsat;
+          if (as.empty())
+            continue;
+          // -- the core: assumptions given, the same Exprs, each once, in
+          // -- their order, unsat with the assertions
+          ExprVector core;
+          s.unsat_core(core);
+          ++cores;
+          bool shape = true;
+          long last = -1;
+          for (Expr e : core) {
+            auto it = std::find(as.begin(), as.end(), e);
+            if (it == as.end() || it - as.begin() <= last) {
+              shape = false;
+              break;
+            }
+            last = it - as.begin();
+          }
+          if (core.size() < ExprSet(as.begin(), as.end()).size())
+            ++smaller_cores;
+          if (!shape) {
+            ++bad_cores;
+            MESSAGE("script " << k
+                              << ": a core that is not a subset of the "
+                                 "assumptions, in their order");
+            continue;
+          }
+          SolverResult cz = z3Check(z3, concat(all, core), solve_ms);
+          if (cz == SolverResult::UNKNOWN) {
+            ++cores_undecided;
+          } else if (cz != SolverResult::UNSAT) {
+            ++bad_cores;
+            MESSAGE("script " << k << ": z3 finds a core sat");
+          }
+          continue;
+        }
+        ++sat;
+        if (quantified || anyOf(both, hasNarrowArrayEquality)) {
+          ++refused_models;
+          continue;
+        }
+        // -- the model's values of the constants satisfy the assertions and
+        // -- the assumptions, for Z3
+        Solver::model_ref m = s.get_model();
+        ExprSet consts;
+        for (Expr e : both)
+          filter(e, bind::IsConst(), std::inserter(consts, consts.begin()));
+        ZSolver<EZ3> certify(z3);
+        ZParams<EZ3> zparams(z3);
+        zparams.set("timeout", solve_ms);
+        certify.set(zparams);
+        for (Expr e : both)
+          certify.assertExpr(e);
+        bool all_values = true;
+        for (Expr cst : consts) {
+          Expr v = m->eval(cst, true);
+          if (!(isOpX<TRUE>(v) || isOpX<FALSE>(v) || bv::is_bvnum(v) ||
+                isArrayValue(v))) {
+            all_values = false;
+            break;
+          }
+          certify.assertExpr(mk<EQ>(cst, v));
+        }
+        ++models;
+        if (!all_values) {
+          ++non_values;
+          MESSAGE("script " << k << ": the model has no value for a constant");
+          continue;
+        }
+        boost::tribool good = certify.solve();
+        if (!good || boost::indeterminate(good)) {
+          ++bad_models;
+          MESSAGE("script " << k << ": z3 rejects the model");
+        }
+        continue;
+      }
+
+      // -- print what is asserted: both parsers read it, with the answer of
+      // -- the check here; with an assertion not encoded or lost scopes,
+      // -- only a comment
+      ++prints;
+      if (lost ||
+          std::find(badLevel.begin(), badLevel.end(), true) != badLevel.end()) {
+        ++forced_prints;
+        std::string text;
+        stderrOf([&] { text = smtLibOf(s); });
+        if (text.rfind("; Bitwuzla adapter: no formula written", 0) != 0 ||
+            text.find("(assert") != std::string::npos) {
+          ++forced_wrong;
+          MESSAGE("script " << k
+                            << ": a formula is printed without one of "
+                               "its assertions:\n"
+                            << text);
+        }
+        continue;
+      }
+      const bool quantified = anyOf(all, needsQuantifier);
+      std::string text = smtLibOf(s);
+      if (text.find("lambda") != std::string::npos) {
+        ++print_lambdas;
+        MESSAGE("script " << k << ": a lambda is printed");
+      }
+      bool timedOut = false;
+      SolverResult r =
+          quantified ? boundedCall([&] { return s.check(); }, wall_ms, timedOut)
+                     : s.check();
+      std::string zr = z3Reads(text, solve_ms);
+      std::string br =
+          quantified
+              ? boundedString([&] { return bitwuzlaReads(text, solve_ms); },
+                              wall_ms)
+              : bitwuzlaReads(text, solve_ms);
+      for (const std::string &a : {zr, br}) {
+        if (a == "unknown" || a == "timeout") {
+          ++print_unknown;
+          continue;
+        }
+        if (a != "sat" && a != "unsat") {
+          ++print_errors;
+          MESSAGE("script " << k << ": the printed formula is not read: " << a
+                            << "\n"
+                            << text);
+          continue;
+        }
+        if ((r == SolverResult::SAT || r == SolverResult::UNSAT) &&
+            a != answerName(r)) {
+          ++print_disagreements;
+          MESSAGE("script " << k << ": the printed formula is " << a
+                            << ", the adapter says " << answerName(r));
+        }
+      }
+      // -- with a quantifier too: there Z3 may give up (UNDECIDED)
+      EncodingVerdict v = printedMeans(z3, env.efac, text, all, solve_ms);
+      ++(quantified ? printed_quantified : printed)[v];
+      if (v != EncodingVerdict::SAME &&
+          !(quantified && v == EncodingVerdict::UNDECIDED))
+        MESSAGE("script " << k << ": printed formula "
+                          << std::string(verdictName(v)) << "\n"
+                          << text);
+    }
+    if (!ok) {
+      ++not_encoded;
+      MESSAGE("script " << k << ": a formula is not encoded");
+    }
+  }
+  MESSAGE(scripts << " scripts: " << checks << " checks (" << in_scope
+                  << " in a scope, " << assumed << " with assumptions): " << sat
+                  << " sat, " << unsat << " unsat, " << bw_unknown
+                  << " unknown to Bitwuzla (" << unexplained_unknown
+                  << " unexplained, " << history_unknown
+                  << " after an earlier const-array equality, " << bw_timeouts
+                  << " killed), " << z3_unknown << " unknown to z3, "
+                  << disagreements << " disagreements; cores: " << cores << " ("
+                  << smaller_cores << " smaller than the assumptions), "
+                  << bad_cores << " bad, " << cores_undecided
+                  << " undecided; models: " << models << " checked, "
+                  << bad_models << " bad, " << non_values << " without values, "
+                  << refused_models << " refused; printed: " << prints << ", "
+                  << printed[EncodingVerdict::SAME] << " same and "
+                  << printed_quantified[EncodingVerdict::SAME]
+                  << " with a quantifier same ("
+                  << printed_quantified[EncodingVerdict::UNDECIDED]
+                  << " undecided), " << print_errors << " not read, "
+                  << print_disagreements << " disagree, " << print_unknown
+                  << " unknown, " << print_lambdas
+                  << " with lambda; failure paths: " << bad_adds
+                  << " assertions not encoded, " << bad_assumption_checks
+                  << " checks with a bad assumption, " << lost_pops
+                  << " pops with no scope, " << forced_checks << " checks and "
+                  << forced_prints << " prints that had to fail, "
+                  << forced_wrong << " did not");
+  CHECK(not_encoded == 0);
+  CHECK(disagreements == 0);
+  CHECK(unexplained_unknown == 0);
+  CHECK(bw_unknown <= checks / 10);
+  CHECK(z3_unknown_plain == 0);
+  CHECK(bad_cores == 0);
+  CHECK(bad_models == 0);
+  CHECK(non_values == 0);
+  CHECK(print_errors == 0);
+  CHECK(print_disagreements == 0);
+  CHECK(print_lambdas == 0);
+  CHECK(printed[EncodingVerdict::DIFFERENT] == 0);
+  CHECK(printed[EncodingVerdict::UNDECIDED] == 0);
+  CHECK(printed[EncodingVerdict::UNCHECKED] == 0);
+  CHECK(printed_quantified[EncodingVerdict::DIFFERENT] == 0);
+  CHECK(printed_quantified[EncodingVerdict::UNCHECKED] == 0);
+  CHECK(forced_wrong == 0);
+  CHECK(bad_adds > 0);
+  CHECK(bad_assumption_checks > 0);
+  CHECK(lost_pops > 0);
+  // -- the scripts must exercise what they test
+  CHECK(in_scope >= checks / 4);
+  CHECK(assumed >= checks / 4);
+  CHECK(cores > 0);
+  CHECK(smaller_cores >= cores / 10);
+  CHECK(prints > 0);
+}
+
+TEST_CASE("bitwuzla.to_smt_lib size") {
+  // -- the text grows with the formula's DAG, with a binder in the formula
+  // -- too (review of step 1.8: Bitwuzla's printer without lets wrote 2^n
+  // -- copies). P_k = ~P_(k-1) + ~P_(k-1): each ~P_(k-1) has one child and
+  // -- two uses.
+  Env env;
+  OpenEZ3 z3(env.efac);
+  bitwuzla_solver_impl bzla;
+  Solver &s = bzla;
+  Expr x = env.bvc("x", 8), y = env.bvc("y", 8);
+  auto chain = [&](Expr p, int n) {
+    for (int k = 0; k < n; ++k) {
+      Expr nk = mk<BNOT>(p);
+      p = mk<BADD>(nk, nk);
+    }
+    return p;
+  };
+  Expr all =
+      mk<FORALL>(env.bdecl("z", 8), mk<BULE>(env.bvar(0, 8), env.num(255, 8)));
+  // -- a bound at each depth stops the test at the first that fails: a
+  // -- printer that writes 2^n copies fails at 10, before it fills the
+  // -- memory at 40 (as a planted bug did, for hours)
+  std::vector<size_t> plain, quantified;
+  for (int n : {10, 20, 40}) {
+    s.reset();
+    CHECK(s.add(mk<EQ>(chain(x, n), y)));
+    plain.push_back(smtLibOf(s).size());
+    REQUIRE(plain.back() < 100u * n + 2000);
+    CHECK(s.add(all));
+    std::string text = smtLibOf(s);
+    quantified.push_back(text.size());
+    REQUIRE(quantified.back() < 100u * n + 2000);
+    CHECK(z3Reads(text) == "sat");
+    CHECK(bitwuzlaReads(text) == "sat");
+  }
+  // -- twice the depth, about twice the text (not 2^20 times)
+  CHECK(quantified[2] < 3 * quantified[1]);
+  CHECK(quantified[2] < 2 * plain[2] + 1000);
+
+  // -- under nested binders, where the lets are off: the closed chain is
+  // -- still printed once. (Depth 18: printed in full, 2^18 copies would
+  // -- still fit in memory, and fail the bound.)
+  {
+    s.reset();
+    Expr z = env.bvar(0, 8), zIn = env.bvar(1, 8), w = env.bvar(0, 8);
+    Expr nestedChain =
+        mk<FORALL>(env.bdecl("z", 8),
+                   mk<OR>(mk<EXISTS>(env.bdecl("w", 8),
+                                     mk<EQ>(mk<BADD>(zIn, w), chain(x, 18))),
+                          mk<EQ>(z, y)));
+    CHECK(s.add(nestedChain));
+    std::string text = smtLibOf(s);
+    CHECK(text.size() < 20000);
+    CHECK(z3Reads(text) == "sat");
+  }
+
+  // -- a closed term shared only inside a binder's body, and an open one
+  for (bool open : {false, true}) {
+    s.reset();
+    Expr z = env.bvar(0, 8);
+    Expr body = mk<EQ>(chain(open ? z : x, 18), mk<BADD>(z, y));
+    Expr e = mk<EXISTS>(env.bdecl("z", 8), body);
+    CHECK(s.add(e));
+    std::string text = smtLibOf(s);
+    CHECK(text.size() < 20000);
+    SolverResult r = s.check();
+    REQUIRE((r == SolverResult::SAT || r == SolverResult::UNSAT));
+    CHECK(z3Reads(text) == answerName(r));
+    CHECK(bitwuzlaReads(text) == answerName(r));
+  }
 }
 
 #endif

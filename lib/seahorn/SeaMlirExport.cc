@@ -17,11 +17,11 @@
 ///   `unreachable` becomes `sea.unreachable`;
 /// - shadow.mem.global.init stores a global's initializer: one sea.memset
 ///   when every byte is one value (zeroinitializer, a splat; any size),
-///   else byte by byte, up to 16 KiB, when it is plain data (integers,
-///   floats, arrays, structs, zeros;
-///   undef bytes stay nondet); an initializer the export cannot write
-///   (pointers, constant expressions, larger than 16 KiB and not a splat,
-///   or a global used without a shadow.mem.global.init) is an error, or,
+///   else one sea.mem.fill per run of defined bytes, at any size, when it is
+///   plain data (integers, floats, arrays, structs, zeros; undef bytes
+///   between runs stay nondet); an initializer the export cannot write
+///   (pointers, constant expressions, big-endian data, or a global used
+///   without a shadow.mem.global.init) is an error, or,
 ///   with --horn-sea-mlir-allow-uninit-globals (every global) or
 ///   --horn-sea-mlir-allow-uninit-global=NAME (that global), a warning and
 ///   the global starts uninitialized;
@@ -144,8 +144,8 @@ static cl::opt<bool> SeaMlirExportOnly(
 static cl::opt<bool> SeaMlirAllowUninitGlobals(
     "horn-sea-mlir-allow-uninit-globals",
     cl::desc("sea-mlir export: a global initializer the export cannot "
-             "write (pointers, constant expressions, a large non-splat "
-             "initializer) is a warning, and the global starts "
+             "write (pointers, constant expressions, big-endian data) is a "
+             "warning, and the global starts "
              "uninitialized (default: an error)"),
     cl::init(false));
 
@@ -1453,8 +1453,6 @@ static std::string denseBytes(ArrayRef<uint8_t> data) {
 std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
                                                       const std::string &mem,
                                                       const Instruction &at) {
-  /// Above this many bytes, an initializer is left out (a store per byte).
-  constexpr uint64_t kMaxInitBytes = 1 << 14;
   uint64_t size = DL.getTypeAllocSize(gv.getValueType());
   // All zero, or one repeated byte: one sea.memset over the object, at any
   // size (a 4 KiB zero array was 4096 stores).
@@ -1478,13 +1476,8 @@ std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
        << ", " << n << " inplace : " << memTy << l << "\n";
     return r;
   }
-  // erase: one seaimp.mem.fill per run of defined bytes, at any size
-  if (!DL.isLittleEndian() || (!erase && size > kMaxInitBytes)) {
-    droppedInit(gv, DL.isLittleEndian() ? Twine(size) +
-                                              " bytes, not one repeated byte, "
-                                              "larger than " +
-                                              Twine(kMaxInitBytes)
-                                        : Twine("big-endian"));
+  if (!DL.isLittleEndian()) {
+    droppedInit(gv, "big-endian");
     return std::nullopt;
   }
   SmallVector<std::optional<uint8_t>> bytes(size);
@@ -1496,35 +1489,18 @@ std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
   auto base = constant(&gv, at);
   if (!base)
     return std::nullopt;
-  if (erase) {
-    // One fill per maximal run of defined bytes; undef bytes between runs
-    // stay as they are (nondet).
-    for (uint64_t i = 0; i < size;) {
-      if (!bytes[i]) {
-        ++i;
-        continue;
-      }
-      uint64_t j = i;
-      SmallVector<uint8_t> run;
-      for (; j < size && bytes[j]; ++j)
-        run.push_back(*bytes[j]);
-      std::string p = *base;
-      if (i) {
-        std::string o = emitConst(APInt(W, i), l);
-        p = fresh();
-        os << "  " << p << " = sea.ptr.add " << *base << ", " << o << " : "
-           << ptrTy << ", i" << W << l << "\n";
-      }
-      os << "  seaimp.mem.fill " << kMem << "[" << p << "], " << denseBytes(run)
-         << " : " << varTy << l << "\n";
-      i = j;
-    }
-    return std::string();
-  }
-  std::string cur = mem;
-  for (uint64_t i = 0; i < size; ++i) {
-    if (!bytes[i])
+  // One fill per maximal run of defined bytes, at any size; undef bytes
+  // between runs stay as they are (nondet).
+  std::string cur = erase ? std::string() : mem;
+  for (uint64_t i = 0; i < size;) {
+    if (!bytes[i]) {
+      ++i;
       continue;
+    }
+    uint64_t j = i;
+    SmallVector<uint8_t> run;
+    for (; j < size && bytes[j]; ++j)
+      run.push_back(*bytes[j]);
     std::string p = *base;
     if (i) {
       std::string o = emitConst(APInt(W, i), l);
@@ -1532,10 +1508,16 @@ std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
       os << "  " << p << " = sea.ptr.add " << *base << ", " << o << " : "
          << ptrTy << ", i" << W << l << "\n";
     }
-    std::string b = emitConst(APInt(8, *bytes[i]), l), r = fresh();
-    os << "  " << r << " = sea.store " << cur << "[" << p << "], " << b
-       << " inplace : " << memTy << ", i8" << l << "\n";
-    cur = r;
+    if (erase) {
+      os << "  seaimp.mem.fill " << kMem << "[" << p << "], " << denseBytes(run)
+         << " : " << varTy << l << "\n";
+    } else {
+      std::string r = fresh();
+      os << "  " << r << " = sea.mem.fill " << cur << "[" << p << "], "
+         << denseBytes(run) << " inplace : " << memTy << l << "\n";
+      cur = r;
+    }
+    i = j;
   }
   return cur;
 }

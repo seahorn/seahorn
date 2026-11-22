@@ -1,13 +1,22 @@
 // Global initializers in the sea-mlir export with memory SSA erased
 // (--horn-sea-mlir-mem-ssa=erase): one seaimp.mem.fill per run of defined
 // bytes (undef struct padding stays nondet, so the fill is split around it),
-// at any size (big, more than 16 KiB and not one repeated byte, is dropped by
-// the default form, KEEP); an all-zero initializer stays one seaimp.memset;
-// an initializer holding a pointer is still dropped (the same warning).
-// RUN: not %sea yama -y sea-mlir-export -O0 --bound=1 -m64 --horn-sea-mlir-allow-uninit-global=pp --horn-sea-mlir-out=%t.keep.mlir "%s" 2>&1 | filecheck %s --check-prefix=KEEP
+// at any size (big: more than 16 KiB, not one repeated byte; the default
+// form, KEEP, makes the same fills as sea.mem.fill); an all-zero initializer
+// stays one seaimp.memset; an initializer holding a pointer is still dropped
+// (the same warning).
+// RUN: %sea yama -y sea-mlir-export -O0 --bound=1 -m64 --horn-sea-mlir-allow-uninit-global=pp --horn-sea-mlir-out=%t.keep.mlir "%s" 2>&1 | filecheck %s --check-prefix=LOG
+// RUN: filecheck %s --check-prefix=KEEP < %t.keep.mlir
 // RUN: %sea yama -y sea-mlir-export -O0 --bound=1 -m64 --horn-sea-mlir-mem-ssa=erase --horn-sea-mlir-allow-uninit-global=pp --horn-sea-mlir-out=%t.mlir "%s" 2>&1 | filecheck %s --check-prefix=LOG
 // RUN: filecheck %s < %t.mlir
-// KEEP: Error: sea-mlir export: the initializer of global big is dropped (20000 bytes, not one repeated byte, larger than 16384)
+// KEEP-DAG: %[[KBIG:v[0-9]+]] = sea.global @"big" size 20000 align 16
+// KEEP-DAG: sea.mem.fill %{{v[0-9]+}}[%[[KBIG]]], dense<"0x01020000{{(00)+}}03"> : tensor<20000xi8> inplace : !sea.mem<!sea.ptr<64>, i8>
+// KEEP-DAG: sea.mem.fill %{{v[0-9]+}}[%{{v[0-9]+}}], dense<[4, 3, 2, 1, 7, 0]> : tensor<6xi8> inplace : !sea.mem<!sea.ptr<64>, i8>
+// KEEP-DAG: %[[KHI:v[0-9]+]] = sea.global @"hi" size 4 align 8
+// KEEP-DAG: sea.mem.fill %{{v[0-9]+}}[%[[KHI]]], dense<[255, 128, 1, 127]> : tensor<4xi8> inplace : !sea.mem<!sea.ptr<64>, i8>
+// KEEP-DAG: %[[KHB:v[0-9]+]] = sea.global @"hibig" size 300 align 16
+// KEEP-DAG: sea.mem.fill %{{v[0-9]+}}[%[[KHB]]], dense<"0x80FF{{(00)+}}FE"> : tensor<300xi8> inplace : !sea.mem<!sea.ptr<64>, i8>
+// KEEP: sea.assert
 // LOG-NOT: global big
 // LOG: Warning: sea-mlir export: the initializer of global pp is dropped (it holds pointers or constant expressions)
 // LOG-NOT: global big

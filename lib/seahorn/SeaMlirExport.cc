@@ -202,8 +202,12 @@ std::string quote(StringRef s) {
       (r += '\\') += c;
     else if (isPrint(c))
       r += c;
-    else
-      r += "\\" + utohexstr(uint8_t(c), /*LowerCase=*/false, 2);
+    else {
+      // two digits (utohexstr(0, false, 2) is "000")
+      uint8_t b = c;
+      (r += '\\') += hexdigit(b >> 4);
+      r += hexdigit(b & 15);
+    }
   }
   return r + "\"";
 }

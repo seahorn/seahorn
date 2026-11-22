@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // The sea-mlir export with memory SSA erased (--horn-sea-mlir-mem-ssa=erase):
 // one seaimp region variable "mem" at the start of the entry block instead
 // of a sea.mem.nondet per shadow-memory region; every memory instruction is

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // Global initializers in the sea-mlir export with memory SSA erased
 // (--horn-sea-mlir-mem-ssa=erase): one seaimp.mem.fill per run of defined
 // bytes (undef struct padding stays nondet, so the fill is split around it),

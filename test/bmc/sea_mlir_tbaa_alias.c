@@ -12,6 +12,10 @@
 // RUN: %sea yama -y sea-mlir-export -O0 --bound=1 -m64 -g --horn-shadow-mem-use-tbaa=false --horn-sea-mlir-out=%t.off.mlir "%s" 2>&1 | filecheck %s --check-prefix=OFF
 // RUN: filecheck %s --check-prefix=LATEST < %t.off.mlir
 // RUN: %sea bpf -O0 -m64 --horn-stats "%s" 2>&1 | filecheck %s --check-prefix=STAT
+// With memory SSA erased no load reads a memory version, so the moved use
+// does not matter and nothing is reported (sea-vc then finds the reach):
+// RUN: %sea yama -y sea-mlir-export -O0 --bound=1 -m64 -g --horn-sea-mlir-mem-ssa=erase --horn-sea-mlir-out=%t.erase.mlir "%s" 2>&1 | filecheck %s --check-prefix=OFF
+// RUN: filecheck %s --check-prefix=ERASE < %t.erase.mlir
 // WARN: Warning: sea-mlir export: TBAA moved 1 shadow-memory use past stores; to check whether a result depends on it, re-export with --horn-shadow-mem-use-tbaa=false
 // WARN: sea-mlir-export: wrote
 // STALE: // sea-mlir-export: TBAA moved 1 shadow-memory use past stores
@@ -22,6 +26,9 @@
 // LATEST-NOT: TBAA moved
 // LATEST: %[[S:v[0-9]+]] = sea.store %{{v[0-9]+}}[{{.*}} loc(callsite(
 // LATEST: sea.load %[[S]][
+// ERASE-NOT: TBAA moved
+// ERASE: seaimp.store %mem[{{.*}} loc(callsite(
+// ERASE: seaimp.load %mem[
 // STAT-NOT: Warning: {{.*}}TBAA
 // STAT: {{^}}unsat{{$}}
 // STAT: BRUNCH_STAT shadow.mem.tbaa-moved-uses 1

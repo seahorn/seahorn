@@ -50,6 +50,24 @@
 ///   never sees assembly;
 /// - shadow.mem.in / shadow.mem.out (main only) have no effect.
 ///
+/// --horn-sea-mlir-mem-ssa=erase exports memory without memory SSA (sea-mlir
+/// docs/design/SeaImp.md; sea-mlir builds it again, sea-lower-seaimp):
+/// - every shadow-memory region is one region variable,
+///   `%mem = seaimp.var "mem" [site] : !seaimp.var<!sea.mem<...>>` at the
+///   start of the entry block (all regions have the one byte memory type);
+/// - each memory instruction is the seaimp region op on %mem (seaimp.load /
+///   store / memset / memmove / memhavoc / is_modified / reset_modified /
+///   print.mem): no version operands, no memory block arguments;
+/// - allocation names the region: seaimp.alloca (alloca), seaimp.malloc
+///   (malloc, calloc, operator new), seaimp.global (globals);
+/// - a global's initializer is one seaimp.mem.fill per run of defined bytes,
+///   at any size (undef bytes between runs stay nondet), or one
+///   seaimp.memset when every byte is one value;
+/// - the shadow memory calls are still matched with the memory instructions
+///   (the same errors as the default form, and an instruction without a
+///   region stays a no-op), but their versions are not used; so ShadowMem's
+///   TBAA moves do not apply and are not reported.
+///
 /// sea_printf(fmt, ...) becomes counterexample prints (sea-mlir
 /// docs/design/Print.md), which encode nothing in the VC: one strong
 /// sea.print per integer or pointer argument, a tag line for a call without
@@ -139,6 +157,22 @@ static cl::list<std::string> SeaMlirAllowUninitGlobal(
              "initializer is dropped is a warning"),
     cl::CommaSeparated, cl::ZeroOrMore, cl::value_desc("name"));
 
+namespace {
+enum class MemSsaMode { Keep, Erase };
+} // namespace
+
+static cl::opt<MemSsaMode> SeaMlirMemSsa(
+    "horn-sea-mlir-mem-ssa",
+    cl::desc("sea-mlir export: the form of memory (default: keep)"),
+    cl::values(clEnumValN(MemSsaMode::Keep, "keep",
+                          "one Mem-SSA chain per shadow-memory region, as "
+                          "the shadow memory gives it"),
+               clEnumValN(MemSsaMode::Erase, "erase",
+                          "memory SSA erased: one seaimp region variable "
+                          "\"mem\" for all regions, accessed by seaimp "
+                          "region ops (sea-mlir builds Mem-SSA again)")),
+    cl::init(MemSsaMode::Keep));
+
 static cl::list<std::string>
     SeaVcArgs("horn-sea-vc-arg",
               cl::desc("sea-mlir engine: an extra argument for sea-vc"));
@@ -185,6 +219,8 @@ public:
     W = DL.getPointerSizeInBits();
     ptrTy = "!sea.ptr<" + std::to_string(W) + ">";
     memTy = "!sea.mem<" + ptrTy + ", i8>";
+    erase = SeaMlirMemSsa == MemSsaMode::Erase;
+    varTy = "!seaimp.var<" + memTy + ">";
     for (const DICompileUnit *cu : F.getParent()->debug_compile_units()) {
       srcRoot = cu->getDirectory().str();
       break;
@@ -331,11 +367,13 @@ private:
   void exportInst(const Instruction &I);
   void exportCall(const CallBase &CB);
   void exportShadow(const CallBase &CB, StringRef name);
+  std::optional<std::string> shadowVersion(const CallBase &CB);
   void exportInlineAsm(const CallBase &CB, const InlineAsm &IA);
   void exportPrintf(const CallBase &CB, const std::string &l);
   void exportMemdump(const CallBase &CB, const std::string &l);
   /// Stores the initializer of \p gv into memory version \p mem; returns
   /// the new version, or std::nullopt if the initializer is not plain data.
+  /// Erase: stores it into kMem (\p mem unused) and returns "".
   std::optional<std::string> exportGlobalInit(const GlobalVariable &gv,
                                               const std::string &mem,
                                               const Instruction &at);
@@ -362,6 +400,15 @@ private:
   raw_string_ostream os;
   unsigned W;
   std::string ptrTy, memTy;
+  /// --horn-sea-mlir-mem-ssa=erase: every shadow-memory region is the one
+  /// seaimp region variable kMem (of type varTy, declared at the start of
+  /// the entry block); memory ops are seaimp region ops on it, with no
+  /// memory versions. The shadow memory calls are still paired with the
+  /// memory instructions (the same diagnostics as keep, and whether an
+  /// instruction has a region at all), but their versions are not read.
+  bool erase = false;
+  std::string varTy;
+  static constexpr const char *kMem = "%mem";
   unsigned next = 0;
   uint64_t nextSite = 0;
   bool ok = true;
@@ -870,9 +917,11 @@ std::optional<std::string> Exporter::constant(const Constant *c,
         l = " loc(" + pos + ")";
         break;
       }
-    os << "  " << n << " = sea.global @" << quote(gv->getName()) << " size "
-       << size << " align " << objectAlign(gv->getPointerAlignment(DL), W / 8)
-       << " : " << ptrTy << l << "\n";
+    os << "  " << n << " = " << (erase ? "seaimp.global " : "sea.global ")
+       << (erase ? std::string(kMem) + " " : "") << "@" << quote(gv->getName())
+       << " size " << size << " align "
+       << objectAlign(gv->getPointerAlignment(DL), W / 8) << " : "
+       << (erase ? varTy + " -> " : "") << ptrTy << l << "\n";
     return n;
   }
   if (auto *fn = dyn_cast<Function>(c)) {
@@ -1193,10 +1242,21 @@ std::optional<std::string> Exporter::exportGep(const GEPOperator &gep,
   return n;
 }
 
+/// The memory version a shadow memory call names (argument 1); erase reads
+/// no versions: "".
+std::optional<std::string> Exporter::shadowVersion(const CallBase &CB) {
+  if (erase)
+    return std::string();
+  return val(CB.getArgOperand(1), CB);
+}
+
 void Exporter::exportShadow(const CallBase &CB, StringRef name) {
   std::string l = loc(CB);
   if (name == "shadow.mem.init" || name == "shadow.mem.arg.init") {
-    // A region's initial contents: unconstrained.
+    // A region's initial contents: unconstrained (erase: kMem's, declared
+    // once at the start of the entry block).
+    if (erase)
+      return;
     std::string n = fresh();
     os << "  " << n << " = sea.mem.nondet \"region." << regionOf(CB) << "\" ["
        << site(&CB) << "] : " << memTy << l << "\n";
@@ -1206,7 +1266,8 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
   if (name == "shadow.mem.global.init") {
     // The region's version with the global's initializer stored; a global
     // whose initializer is not plain data starts uninitialized (warning).
-    auto in = val(CB.getArgOperand(1), CB);
+    // Erase: the initializer is stored into kMem, no version is read.
+    auto in = shadowVersion(CB);
     if (!in)
       return;
     names[&CB] = *in;
@@ -1228,13 +1289,13 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
   if (name == "shadow.mem.store") {
     if (pendingDef)
       error("two shadow.mem.store without a memory update in between", &CB);
-    auto in = val(CB.getArgOperand(1), CB);
+    auto in = shadowVersion(CB);
     if (in)
       pendingDef = std::make_pair(*in, (const Value *)&CB);
     return;
   }
   if (name == "shadow.mem.load") {
-    auto v = val(CB.getArgOperand(1), CB);
+    auto v = shadowVersion(CB);
     if (v) {
       pendingUse = *v;
       pendingUseVersion = CB.getArgOperand(1);
@@ -1244,12 +1305,12 @@ void Exporter::exportShadow(const CallBase &CB, StringRef name) {
   if (name == "shadow.mem.arg.ref") {
     // a region the next call reads: only sea_memdump has one
     // (SeaMlirPrepPass gave it a body)
-    if (auto v = val(CB.getArgOperand(1), CB))
+    if (auto v = shadowVersion(CB))
       pendingArgRefs.push_back(*v);
     return;
   }
   if (name == "shadow.mem.trsfr.load") {
-    auto v = val(CB.getArgOperand(1), CB);
+    auto v = shadowVersion(CB);
     if (v)
       pendingTrsfr = *v;
     return;
@@ -1370,6 +1431,25 @@ static bool splatBytes(const Constant *c, const DataLayout &DL,
   return false; // undef, pointers, constant expressions
 }
 
+/// \p data as a dense i8 attribute with its type: a list of the byte values
+/// up to 256 bytes, else MLIR's hex form (the raw bytes), which is about
+/// half as long and parses faster.
+static std::string denseBytes(ArrayRef<uint8_t> data) {
+  std::string r = "dense<";
+  if (data.size() <= 256) {
+    r += "[";
+    for (size_t i = 0; i < data.size(); ++i)
+      r += (i ? ", " : "") + std::to_string(data[i]);
+    r += "]";
+  } else {
+    r += "\"0x";
+    for (uint8_t b : data) // (utohexstr(0, false, 2) is "000")
+      (r += hexdigit(b >> 4)) += hexdigit(b & 15);
+    r += "\"";
+  }
+  return r + "> : tensor<" + std::to_string(data.size()) + "xi8>";
+}
+
 std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
                                                       const std::string &mem,
                                                       const Instruction &at) {
@@ -1387,12 +1467,19 @@ std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
     if (!base)
       return std::nullopt;
     std::string v = emitConst(APInt(8, splat.value_or(0)), l);
-    std::string n = emitConst(APInt(W, size), l), r = fresh();
+    std::string n = emitConst(APInt(W, size), l);
+    if (erase) {
+      os << "  seaimp.memset " << kMem << "[" << *base << "], " << v << ", "
+         << n << " : " << varTy << l << "\n";
+      return std::string();
+    }
+    std::string r = fresh();
     os << "  " << r << " = sea.memset " << mem << "[" << *base << "], " << v
        << ", " << n << " inplace : " << memTy << l << "\n";
     return r;
   }
-  if (!DL.isLittleEndian() || size > kMaxInitBytes) {
+  // erase: one seaimp.mem.fill per run of defined bytes, at any size
+  if (!DL.isLittleEndian() || (!erase && size > kMaxInitBytes)) {
     droppedInit(gv, DL.isLittleEndian() ? Twine(size) +
                                               " bytes, not one repeated byte, "
                                               "larger than " +
@@ -1409,6 +1496,31 @@ std::optional<std::string> Exporter::exportGlobalInit(const GlobalVariable &gv,
   auto base = constant(&gv, at);
   if (!base)
     return std::nullopt;
+  if (erase) {
+    // One fill per maximal run of defined bytes; undef bytes between runs
+    // stay as they are (nondet).
+    for (uint64_t i = 0; i < size;) {
+      if (!bytes[i]) {
+        ++i;
+        continue;
+      }
+      uint64_t j = i;
+      SmallVector<uint8_t> run;
+      for (; j < size && bytes[j]; ++j)
+        run.push_back(*bytes[j]);
+      std::string p = *base;
+      if (i) {
+        std::string o = emitConst(APInt(W, i), l);
+        p = fresh();
+        os << "  " << p << " = sea.ptr.add " << *base << ", " << o << " : "
+           << ptrTy << ", i" << W << l << "\n";
+      }
+      os << "  seaimp.mem.fill " << kMem << "[" << p << "], " << denseBytes(run)
+         << " : " << varTy << l << "\n";
+      i = j;
+    }
+    return std::string();
+  }
   std::string cur = mem;
   for (uint64_t i = 0; i < size; ++i) {
     if (!bytes[i])
@@ -1827,8 +1939,12 @@ void Exporter::exportCall(const CallBase &CB) {
       return;
     }
     std::string r = fresh();
-    os << "  " << r << " = sea.mem.is_modified " << *m << "[" << *p
-       << "] : " << memTy << l << "\n";
+    if (erase)
+      os << "  " << r << " = seaimp.is_modified " << kMem << "[" << *p
+         << "] : " << varTy << l << "\n";
+    else
+      os << "  " << r << " = sea.mem.is_modified " << *m << "[" << *p
+         << "] : " << memTy << l << "\n";
     names[&CB] = r;
     return;
   }
@@ -1837,6 +1953,11 @@ void Exporter::exportCall(const CallBase &CB) {
     auto p = val(CB.getArgOperand(0), CB);
     if (!d || !p)
       return;
+    if (erase) {
+      os << "  seaimp.reset_modified " << kMem << "[" << *p << "] : " << varTy
+         << l << "\n";
+      return;
+    }
     std::string r = fresh();
     os << "  " << r << " = sea.mem.reset_modified " << d->first << "[" << *p
        << "] inplace : " << memTy << l << "\n";
@@ -1861,6 +1982,15 @@ void Exporter::exportCall(const CallBase &CB) {
     std::string m = *pendingUse;
     pendingUse.reset();
     pendingUseVersion = nullptr;
+    if (erase) {
+      // a region update like any other: later reads of kMem see it
+      auto p = val(CB.getArgOperand(0), CB),
+           n = sizeVal(CB.getArgOperand(1), CB);
+      if (p && n)
+        os << "  seaimp.memhavoc " << kMem << "[" << *p << "], " << *n << " ["
+           << site(&CB) << "] : " << varTy << l << "\n";
+      return;
+    }
     DominatorTree dt(const_cast<Function &>(F));
     for (const Use &u : ver->uses()) {
       auto *ui = dyn_cast<Instruction>(u.getUser());
@@ -1965,6 +2095,11 @@ void Exporter::exportCall(const CallBase &CB) {
          n = sizeVal(ms->getLength(), CB);
     if (!d || !p || !v || !n)
       return;
+    if (erase) {
+      os << "  seaimp.memset " << kMem << "[" << *p << "], " << *v << ", " << *n
+         << align(ms->getDestAlign()) << " : " << varTy << l << "\n";
+      return;
+    }
     std::string r = fresh();
     os << "  " << r << " = sea.memset " << d->first << "[" << *p << "], " << *v
        << ", " << *n << " inplace" << align(ms->getDestAlign()) << " : "
@@ -1987,6 +2122,13 @@ void Exporter::exportCall(const CallBase &CB) {
       return;
     // memcpy and memmove mean the same in sea (a new version); memcpy's
     // disjointness precondition is a sea-mlir pass.
+    if (erase) {
+      os << "  seaimp.memmove " << kMem << "[" << *dp << "], " << kMem << "["
+         << *sp << "], " << *n << align(mt->getDestAlign())
+         << align(mt->getSourceAlign(), " src_align ") << " : " << varTy << l
+         << "\n";
+      return;
+    }
     std::string r = fresh();
     os << "  " << r << " = sea.memmove " << d->first << "[" << *dp << "], "
        << src << "[" << *sp << "], " << *n << " inplace"
@@ -2030,12 +2172,21 @@ void Exporter::exportCall(const CallBase &CB) {
     if (!size)
       return;
     std::string p = fresh();
-    os << "  " << p << " = sea.malloc " << *size << " align " << alignment
-       << " [" << site(&CB) << "] : i" << W << " -> " << ptrTy << l << "\n";
+    if (erase)
+      os << "  " << p << " = seaimp.malloc " << kMem << ", " << *size
+         << " align " << alignment << " [" << site(&CB) << "] : " << varTy
+         << ", i" << W << " -> " << ptrTy << l << "\n";
+    else
+      os << "  " << p << " = sea.malloc " << *size << " align " << alignment
+         << " [" << site(&CB) << "] : i" << W << " -> " << ptrTy << l << "\n";
     names[&CB] = p;
     if (pendingDef) {
       auto d = *takeDef(CB);
-      if (name == "calloc") {
+      if (name == "calloc" && erase) {
+        std::string z = emitConst(APInt(8, 0), l);
+        os << "  seaimp.memset " << kMem << "[" << p << "], " << z << ", "
+           << *size << " : " << varTy << l << "\n";
+      } else if (name == "calloc") {
         std::string z = emitConst(APInt(8, 0), l), r = fresh();
         os << "  " << r << " = sea.memset " << d.first << "[" << p << "], " << z
            << ", " << *size << " inplace : " << memTy << l << "\n";
@@ -2351,7 +2502,8 @@ void Exporter::exportMemdump(const CallBase &CB, const std::string &l) {
     WARN << "sea-mlir export: sea_memdump" << where
          << ": the label is not a constant string; it prints as "
             "\"sea_memdump\"";
-  if (refs.size() != 1) {
+  // erase: every region is kMem, so a call given several regions prints too
+  if (refs.empty() || (!erase && refs.size() != 1)) {
     WARN << "sea-mlir export: sea_memdump" << where << " (" << label
          << "): the shadow memory gives the call " << refs.size()
          << " memory regions, not one; it is not printed";
@@ -2362,9 +2514,14 @@ void Exporter::exportMemdump(const CallBase &CB, const std::string &l) {
   auto nTy = type(CB.getArgOperand(2)->getType(), &CB);
   if (!p || !n || !nTy)
     return;
-  os << "  sea.print.mem " << quote(label) << " " << refs[0] << "[" << *p
-     << "], " << *n << " : " << memTy << ", " << *nTy
-     << " -> i8 {fmt = \"hexdump\"}" << l << "\n";
+  if (erase)
+    os << "  seaimp.print.mem " << quote(label) << " " << kMem << "[" << *p
+       << "], " << *n << " fmt \"hexdump\" : " << varTy << ", " << *nTy
+       << " -> i8" << l << "\n";
+  else
+    os << "  sea.print.mem " << quote(label) << " " << refs[0] << "[" << *p
+       << "], " << *n << " : " << memTy << ", " << *nTy
+       << " -> i8 {fmt = \"hexdump\"}" << l << "\n";
 }
 
 void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,
@@ -2373,6 +2530,8 @@ void Exporter::exportBranch(const BasicBlock &from, const BasicBlock &to,
   text = blockName(&to);
   SmallVector<std::string> args, types;
   for (const PHINode &phi : to.phis()) {
+    if (erase && isMem(&phi))
+      continue; // no memory versions
     const Value *in = phi.getIncomingValueForBlock(&from);
     if (isPair(&phi)) {
       auto *st = cast<StructType>(phi.getType());
@@ -2719,10 +2878,14 @@ void Exporter::exportInst(const Instruction &I) {
     }
     if (!size)
       return;
-    def("sea.alloca " + *size + " align " +
-        std::to_string(objectAlign(al->getAlign(), W / 8)) + " [" +
-        std::to_string(site(&I)) + "] : i" + std::to_string(W) + " -> " +
-        ptrTy);
+    std::string a = std::to_string(objectAlign(al->getAlign(), W / 8)),
+                s = std::to_string(site(&I)), iw = "i" + std::to_string(W);
+    if (erase)
+      def("seaimp.alloca " + std::string(kMem) + ", " + *size + " align " + a +
+          " [" + s + "] : " + varTy + ", " + iw + " -> " + ptrTy);
+    else
+      def("sea.alloca " + *size + " align " + a + " [" + s + "] : " + iw +
+          " -> " + ptrTy);
     // Allocation is a definition (--horn-shadow-mem-alloc-is-def): the
     // contents do not change.
     if (pendingDef) {
@@ -2751,16 +2914,22 @@ void Exporter::exportInst(const Instruction &I) {
       // i1 and friends occupy whole bytes in memory
       unsigned w = t->getIntegerBitWidth(), bw = (w + 7) / 8 * 8;
       std::string b = fresh();
-      os << "  " << b << " = sea.load " << *m << "[" << *p << "]"
-         << align(ld->getAlign()) << " : " << memTy << " -> i" << bw << l
-         << "\n";
+      if (erase)
+        os << "  " << b << " = seaimp.load " << kMem << "[" << *p << "]"
+           << align(ld->getAlign()) << " : " << varTy << " -> i" << bw << l
+           << "\n";
+      else
+        os << "  " << b << " = sea.load " << *m << "[" << *p << "]"
+           << align(ld->getAlign()) << " : " << memTy << " -> i" << bw << l
+           << "\n";
       def("sea.trunc " + b + " : i" + std::to_string(bw) + " to i" +
           std::to_string(w));
       return;
     }
     if (auto ty = type(t, &I))
-      def("sea.load " + *m + "[" + *p + "]" + align(ld->getAlign()) + " : " +
-          memTy + " -> " + *ty);
+      def((erase ? "seaimp.load " + std::string(kMem) : "sea.load " + *m) +
+          "[" + *p + "]" + align(ld->getAlign()) + " : " +
+          (erase ? varTy : memTy) + " -> " + *ty);
     return;
   }
   if (auto *st = dyn_cast<StoreInst>(&I)) {
@@ -2779,6 +2948,11 @@ void Exporter::exportInst(const Instruction &I) {
     } else if (auto ty = type(t, &I)) {
       vty = *ty;
     } else {
+      return;
+    }
+    if (erase) {
+      os << "  seaimp.store " << kMem << "[" << *p << "], " << value
+         << align(st->getAlign()) << " : " << varTy << ", " << vty << l << "\n";
       return;
     }
     std::string r = fresh();
@@ -2808,6 +2982,8 @@ void Exporter::exportBlock(const BasicBlock &BB) {
       args.append({v + " : " + *t0, o + " : " + *t1});
       continue;
     }
+    if (erase && isMem(&phi))
+      continue; // no memory versions
     std::string n = fresh();
     names[&phi] = n;
     if (isMem(&phi))
@@ -2819,6 +2995,11 @@ void Exporter::exportBlock(const BasicBlock &BB) {
   if (!args.empty())
     os << "(" << join(args, ", ") << ")";
   os << ":\n";
+  // erase: the one region, at the start of the entry block (its site stands
+  // for the whole memory: no instruction)
+  if (erase && &BB == &F.getEntryBlock())
+    os << "  " << kMem << " = seaimp.var \"mem\" [" << site(nullptr)
+       << "] : " << varTy << "\n";
 
   for (const Instruction &I : BB) {
     if (isa<PHINode>(I))
@@ -2954,7 +3135,9 @@ bool Exporter::run() {
   // aliasing (a mock that writes a library type through its own struct)
   // then gets a stale value, and a reach can be vacuously unsat. Turning
   // TBAA off is a diagnosis aid, not the fix: it gives up free alias facts.
-  if (unsigned moved = seadsa::getShadowMemTBAAStats().movedUses) {
+  // Erase reads no memory version, so the moved uses do not matter.
+  unsigned moved = seadsa::getShadowMemTBAAStats().movedUses;
+  if (moved && !erase) {
     std::string msg = "TBAA moved " + std::to_string(moved) +
                       " shadow-memory use" + (moved == 1 ? "" : "s") +
                       " past stores; to check whether a result depends on it, "

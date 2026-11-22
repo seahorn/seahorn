@@ -11,6 +11,13 @@
 // CHECK: sea.print.mem "s" %{{v[0-9]+}}[%{{v[0-9]+}}], %{{v[0-9]+}} : !sea.mem<!sea.ptr<64>, i8>, i64 -> i8 {fmt = "hexdump"}
 // CHECK: sea.print.mem "sea_memdump" %{{v[0-9]+}}[%{{v[0-9]+}}], %{{v[0-9]+}} : !sea.mem<!sea.ptr<64>, i8>, i64 -> i8 {fmt = "hexdump"}
 // CHECK-NOT: sea.print.mem
+// With memory SSA erased, the dump reads the region variable:
+// RUN: %sea yama -y sea-mlir-export --bound=9 -m64 -g --horn-sea-mlir-mem-ssa=erase --horn-sea-mlir-out=%t.erase.mlir "%s" 2>&1 | filecheck %s --check-prefix=LOG
+// RUN: filecheck %s --check-prefix=ERASE < %t.erase.mlir
+// ERASE: seaimp.print.mem "buf" %mem[%{{v[0-9]+}}], %{{v[0-9]+}} fmt "hexdump" : !seaimp.var<!sea.mem<!sea.ptr<64>, i8>>, i64 -> i8
+// ERASE: seaimp.print.mem "s" %mem[%{{v[0-9]+}}], %{{v[0-9]+}} fmt "hexdump" : !seaimp.var<!sea.mem<!sea.ptr<64>, i8>>, i64 -> i8
+// ERASE: seaimp.print.mem "sea_memdump" %mem[%{{v[0-9]+}}], %{{v[0-9]+}} fmt "hexdump" : !seaimp.var<!sea.mem<!sea.ptr<64>, i8>>, i64 -> i8
+// ERASE-NOT: print.mem
 
 #include <seahorn/seahorn.h>
 #include <stdint.h>

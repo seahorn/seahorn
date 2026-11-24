@@ -22,6 +22,8 @@ sea-vc prog.mlir --lower --seam --widen-memory=4
 - The profile sets the sub-command (`bpf`) and
   `--horn-sea-mlir-export-only`: `sea` exits after the export with status 0
   if it succeeded and 1 otherwise (no sea-vc run, no `|| true` needed).
+  A failed export exits with status 1 also without the option, and the
+  output file is removed rather than left empty.
 - Per run, on the command line or in the program's own yaml (given after the
   profile; later files and the command line override earlier ones): the
   unroll bound `--bound=N`, the output `--horn-sea-mlir-out=FILE`, and, to

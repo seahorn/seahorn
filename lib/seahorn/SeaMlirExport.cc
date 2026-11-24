@@ -141,7 +141,8 @@ static cl::opt<std::string>
 static cl::opt<bool> SeaMlirExportOnly(
     "horn-sea-mlir-export-only",
     cl::desc("sea-mlir engine: export and exit without running sea-vc; the "
-             "exit status is 0 if the export succeeded, 1 otherwise"),
+             "exit status is 0 if the export succeeded, 1 otherwise (a "
+             "failed export exits with status 1 also without this option)"),
     cl::init(false));
 
 static cl::opt<bool> SeaMlirAllowUninitGlobals(
@@ -3185,10 +3186,11 @@ bool exportSeaMlir(const Function &F, raw_ostream &out, SeaMlirSites &sites,
   return Exporter(F, out, sites, llvmLinks, mlirPath).run();
 }
 
-/// --horn-sea-mlir-export-only: ends the process after the export, with
-/// status 0 if it succeeded and 1 otherwise (a harness can test the status;
-/// without the option a failed export only prints errors).
-static void exportOnlyExit(bool ok, StringRef path) {
+/// Ends the process after the export: with status 1 if it failed (with or
+/// without --horn-sea-mlir-export-only), and with status 0 after a
+/// successful export with --horn-sea-mlir-export-only. A harness can test
+/// the status.
+[[noreturn]] static void exportExit(bool ok, StringRef path) {
   if (ok)
     outs() << "sea-mlir-export: wrote " << path << "\n";
   else
@@ -3219,11 +3221,11 @@ PreservedAnalyses SeaMlirPrepPass::run(Module &M, ModuleAnalysisManager &) {
 }
 
 PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
-  auto fail = [](const Twine &msg) {
+  // a failed export ends the process with status 1: the pipeline must not
+  // go on (and `sea` exit 0) as if a program had been written
+  auto fail = [](const Twine &msg) -> PreservedAnalyses {
     ERR << "sea-mlir engine: " << msg;
-    if (SeaMlirExportOnly)
-      exportOnlyExit(false, "");
-    return PreservedAnalyses::all();
+    exportExit(false, "");
   };
   // The front end may decide every assertion before the export: it removes
   // main, or leaves a main that cannot reach seahorn.fail (no call to it,
@@ -3276,8 +3278,12 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
            << "  sea.assert %v0\n"
            << "  sea.halt\n"
            << "}\n";
-    else if (!exportSeaMlir(*main, file, sites, !SeaMlirLlOut.empty(), path))
+    else if (!exportSeaMlir(*main, file, sites, !SeaMlirLlOut.empty(), path)) {
+      // nothing was written: do not leave an empty file behind
+      file.close();
+      sys::fs::remove(path);
       return fail("export failed");
+    }
   }
   // --horn-sea-mlir-ll-out: the module the links refer to, as exported
   if (!SeaMlirLlOut.empty()) {
@@ -3288,7 +3294,7 @@ PreservedAnalyses SeaMlirEnginePass::run(Module &M, ModuleAnalysisManager &) {
     M.print(ll, nullptr);
   }
   if (SeaMlirExportOnly)
-    exportOnlyExit(true, path);
+    exportExit(true, path);
   if (!m_solve)
     return PreservedAnalyses::all();
 

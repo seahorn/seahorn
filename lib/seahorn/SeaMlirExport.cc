@@ -2043,6 +2043,14 @@ void Exporter::exportCall(const CallBase &CB) {
     os << "  sea.assume " << cond << l << "\n";
     return;
   }
+  // Under -DVACCHECK seahorn.h's sassert(X) emits __VERIFIER_assert(X) plus
+  // a branch to __VERIFIER_error when X is false; that branch is exported
+  // as sea.assert. BvOpSem2 adds nothing to the VC for verifier.assert
+  // either (it only drives the vacuity side queries of
+  // --horn-bv2-vacuity-check). A bare __VERIFIER_assert with no error
+  // branch is therefore not a property, as in SeaHorn.
+  if (name == "verifier.assert" || name == "verifier.assert.not")
+    return;
   if (name == "sea_printf")
     return exportPrintf(CB, l);
   if (name == "sea_memdump")

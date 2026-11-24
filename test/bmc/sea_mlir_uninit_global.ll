@@ -1,12 +1,18 @@
 ; sea-mlir export: a global initializer the export cannot write is an error
 ; (export-only exits with status 1); --horn-sea-mlir-allow-uninit-globals
-; makes it a warning.
-; RUN: not %horn --keep-shadows=true --horn-shadow-mem-alloc-is-def --horn-bmc --horn-bv2 --horn-bmc-engine=sea-mlir --horn-sea-mlir-export-only --horn-sea-mlir-out=%t.mlir %s 2>&1 | filecheck %s --check-prefix=ERR
-; RUN: %horn --keep-shadows=true --horn-shadow-mem-alloc-is-def --horn-bmc --horn-bv2 --horn-bmc-engine=sea-mlir --horn-sea-mlir-export-only --horn-sea-mlir-allow-uninit-globals --horn-sea-mlir-out=%t.mlir %s 2>&1 | filecheck %s --check-prefix=WARN
+; makes it a warning. gp is a unique scalar: the shadow memory gives it no
+; shadow.mem.global.init. With --lower-gv-init=false nothing stores its
+; initializer, so it is dropped; by default LowerGvInitializers stores it at
+; the start of main and the export succeeds without a warning.
+; RUN: not %horn --lower-gv-init=false --keep-shadows=true --horn-shadow-mem-alloc-is-def --horn-bmc --horn-bv2 --horn-bmc-engine=sea-mlir --horn-sea-mlir-export-only --horn-sea-mlir-out=%t.mlir %s 2>&1 | filecheck %s --check-prefix=ERR
+; RUN: %horn --lower-gv-init=false --keep-shadows=true --horn-shadow-mem-alloc-is-def --horn-bmc --horn-bv2 --horn-bmc-engine=sea-mlir --horn-sea-mlir-export-only --horn-sea-mlir-allow-uninit-globals --horn-sea-mlir-out=%t.mlir %s 2>&1 | filecheck %s --check-prefix=WARN
+; RUN: %horn --keep-shadows=true --horn-shadow-mem-alloc-is-def --horn-bmc --horn-bv2 --horn-bmc-engine=sea-mlir --horn-sea-mlir-export-only --horn-sea-mlir-out=%t.mlir %s 2>&1 | filecheck %s --check-prefix=CODE
 ; ERR: Error: sea-mlir export: the initializer of global gp is dropped
 ; ERR: export failed
 ; WARN: Warning: sea-mlir export: the initializer of global gp is dropped
 ; WARN: sea-mlir-export: wrote
+; CODE-NOT: dropped
+; CODE: sea-mlir-export: wrote
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 @g = global i32 1, align 4

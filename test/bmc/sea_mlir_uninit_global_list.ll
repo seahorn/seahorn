@@ -36,8 +36,11 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 @g = global i32 1, align 4
-@gp = global ptr @g, align 8
-@gq = global ptr @g, align 8
+; arrays: neither a unique scalar nor lowered by LowerGvInitializers, so the
+; shadow memory initializes them (shadow.mem.global.init) with an
+; initializer the export cannot write
+@gp = global [1 x ptr] [ptr @g], align 8
+@gq = global [1 x ptr] [ptr @g], align 8
 declare i32 @nd()
 declare void @verifier.assume.not(i1)
 declare void @seahorn.fail()

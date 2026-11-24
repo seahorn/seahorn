@@ -15,6 +15,14 @@
 
 #include <vector>
 
+// Yices 2.7 renamed the smt_status_t constants (STATUS_SAT ->
+// YICES_STATUS_SAT, ...)
+#if __YICES_VERSION > 2 || (__YICES_VERSION == 2 && __YICES_VERSION_MAJOR >= 7)
+#define SEA_YICES_STATUS(x) YICES_STATUS_##x
+#else
+#define SEA_YICES_STATUS(x) STATUS_##x
+#endif
+
 using namespace expr;
 
 namespace seahorn {
@@ -182,11 +190,16 @@ SolverResult yices_solver_impl::check(){
   //could have a param_t field for this call.
   smt_status_t stat = yices_check_context(d_ctx, nullptr);
   switch(stat){
-  case STATUS_UNSAT: return SolverResult::UNSAT;
-  case STATUS_SAT: return SolverResult::SAT;
-  case STATUS_UNKNOWN: return SolverResult::UNKNOWN;
-  case STATUS_INTERRUPTED: return SolverResult::UNKNOWN;
-  case STATUS_ERROR: return SolverResult::ERROR;
+  case SEA_YICES_STATUS(UNSAT):
+    return SolverResult::UNSAT;
+  case SEA_YICES_STATUS(SAT):
+    return SolverResult::SAT;
+  case SEA_YICES_STATUS(UNKNOWN):
+    return SolverResult::UNKNOWN;
+  case SEA_YICES_STATUS(INTERRUPTED):
+    return SolverResult::UNKNOWN;
+  case SEA_YICES_STATUS(ERROR):
+    return SolverResult::ERROR;
   default: return SolverResult::UNKNOWN;
   }
 }
@@ -211,11 +224,16 @@ SolverResult yices_solver_impl::check_with_assumptions(const expr_const_it_range
   smt_status_t stat = yices_check_context_with_assumptions(d_ctx, nullptr,
 							   y_lits.size(), &y_lits[0]);
   switch(stat){
-  case STATUS_UNSAT: return SolverResult::UNSAT;
-  case STATUS_SAT: return SolverResult::SAT;
-  case STATUS_UNKNOWN: return SolverResult::UNKNOWN;
-  case STATUS_INTERRUPTED: return SolverResult::UNKNOWN;
-  case STATUS_ERROR: return SolverResult::ERROR;
+  case SEA_YICES_STATUS(UNSAT):
+    return SolverResult::UNSAT;
+  case SEA_YICES_STATUS(SAT):
+    return SolverResult::SAT;
+  case SEA_YICES_STATUS(UNKNOWN):
+    return SolverResult::UNKNOWN;
+  case SEA_YICES_STATUS(INTERRUPTED):
+    return SolverResult::UNKNOWN;
+  case SEA_YICES_STATUS(ERROR):
+    return SolverResult::ERROR;
   default: return SolverResult::UNKNOWN;
   }
 }

@@ -12,8 +12,9 @@
 /// The engine (--horn-bmc-engine=sea-mlir) exports, runs sea-vc on the
 /// result, and reports sat/unsat like the mono BMC engine. With
 /// --horn-sea-mlir-export-only it exports and exits: status 0 and
-/// `sea-mlir-export: wrote <file>` if the export succeeded, status 1 and
-/// `sea-mlir-export: export failed ...` otherwise.
+/// `sea-mlir-export: wrote <file>` if the export succeeded. A failed export
+/// exits with status 1 and `sea-mlir-export: export failed ...`, with or
+/// without the option, and leaves no output file.
 ///
 /// When the front end has decided every assertion (main removed, or a main
 /// that cannot reach seahorn.fail), the engine prints

@@ -6,8 +6,10 @@ with the binaries, together with SeaHorn's LICENSE and NOTICE. Component
 versions and build options must be recorded by the release manifest.
 
 This input covers LLVM, Z3, Boost, crab/clam, sea-dsa and llvm-seahorn.
-It does not authorize a bundle containing Yices. Release builds must disable
-Yices and audit the actual linked libraries for additional dependencies.
+A release build may link Yices 2.8.0 or later (BSD-3-Clause); earlier Yices
+releases are GPLv3 and must not be bundled. The bundle that links Yices
+carries Yices' LICENSE and third-party NOTICES. Release builds must audit the
+actual linked libraries for additional dependencies.
 Source-only tools and test fixtures retain their per-file terms in REUSE.toml.
 The unlicensed play/neha-examples corpus is not part of the binary bundle.
 

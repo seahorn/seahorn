@@ -1,0 +1,74 @@
+# verify-c-common profile: counterexample generation, used instead of vcc (verify.py --cex)
+#
+# Copied from https://github.com/seahorn/verify-c-common, seahorn/sea_cex_base.yaml
+# (repository commit a3e6b0b, last change to the file 72ac14d); installed there as
+# build/seahorn/sea.cex.yaml by seahorn/CMakeLists.txt. Content kept; machine-specific
+# values are commented out (marked "shipped copy").
+# Written for SeaHorn's own BMC engine (bpf + --bmc=opsem). For exporting to
+# sea-mlir use the sea-mlir-export profile instead.
+#
+# Please read before adding options
+#
+# horn-logic-bmc
+# --------------
+# This option is not added here because of https://github.com/seahorn/verify-c-common/issues/136
+# It is explicitly added for yices in CI since yices needs to know logic.
+#
+verify_options:
+# Optimization lelel. Lower to O1 for clearer counterexamples
+  '-O1': ''
+# 
+# PREPROCESSING
+#
+  inline: ''
+  enable-loop-idiom: ''
+  enable-indvar: ''
+  no-lower-gv-init-struct: ''
+  externalize-addr-taken-functions: ''
+  no-kill-vaarg: ''
+  with-arith-overflow: true
+  horn-unify-assumes: false
+# do not instrument library functions with memory assertions
+  no-fat-fns: 'bcmp,memcpy,assert_bytes_match,ensure_linked_list_is_allocated,sea_aws_linked_list_is_valid'
+  horn-gsa: false
+# context-sensitive type-aware alias analysis 
+  dsa: sea-cs-t
+# weak support for function pointers. sea-dsa is better but less stable
+  devirt-functions: 'types'
+# bit-precise memory-precise operational semantics
+  bmc: opsem
+  horn-vcgen-use-ite: ''
+# ignore control flow
+  horn-vcgen-only-dataflow: false
+# reduce by data dependence
+  horn-bmc-coi: false
+# static allocator supports symbolic allocation size
+  sea-opsem-allocator: static
+# stack allocation from a symbolic starting point
+  horn-explicit-sp0: false
+# lambdas for memory
+  horn-bv2-lambdas: false
+# use z3 simplifier during vcgen
+  horn-bv2-simplify: true
+# wide memory manager to track pointer sizes
+  horn-bv2-extra-widemem: ''
+# intermediate results in human readable form for debugging
+  '-S': ''
+# keep intermediate results for debugging 
+  keep-temps: ''
+# shipped copy: temp-dir is per run, give --temp-dir=DIR on the command line
+#  temp-dir: /tmp/verify-c-common
+# time and result stats
+  horn-stats: true
+# produce counterexample harness
+# shipped copy: the harness output path is per run, give --cex=FILE on the command line
+#  cex: /tmp/h.ll
+# printable counterexample log
+  log: cex
+# number of words to unroll symbolic memcpy for array-based memory representation
+# should be at least MAX_BUFFER_SIZE
+  horn-array-sym-memcpy-unroll-count: 10
+# print memory state as a table
+# XXX still flaky, sometimes only the last byte can be trusted
+  horn-bmc-hexdump: true
+  ignore-define-verifier-fns: ''

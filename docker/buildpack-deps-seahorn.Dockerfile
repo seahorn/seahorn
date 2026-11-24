@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #
 # SeaHorn build image. Contains all the necessary dependencies
 # to build SeaHorn and related tools. Does not contain the tools

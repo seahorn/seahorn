@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/SeaNewPmPasses.hh"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"

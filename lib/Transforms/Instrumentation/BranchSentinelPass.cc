@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**
  * This pass adds a branch sentinel call instruction(intrinsic) before
  * every conditional branch.

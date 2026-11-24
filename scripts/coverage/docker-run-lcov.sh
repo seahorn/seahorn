@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 
 ##
 ## Run tests and collect coverage
@@ -10,8 +13,8 @@
 # XXX limit to tests that succeed currently, re-enable when all test pass
 # lit /seahorn/test
 lit /seahorn/test/opsem
-lit -D opsem-opts=--horn-bv2-widemem /seahorn/test/opsem 
-lit -D opsem-opts=--horn-bv2-extra-widemem /seahorn/test/opsem
+lit -D opsem_opts=--horn-bv2-widemem /seahorn/test/opsem 
+lit -D opsem_opts=--horn-bv2-extra-widemem /seahorn/test/opsem
 lit /seahorn/test/mcfuzz
 lit /seahorn/test/simple
 

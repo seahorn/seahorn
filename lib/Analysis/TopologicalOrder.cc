@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/Analysis/TopologicalOrder.hh"
 
 #include "seahorn/Support/SortTopo.hh"

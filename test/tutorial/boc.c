@@ -22,6 +22,8 @@
  * See q.log for a counterexample and the program being verified
  **/
 
+extern void __VERIFIER_error(void);
+
 #define sassert(X)                                                             \
   if (!(X))                                                                    \
   __VERIFIER_error()

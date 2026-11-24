@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/Analysis/CutPointGraph.hh"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/CFG.h"

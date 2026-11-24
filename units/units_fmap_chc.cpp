@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**==-- Finite Maps in CHC Transformation Tests --==*/
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 

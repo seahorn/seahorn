@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #pragma once
 /// New pass manager versions of SeaHorn's preprocessing passes.
 ///
@@ -76,6 +79,15 @@ public:
 
 class ExternalizeAddressTakenFunctionsPass
     : public llvm::PassInfoMixin<ExternalizeAddressTakenFunctionsPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
+};
+
+/// Gives available_externally function definitions linkonce_odr linkage, so
+/// that they are internalized and inlined like other definitions
+/// (seapp --seapp-define-available-externally).
+class DefineAvailableExternallyPass
+    : public llvm::PassInfoMixin<DefineAvailableExternallyPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };

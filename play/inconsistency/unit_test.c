@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 // RUN : sea_inc ../play/inconsistency/unit_test.c --null --num-blks 3
 // EXPEXT : All infesaible
 

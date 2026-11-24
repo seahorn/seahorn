@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /* Externalize uses of functions whose address have been taken */
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"

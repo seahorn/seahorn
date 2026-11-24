@@ -1,9 +1,12 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/Transforms/Scalar/LowerCstExpr.hh"
 
 #include "boost/range.hpp"
 
 #include "llvm/ADT/SmallPtrSet.h"
-//#include "llvm/ADT/SmallVector.h"
+// #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// New pass-manager reimplementation of LLVM's legacy-only StripDeadDebugInfo
 /// pass. LLVM 16 ships StripDeadDebugInfo as a legacy ModulePass with no new-PM
 /// equivalent, so SeaHorn provides its own so seapp's pipeline stays entirely

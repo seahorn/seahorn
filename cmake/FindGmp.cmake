@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 if (NOT GMP_FOUND)
   set(GMP_SEARCH_PATH "" CACHE PATH "Search path for gmp.")
   find_path(GMP_INCLUDE_DIR NAMES gmp.h PATHS ${GMP_SEARCH_PATH}/include)

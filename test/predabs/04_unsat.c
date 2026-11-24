@@ -1164,7 +1164,7 @@ static ssize_t s3c_hwmon_ch_show(struct device *dev , struct device_attribute *a
 #line 182
   __mptr___0 = (struct device  const  *)dev;
 #line 182
-  tmp = platform_get_drvdata((struct platform_device  const  *)((struct platform_device *)__mptr___0 + 0xfffffffffffffff8UL));
+  tmp = platform_get_drvdata((struct platform_device  const  *)((struct platform_device *)((char *)__mptr___0 - __builtin_offsetof(struct platform_device, dev))));
 #line 182
   hwmon = (struct s3c_hwmon *)tmp;
 #line 183
@@ -1772,7 +1772,7 @@ long ldv_is_err_or_null(void const   *ptr )
     tmp___0 = 1;
   } else {
 #line 29
-    tmp = ldv_is_err((unsigned long )ptr);
+    tmp = ldv_is_err((void const *)(unsigned long )ptr);
 #line 29
     if (tmp) {
 #line 29

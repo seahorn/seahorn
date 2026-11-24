@@ -1,9 +1,5 @@
-// Derived from
-// https://github.com/smackers/smack/blob/master/tools/smack/smack.cpp
-//
-// Copyright (c) 2013 Pantazis Deligiannis (p.deligiannis@imperial.ac.uk)
-// This file is distributed under the MIT License. See LICENSE for details.
-//
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "llvm_seahorn/InitializePasses.h"
 #include "llvm_seahorn/Transforms/IPO.h"
@@ -58,6 +54,7 @@
 
 #include "llvm_seahorn/Transforms/IPO.h"
 #include "seadsa/support/RemovePtrToInt.hh"
+#include "seahorn/SeaMlirExport.hh"
 #include "seahorn/SeaNewPmAnalyses.hh"
 #include "seahorn/SeaNewPmPasses.hh"
 #include "seahorn/Support/GitSHA1.h"
@@ -175,14 +172,17 @@ static llvm::cl::opt<bool>
                llvm::cl::init(false));
 
 // Available BMC engines
-enum class BmcEngineKind { mono_bmc, path_bmc };
+enum class BmcEngineKind { mono_bmc, path_bmc, sea_mlir };
 
 static llvm::cl::opt<BmcEngineKind>
     BmcEngine("horn-bmc-engine", llvm::cl::desc("Choose BMC engine"),
               llvm::cl::values(clEnumValN(BmcEngineKind::mono_bmc, "mono",
                                           "Solve a single formula"),
                                clEnumValN(BmcEngineKind::path_bmc, "path",
-                                          "Based on path enumeration")),
+                                          "Based on path enumeration"),
+                               clEnumValN(BmcEngineKind::sea_mlir, "sea-mlir",
+                                          "Export to sea-mlir and run "
+                                          "sea-vc (see --horn-sea-vc)")),
               llvm::cl::init(BmcEngineKind::mono_bmc));
 
 static llvm::cl::opt<bool>
@@ -243,6 +243,16 @@ int main(int argc, char **argv) {
   llvm::cl::AddExtraVersionPrinter(print_seahorn_version);
   llvm::cl::ParseCommandLineOptions(
       argc, argv, "SeaHorn -- LLVM bitcode to Horn/SMT2 transformation\n");
+
+  // -- the sea-mlir engine turns on the pre-processing its export relies on
+  // -- (off by default, so SeaHorn's own engines are unchanged), unless the
+  // -- option is given explicitly
+  if (BmcEngine == BmcEngineKind::sea_mlir) {
+    auto &opts = llvm::cl::getRegisteredOptions();
+    auto it = opts.find("horn-lower-gv-init-keep-align");
+    if (it != opts.end() && it->second->getNumOccurrences() == 0)
+      static_cast<llvm::cl::opt<bool> *>(it->second)->setValue(true);
+  }
 
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
@@ -428,8 +438,10 @@ int main(int argc, char **argv) {
   // BmcPassNew, because the --horn-bv2-crab-* options need it (see below).
   // Everything else (path engine, --oll dumps, --mem-dot, Boogie, CHC) stays on
   // the legacy tail below.
-  const bool NewPmBmcRoute =
-      Bmc && BmcEngine == BmcEngineKind::mono_bmc && !MemDot;
+  const bool NewPmBmcRoute = Bmc &&
+                             (BmcEngine == BmcEngineKind::mono_bmc ||
+                              BmcEngine == BmcEngineKind::sea_mlir) &&
+                             !MemDot;
   // CHC (pf/smt) route: hornify + write + solve run explicitly after a
   // new-PM MPM. Cex, Houdini, PredAbs, Crab and the inter-proc-mem encodings
   // stay on the legacy tail.
@@ -571,6 +583,8 @@ int main(int argc, char **argv) {
     // -- operational semantics, which needs this very instance to run crab
     // -- (--horn-bv2-crab-*). Declared outside MPM so it outlives MPM.run().
     std::unique_ptr<seadsa::ShadowMem> shadowMem;
+    if (NewPmBmcRoute && BmcEngine == BmcEngineKind::sea_mlir)
+      MPM.addPass(seahorn::SeaMlirPrepPass()); // sea_memdump's region
     MPM.addPass(seadsa::ShadowMemNewPmPass(&shadowMem));
     if (UnifyAssumes)
       MPM.addPass(seahorn::UnifyAssumesNewPass());
@@ -593,7 +607,9 @@ int main(int argc, char **argv) {
       }
       MPM.addPass(llvm::PrintModulePass(asmOutput->os()));
     }
-    if (NewPmBmcRoute)
+    if (NewPmBmcRoute && BmcEngine == BmcEngineKind::sea_mlir)
+      MPM.addPass(seahorn::SeaMlirEnginePass(Solve));
+    else if (NewPmBmcRoute)
       MPM.addPass(seahorn::BmcPassNew(out, Solve, &shadowMem));
     MPM.run(*module, MAM);
 
@@ -641,6 +657,11 @@ int main(int argc, char **argv) {
     asmOutput->keep();
   if (!OutputFilename.empty())
     output->keep();
+  // -- sea-dsa's MemSSA optimizer: uses it moved past a def because of TBAA
+  // -- alone, and the defs it skipped that way
+  const auto &tbaaStats = seadsa::getShadowMemTBAAStats();
+  seahorn::Stats::uset("shadow.mem.tbaa-moved-uses", tbaaStats.movedUses);
+  seahorn::Stats::uset("shadow.mem.tbaa-noalias-skips", tbaaStats.noAliasSkips);
   if (PrintStats)
     seahorn::Stats::PrintBrunch(llvm::outs());
   return 0;

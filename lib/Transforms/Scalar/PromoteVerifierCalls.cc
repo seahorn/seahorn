@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/Transforms/Scalar/PromoteVerifierCalls.hh"
 
 #include "seahorn/Analysis/SeaBuiltinsInfo.hh"
@@ -62,7 +65,12 @@ Value *extractPartialFnCall(Value *v) {
     return nullptr;
 
   // Ensures that fn is a Boolean function with a "partial" annotation.
-  const Function &F = (*CI->getCalledFunction());
+  const Function *callee = CI->getCalledFunction();
+  // An indirect predicate call has no declaration carrying a partial
+  // annotation. It still supplies an ordinary assume/assert condition.
+  if (!callee)
+    return nullptr;
+  const Function &F = *callee;
   if (!F.getReturnType() || !F.getReturnType()->isIntegerTy(1))
     return nullptr;
   if (!seahorn::isPartialFn(F))
@@ -78,9 +86,10 @@ char PromoteVerifierCalls::ID = 0;
 bool PromoteVerifierCalls::runOnModule(Module &M) {
   LOG("pvc", errs() << "Running promote-verifier-calls pass\n";);
 
-  if (auto *sea_printf = M.getFunction("sea_printf")) {
-    sea_printf->deleteBody();
-  }
+  // counterexample prints: external no-ops (the sea-mlir export prints them)
+  for (const char *name : {"sea_printf", "sea_memdump"})
+    if (auto *fn = M.getFunction(name))
+      fn->deleteBody();
   SeaBuiltinsInfo SBI;
   using SBIOp = SeaBuiltinsOp;
   m_assumeFn = SBI.mkSeaBuiltinFn(SBIOp::ASSUME, M);

@@ -2,7 +2,7 @@
 ; RUN:       -horn-inter-proc -horn-sem-lvl=mem --horn-gsa=false \
 ; RUN:       --horn-step=large --horn-bv2=true --horn-stats \
 ; RUN:       --log="shadow_verbose" --log="shadow_optimizer" \
-; RUN:       "%s" 2>&1 | filecheck %s --comment=";"
+; RUN:       "%s" 2>&1 | filecheck %s
 
 ; CHECK: Module before shadow insertion:
 ; CHECK: ret i32 42

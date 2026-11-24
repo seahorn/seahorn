@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /** 
    sea pf ex1.c  --verbose=1 -O[0|1|2|3] [-DAN=num|-DSN=num|-DUB=num|-DLB=num] 
    

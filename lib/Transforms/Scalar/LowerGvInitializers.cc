@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/Transforms/Scalar/LowerGvInitializers.hh"
 
 #include "llvm/IR/IRBuilder.h"
@@ -17,6 +20,15 @@ static llvm::cl::opt<bool>
     LowerGlobalCtors("lower-gv-global-ctors",
                      llvm::cl::desc("Lower constructors in llvm.global_ctors"),
                      llvm::cl::init(true));
+
+// Off by default (old behavior: the alloca gets its type's ABI alignment);
+// `sea` turns it on for the sea-mlir engine (py/sea/commands.py, Seapp;
+// tools/seahorn/seahorn.cpp for --horn-bmc-engine=sea-mlir).
+static llvm::cl::opt<bool> LowerGvKeepAlign(
+    "horn-lower-gv-init-keep-align",
+    llvm::cl::desc("A global promoted to an alloca keeps the global's "
+                   "alignment"),
+    llvm::cl::init(false));
 
 namespace seahorn {
 char LowerGvInitializers::ID = 0;
@@ -191,6 +203,10 @@ bool LowerGvInitializers::runOnModule(Module &M) {
         Type *ElemTy = gv->getValueType();
         AllocaInst *Alloca =
             Builder.CreateAlloca(ElemTy, nullptr, gv->getName());
+        // Keep the global's alignment: its accesses rely on it.
+        if (MaybeAlign a = gv->getAlign();
+            LowerGvKeepAlign && a && *a > Alloca->getAlign())
+          Alloca->setAlignment(*a);
         Builder.CreateAlignedStore(gv->getInitializer(), Alloca,
                                    DL->getABITypeAlign(ElemTy));
         makeAllConstantUsesInstructions(gv);

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-FileCopyrightText: 2003-2026 LLVM Project contributors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception AND NCSA
+
 //===- Mem2Reg.cpp - The -mem2reg pass, a wrapper around the Utils lib ----===//
 //
 //                     The LLVM Compiler Infrastructure

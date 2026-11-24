@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/PathBmcUtil.hh"
 
 #include "seahorn/Expr/Smt/Solver.hh"

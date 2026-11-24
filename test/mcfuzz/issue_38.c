@@ -10,6 +10,8 @@
 
 // Based on https://github.com/MCFuzzer/MCFuzz/issues/40.
 
+#include <string.h>
+
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 
 int array[6] = {1, 2, 3, 4, 5, 6};

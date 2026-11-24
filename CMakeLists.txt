@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 cmake_minimum_required(VERSION 3.10.2)
 
 project(SeaHorn)
@@ -334,6 +337,9 @@ include(CPack)
 
 install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
 # install all the licenses
+install(FILES LICENSE NOTICE THIRD-PARTY-NOTICES
+  DESTINATION share/doc/seahorn)
+install(DIRECTORY LICENSES/ DESTINATION share/doc/seahorn/LICENSES)
 install (FILES  ${CMAKE_CURRENT_SOURCE_DIR}/license.txt
   DESTINATION share/doc/seahorn
   RENAME seahorn_license.txt)
@@ -382,6 +388,12 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/share/seahorn.h)
   install (FILES share/seahorn.c
     DESTINATION share/)
 endif()
+
+# named option profiles for `sea yama -y NAME` (py/sea/yama.py looks for
+# NAME.yaml in <prefix>/share/seahorn/profiles)
+install (DIRECTORY share/seahorn/profiles/
+  DESTINATION share/seahorn/profiles
+  FILES_MATCHING PATTERN "*.yaml")
 
 # check for rt lib. Not needed on OSX.
 find_library(RT_LIB NAMES rt)

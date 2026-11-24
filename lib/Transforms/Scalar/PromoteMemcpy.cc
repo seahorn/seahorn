@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**  The transformation we do here looks roughly like this:
         memcpy(Dst, Source, sizeof(BufferTy))
           goes to

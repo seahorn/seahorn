@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -6,7 +6,7 @@ import networkx as nx
 
 
 def usage():
-    print "Usage:\n\tcheck_graphs.py dotfile1 dotfile2 [both/nodes/edges]"
+    print("Usage:\n\tcheck_graphs.py dotfile1 dotfile2 [both/nodes/edges]")
     return
 
 
@@ -43,12 +43,12 @@ if __name__ == "__main__":
 
     f1 = sys.argv[1]
     if not os.path.exists(f1):
-        print "error: " + str(f1) + " does not exist"
+        print("error: " + str(f1) + " does not exist")
         sys.exit()
 
     f2 = sys.argv[2]
     if not os.path.exists(f2):
-        print "error: " + str(f2) + " does not exist"
+        print("error: " + str(f2) + " does not exist")
         sys.exit()
 
     comp_node_lables = False
@@ -65,6 +65,6 @@ if __name__ == "__main__":
             usage()
 
     if isomorphic(f1, f2, comp_node_lables, comp_edge_labels):
-        print "OK"
+        print("OK")
     else:
-        print "KO"
+        print("KO")

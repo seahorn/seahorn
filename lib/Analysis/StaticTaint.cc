@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /*
  * Collecing static Taint Analysis
  * Limitations: No robust support for complex data structures and arrays

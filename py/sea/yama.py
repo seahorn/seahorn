@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import sys
 
 import sea
@@ -7,19 +10,69 @@ class Yama(sea.CliCmd):
     def __init__(self):
         super().__init__('yama', 'Yama', allow_extra=False)
         self._ignore_error = False
+        self._used_profile = False
 
     def mk_arg_parser(self, argp):
         import argparse
         argp = super().mk_arg_parser(argp)
 
         argp.add_argument("-y", dest='yconfig', action='append',
-                          help="Configuration file", nargs=1)
+                          help="Configuration file, URL, or the name of a "
+                          "profile (NAME.yaml in $SEAHORN_PROFILE_PATH, "
+                          "then in <prefix>/share/seahorn/profiles)",
+                          nargs=1)
         argp.add_argument('--dry-run', action='store_true', default=False,
                           help='do not execute final command')
         argp.add_argument('--yforce', action='store_true', default=False,
                           help='ignore all errors')
+        argp.add_argument('--ylead-opts', dest='ylead_opts',
+                          action='store_true', default=False,
+                          help='pass on options given before the first '
+                          'non-option word (e.g. `sea yama -y P --bound=8 '
+                          'prog.bc`); without it they are dropped, except '
+                          'when a -y names a shipped profile')
         argp.add_argument('extra', nargs=argparse.REMAINDER)
         return argp
+
+    @staticmethod
+    def profile_dirs():
+        """Directories searched for a profile given by name: the entries of
+        $SEAHORN_PROFILE_PATH (colon-separated), then the profiles shipped
+        with SeaHorn (<prefix>/share/seahorn/profiles, <prefix> being the
+        parent of the directory of the sea script)."""
+        import os
+        dirs = [d for d in os.environ.get('SEAHORN_PROFILE_PATH', '').split(':')
+                if d]
+        bindir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        dirs.append(os.path.join(bindir, '..', 'share', 'seahorn', 'profiles'))
+        return dirs
+
+    def resolve_config(self, fname):
+        """A -y argument names a file or URL; if it is neither an existing
+        file nor a URL and has no '/', it is the name of a profile, looked up
+        as NAME.yaml (or NAME, if it already ends in .yaml) in
+        profile_dirs(). Returns the path to read (fname if nothing is found:
+        the error is reported when it is read)."""
+        import os
+        import urllib.parse
+        if os.path.isfile(fname) or '/' in fname:
+            return fname
+        url = urllib.parse.urlparse(fname)
+        if url.scheme is not None and len(url.scheme) > 0:
+            return fname
+        base = fname if fname.endswith('.yaml') else fname + '.yaml'
+        for d in self.profile_dirs():
+            path = os.path.join(d, base)
+            if os.path.isfile(path):
+                path = os.path.normpath(path)
+                print('Yama using profile {0}: {1}'.format(fname, path))
+                self._used_profile = True
+                return path
+        if not self._ignore_error:
+            print('Yama: no file or profile named {0} (profiles searched in: '
+                  '{1})'.format(fname, ', '.join(os.path.normpath(d)
+                                                 for d in self.profile_dirs())))
+        return fname
 
     def parse_yaml_options(self, fname):
         import urllib.parse
@@ -133,11 +186,22 @@ class Yama(sea.CliCmd):
         if args.yconfig is None:
             args.yconfig = [['sea.yaml']]
 
+        # resolve -y arguments first: naming a shipped profile turns on
+        # --ylead-opts below
+        configs = [self.resolve_config(f[0]) for f in args.yconfig]
+
+        # options before the first non-option word (e.g. `sea yama -y P
+        # --bound=8 prog.bc`, the sub-command coming from the profile) are
+        # not part of args.extra: the top-level `sea` parser hands them over
+        # as _extra. They are dropped (old behavior) unless --ylead-opts is
+        # given or a -y named a shipped profile.
         extra = args.extra
+        if args.ylead_opts or self._used_profile:
+            extra = list(_extra) + args.extra
         args_dict = None
-        for f in args.yconfig:
+        for f, fname in zip(args.yconfig, configs):
             assert len(f) == 1
-            yaml_args = self.parse_yaml_options(f[0])
+            yaml_args = self.parse_yaml_options(fname)
             if yaml_args is None:
                 continue
             if args_dict is None:

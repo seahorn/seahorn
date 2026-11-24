@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef __EXPR__SEAHORN__HH_
 #define __EXPR__SEAHORN__HH_
 

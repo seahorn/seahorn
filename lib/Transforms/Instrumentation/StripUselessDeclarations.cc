@@ -1,10 +1,13 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-FileCopyrightText: 2017 Arie Gurfinkel and Jorge Navas
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**
 SeaHorn Verification Framework
 Copyright (c) 2017 Arie Gurfinkel and Jorge Navas.
 All Rights Reserved.
 
-Released under a modified BSD license, please see license.txt for full
-terms.
+Licensed under Apache-2.0 WITH LLVM-exception; see LICENSE.
 */
 
 #include "seahorn/Transforms/Utils/Local.hh"

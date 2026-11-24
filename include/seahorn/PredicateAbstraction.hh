@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef PREDICATE_ABSTRACTION__HH_
 #define PREDICATE_ABSTRACTION__HH_
 

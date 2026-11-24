@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/CexHarness.hh"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"

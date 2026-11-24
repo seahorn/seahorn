@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seahorn/GuessCandidates.hh"
 #include "seahorn/Expr/Expr.hh"
 #include "seahorn/Expr/Smt/EZ3.hh"

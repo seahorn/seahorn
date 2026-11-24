@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /// Lower LLVM 16's llvm.threadlocal.address intrinsic.
 ///
 /// LLVM 16 added @llvm.threadlocal.address, which clang-16 emits for every

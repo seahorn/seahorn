@@ -1,10 +1,9 @@
-// RUN: %shorntest %t-harness.ll %t-debug %s --max-depth=15 | filecheck %s --check-prefix=XFAIL_UNKNOWN
+// RUN: %shorntest %t-harness.ll %t-debug %s --max-depth=15 | filecheck %s
 // RUN: %shorntest %t-harness0.ll %t-debug0 %s -O0 --max-depth=15 | filecheck %s
-// RUN: %shorntest %t-harness1.ll %t-debug1 %s -O1 --max-depth=15 | filecheck %s --check-prefix=XFAIL_UNKNOWN
-// RUN: %shorntest %t-harness2.ll %t-debug2 %s -O2 --max-depth=15 | filecheck %s --check-prefix=XFAIL_UNKNOWN
-// RUN: %shorntest %t-harness3.ll %t-debug3 %s -O3 --max-depth=15 | filecheck %s --check-prefix=XFAIL_UNKNOWN
+// RUN: %shorntest %t-harness1.ll %t-debug1 %s -O1 --max-depth=15 | filecheck %s
+// RUN: %shorntest %t-harness2.ll %t-debug2 %s -O2 --max-depth=15 | filecheck %s
+// RUN: %shorntest %t-harness3.ll %t-debug3 %s -O3 --max-depth=15 | filecheck %s
 // CHECK: {{^unsat$}}
-// XFAIL_UNKNOWN: {{^unknown$}}
 
 int unknown1(void);
 

@@ -1,13 +1,5 @@
-// Derived from
-// https://github.com/smackers/smack/blob/master/tools/smack/smack.cpp
-//
-// Copyright (c) 2013 Pantazis Deligiannis (p.deligiannis@imperial.ac.uk)
-// This file is distributed under the MIT License. See LICENSE for details.
-//
-
-///
-// SeaPP-- LLVM bitcode Pre-Processor for Verification
-///
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "llvm_seahorn/InitializePasses.h"
 #include "llvm_seahorn/Transforms/IPO.h"
@@ -37,6 +29,7 @@
 #include "llvm/Transforms/IPO/GlobalOpt.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/InstructionNamer.h"
@@ -107,6 +100,23 @@ static llvm::cl::opt<std::string> DefaultDataLayout(
     "default-data-layout",
     llvm::cl::desc("data layout string to use if not specified by module"),
     llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
+
+// Off by default (SeaHorn's pipeline is unchanged); `sea` turns it on for
+// the sea-mlir engine (py/sea/commands.py, Seapp).
+static llvm::cl::opt<bool> LowerExpectFirst(
+    "seapp-lower-expect",
+    llvm::cl::desc("Lower llvm.expect to branch weights at the start of the "
+                   "default pre-processing pipeline"),
+    llvm::cl::init(false));
+
+// Off by default (SeaHorn's pipeline is unchanged); `sea` turns it on for
+// the sea-mlir engine (py/sea/commands.py, Seapp).
+static llvm::cl::opt<bool> DefineAvailExt(
+    "seapp-define-available-externally",
+    llvm::cl::desc("Give available_externally function definitions "
+                   "linkonce_odr linkage, so that they are internalized and "
+                   "inlined like other definitions (C++ extern templates)"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool> InlineAll("horn-inline-all",
                                      llvm::cl::desc("Inline all functions"),
@@ -598,6 +608,12 @@ int main(int argc, char **argv) {
   }
   // default pre-processing pipeline
   else {
+    // -- llvm.expect (__builtin_expect, FD_LIKELY) to branch weights, so
+    // -- that the optimizer folds the branches it guards (a kept dead
+    // -- branch can store poison through null)
+    if (LowerExpectFirst)
+      pm_wrapper.addFunctionPass(llvm::LowerExpectIntrinsicPass());
+
     // -- Externalize some user-selected functions
     pm_wrapper.addModulePass(seahorn::ExternalizeFunctionsPass());
 
@@ -622,6 +638,11 @@ int main(int argc, char **argv) {
 
     // -- mark entry points of all functions
     pm_wrapper.addModulePass(seahorn::MarkFnEntryPass());
+
+    // -- available_externally bodies become this module's definitions, so
+    // -- that the internalize and inline steps below treat them as such
+    if (DefineAvailExt)
+      pm_wrapper.addModulePass(seahorn::DefineAvailableExternallyPass());
 
     // turn all functions internal so that we can inline them if requested
     auto PreserveMain = [=](const llvm::GlobalValue &GV) {

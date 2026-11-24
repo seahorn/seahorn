@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 add_llvm_library(SeaTransformsUtils DISABLE_LLVM_LINK_LLVM_DYLIB
   AbstractMemory.cc
   SeaStripDeadDebugInfo.cc
@@ -11,6 +14,7 @@ add_llvm_library(SeaTransformsUtils DISABLE_LLVM_LINK_LLVM_DYLIB
   EvalBranchSentinelPass.cc
   ExternalizeAddressTakenFunctions.cc
   ExternalizeFunctions.cc
+  DefineAvailableExternally.cc
   DevirtFunctions.cc
   DevirtFunctionsPass.cc
   SliceFunctions.cc

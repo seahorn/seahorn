@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 //===-------- Resolve indirect calls using type signatures ----------------===//
 //
 // Resolve the targets of an indirect call by selecting all functions

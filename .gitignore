@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /build/
 /GPATH
 /GRTAGS
@@ -27,3 +30,5 @@
 .ccls-root
 CMakeUserPresets.json
 compile_commands.json
+# Z3 debug-tracing builds drop these in the working directory
+.z3-trace

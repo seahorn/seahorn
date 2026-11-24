@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef __WEAK_TOPOLOGICAL_ORDER__HH_
 #define __WEAK_TOPOLOGICAL_ORDER__HH_
 

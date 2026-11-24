@@ -25,13 +25,15 @@ struct j {
 int k, n;
 int m(int);
 int s(int);
+int t();
+int u();
 
 __attribute__((noinline))
 int o(struct aa *p) {
   char q;
   int a, r;
   s(r);
-  l = m(a);
+  l = (struct j *)m(a);
   p->g = l;
   if (q)
     t(f);
@@ -43,14 +45,14 @@ __attribute__((noinline))
 int v(struct aa *p) {
   struct j *w = p->g = &w;
   struct ab *b;
-  b->h = o;
+  b->h = (int)(long)o;
   __VERIFIER_error();
 }
 
 int main() {
  ak:
-  v(&k);
-  o(k);
+  v((struct aa *)&k);
+  o((struct aa *)(long)k);
   goto ak;
 }
 

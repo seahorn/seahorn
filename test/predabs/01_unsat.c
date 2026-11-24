@@ -6688,7 +6688,7 @@ struct rio_mport *rio_find_mport(int mport_id )
 #line 1630
   __mptr = (struct list_head  const  *)rio_mports.next;
 #line 1630
-  port = (struct rio_mport *)__mptr + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr - 16UL);
 #line 1630
   goto ldv_28322;
   ldv_28321: ;
@@ -6702,7 +6702,7 @@ struct rio_mport *rio_find_mport(int mport_id )
 #line 1630
   __mptr___0 = (struct list_head  const  *)port->node.next;
 #line 1630
-  port = (struct rio_mport *)__mptr___0 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___0 - 16UL);
   ldv_28322: ;
 #line 1630
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -6771,7 +6771,7 @@ int rio_register_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1673
   __mptr = (struct list_head  const  *)rio_scans.next;
 #line 1673
-  scan = (struct rio_scan_node *)__mptr + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr - 8UL);
 #line 1673
   goto ldv_28339;
   ldv_28338: ;
@@ -6787,7 +6787,7 @@ int rio_register_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1673
   __mptr___0 = (struct list_head  const  *)scan->node.next;
 #line 1673
-  scan = (struct rio_scan_node *)__mptr___0 + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr___0 - 8UL);
   ldv_28339: ;
 #line 1673
   if ((unsigned long )(& scan->node) != (unsigned long )(& rio_scans)) {
@@ -6816,7 +6816,7 @@ int rio_register_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1701
   __mptr___1 = (struct list_head  const  *)rio_mports.next;
 #line 1701
-  port = (struct rio_mport *)__mptr___1 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___1 - 16UL);
 #line 1701
   goto ldv_28347;
   ldv_28346: ;
@@ -6837,7 +6837,7 @@ int rio_register_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1701
   __mptr___2 = (struct list_head  const  *)port->node.next;
 #line 1701
-  port = (struct rio_mport *)__mptr___2 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___2 - 16UL);
   ldv_28347: ;
 #line 1701
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -6915,7 +6915,7 @@ int rio_unregister_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1741
   __mptr = (struct list_head  const  *)rio_mports.next;
 #line 1741
-  port = (struct rio_mport *)__mptr + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr - 16UL);
 #line 1741
   goto ldv_28369;
   ldv_28368: ;
@@ -6929,7 +6929,7 @@ int rio_unregister_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1741
   __mptr___0 = (struct list_head  const  *)port->node.next;
 #line 1741
-  port = (struct rio_mport *)__mptr___0 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___0 - 16UL);
   ldv_28369: ;
 #line 1741
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -6941,7 +6941,7 @@ int rio_unregister_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1746
   __mptr___1 = (struct list_head  const  *)rio_scans.next;
 #line 1746
-  scan = (struct rio_scan_node *)__mptr___1 + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr___1 - 8UL);
 #line 1746
   goto ldv_28377;
   ldv_28376: ;
@@ -6959,7 +6959,7 @@ int rio_unregister_scan(int mport_id , struct rio_scan *scan_ops )
 #line 1746
   __mptr___2 = (struct list_head  const  *)scan->node.next;
 #line 1746
-  scan = (struct rio_scan_node *)__mptr___2 + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr___2 - 8UL);
   ldv_28377: ;
 #line 1746
   if ((unsigned long )(& scan->node) != (unsigned long )(& rio_scans)) {
@@ -7005,7 +7005,7 @@ int rio_mport_scan(int mport_id )
 #line 1770
   __mptr = (struct list_head  const  *)rio_mports.next;
 #line 1770
-  port = (struct rio_mport *)__mptr + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr - 16UL);
 #line 1770
   goto ldv_28397;
   ldv_28396: ;
@@ -7019,7 +7019,7 @@ int rio_mport_scan(int mport_id )
 #line 1770
   __mptr___0 = (struct list_head  const  *)port->node.next;
 #line 1770
-  port = (struct rio_mport *)__mptr___0 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___0 - 16UL);
   ldv_28397: ;
 #line 1770
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -7203,7 +7203,7 @@ int rio_init_mports(void)
 #line 1846
   __mptr = (struct list_head  const  *)rio_mports.next;
 #line 1846
-  port = (struct rio_mport *)__mptr + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr - 16UL);
 #line 1846
   goto ldv_28432;
   ldv_28431: ;
@@ -7232,7 +7232,7 @@ int rio_init_mports(void)
 #line 1846
   __mptr___0 = (struct list_head  const  *)port->node.next;
 #line 1846
-  port = (struct rio_mport *)__mptr___0 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___0 - 16UL);
   ldv_28432: ;
 #line 1846
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -7287,7 +7287,7 @@ int rio_init_mports(void)
 #line 1883
   __mptr___1 = (struct list_head  const  *)rio_mports.next;
 #line 1883
-  port = (struct rio_mport *)__mptr___1 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___1 - 16UL);
 #line 1883
   goto ldv_28445;
   ldv_28444: ;
@@ -7318,7 +7318,7 @@ int rio_init_mports(void)
 #line 1883
   __mptr___2 = (struct list_head  const  *)port->node.next;
 #line 1883
-  port = (struct rio_mport *)__mptr___2 + 0xfffffffffffffff0UL;
+  port = (struct rio_mport *)((char *)__mptr___2 - 16UL);
   ldv_28445: ;
 #line 1883
   if ((unsigned long )(& port->node) != (unsigned long )(& rio_mports)) {
@@ -7459,7 +7459,7 @@ int rio_register_mport(struct rio_mport *port )
 #line 1943
   __mptr = (struct list_head  const  *)rio_scans.next;
 #line 1943
-  scan = (struct rio_scan_node *)__mptr + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr - 8UL);
 #line 1943
   goto ldv_28465;
   ldv_28464: ;
@@ -7480,7 +7480,7 @@ int rio_register_mport(struct rio_mport *port )
 #line 1943
   __mptr___0 = (struct list_head  const  *)scan->node.next;
 #line 1943
-  scan = (struct rio_scan_node *)__mptr___0 + 0xfffffffffffffff8UL;
+  scan = (struct rio_scan_node *)((char *)__mptr___0 - 8UL);
   ldv_28465: ;
 #line 1943
   if ((unsigned long )(& scan->node) != (unsigned long )(& rio_scans)) {
@@ -9066,11 +9066,11 @@ static int rio_device_probe(struct device *dev )
 #line 88
   __mptr = (struct device_driver  const  *)dev->driver;
 #line 88
-  rdrv = (struct rio_driver *)__mptr + 0xffffffffffffffb8UL;
+  rdrv = (struct rio_driver *)((char *)__mptr - 72UL);
 #line 89
   __mptr___0 = (struct device  const  *)dev;
 #line 89
-  rdev = (struct rio_dev *)__mptr___0 + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr___0 - 104UL);
 #line 90
   error = -19;
 #line 93
@@ -9122,7 +9122,7 @@ static int rio_device_remove(struct device *dev )
 #line 120
   __mptr = (struct device  const  *)dev;
 #line 120
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 121
   rdrv = rdev->driver;
 #line 123
@@ -9211,11 +9211,11 @@ static int rio_match_bus(struct device *dev , struct device_driver *drv )
 #line 185
   __mptr = (struct device  const  *)dev;
 #line 185
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 186
   __mptr___0 = (struct device_driver  const  *)drv;
 #line 186
-  rdrv = (struct rio_driver *)__mptr___0 + 0xffffffffffffffb8UL;
+  rdrv = (struct rio_driver *)((char *)__mptr___0 - 72UL);
 #line 187
   id = rdrv->id_table;
 #line 190
@@ -9257,7 +9257,7 @@ static int rio_uevent(struct device *dev , struct kobj_uevent_env *env )
 #line 208
   __mptr = (struct device  const  *)dev;
 #line 208
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 209
   if ((unsigned long )rdev == (unsigned long )((struct rio_dev *)0)) {
 #line 210
@@ -10193,7 +10193,7 @@ static ssize_t did_show(struct device *dev , struct device_attribute *attr , cha
 #line 32
   __mptr = (struct device  const  *)dev;
 #line 32
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 32
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->did);
 #line 32
@@ -10214,7 +10214,7 @@ static ssize_t vid_show(struct device *dev , struct device_attribute *attr , cha
 #line 33
   __mptr = (struct device  const  *)dev;
 #line 33
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 33
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->vid);
 #line 33
@@ -10236,7 +10236,7 @@ static ssize_t device_rev_show(struct device *dev , struct device_attribute *att
 #line 34
   __mptr = (struct device  const  *)dev;
 #line 34
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 34
   tmp = sprintf(buf, "0x%08x\n", rdev->device_rev);
 #line 34
@@ -10258,7 +10258,7 @@ static ssize_t asm_did_show(struct device *dev , struct device_attribute *attr ,
 #line 35
   __mptr = (struct device  const  *)dev;
 #line 35
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 35
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->asm_did);
 #line 35
@@ -10280,7 +10280,7 @@ static ssize_t asm_vid_show(struct device *dev , struct device_attribute *attr ,
 #line 36
   __mptr = (struct device  const  *)dev;
 #line 36
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 36
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->asm_vid);
 #line 36
@@ -10302,7 +10302,7 @@ static ssize_t asm_rev_show(struct device *dev , struct device_attribute *attr ,
 #line 37
   __mptr = (struct device  const  *)dev;
 #line 37
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 37
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->asm_rev);
 #line 37
@@ -10324,7 +10324,7 @@ static ssize_t destid_show(struct device *dev , struct device_attribute *attr , 
 #line 38
   __mptr = (struct device  const  *)dev;
 #line 38
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 38
   tmp = sprintf(buf, "0x%04x\n", (int )rdev->destid);
 #line 38
@@ -10347,7 +10347,7 @@ static ssize_t hopcount_show(struct device *dev , struct device_attribute *attr 
 #line 39
   __mptr = (struct device  const  *)dev;
 #line 39
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 39
   tmp = sprintf(buf, "0x%02x\n", (int )rdev->hopcount);
 #line 39
@@ -10371,7 +10371,7 @@ static ssize_t routes_show(struct device *dev , struct device_attribute *attr , 
 #line 43
   __mptr = (struct device  const  *)dev;
 #line 43
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 44
   str = buf;
 #line 47
@@ -10423,7 +10423,7 @@ static ssize_t lprev_show(struct device *dev , struct device_attribute *attr , c
 #line 63
   __mptr = (struct device  const  *)dev;
 #line 63
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 65
   if ((unsigned long )rdev->prev != (unsigned long )((struct rio_dev *)0)) {
 #line 65
@@ -10459,7 +10459,7 @@ static ssize_t lnext_show(struct device *dev , struct device_attribute *attr , c
 #line 73
   __mptr = (struct device  const  *)dev;
 #line 73
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 74
   str = buf;
 #line 77
@@ -10517,7 +10517,7 @@ static ssize_t modalias_show(struct device *dev , struct device_attribute *attr 
 #line 94
   __mptr = (struct device  const  *)dev;
 #line 94
-  rdev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  rdev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 96
   tmp = sprintf(buf, "rapidio:v%04Xd%04Xav%04Xad%04X\n", (int )rdev->vid, (int )rdev->did,
                 (int )rdev->asm_vid, (int )rdev->asm_did);
@@ -10560,9 +10560,9 @@ static ssize_t rio_read_config(struct file *filp , struct kobject *kobj , struct
 #line 129
   __mptr___0 = (struct kobject  const  *)kobj;
 #line 129
-  __mptr = (struct device  const  *)((struct device *)__mptr___0 + 0xfffffffffffffff0UL);
+  __mptr = (struct device  const  *)((struct device *)((char *)__mptr___0 - 16UL));
 #line 129
-  dev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  dev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 130
   size = 256U;
 #line 131
@@ -10699,9 +10699,9 @@ static ssize_t rio_write_config(struct file *filp , struct kobject *kobj , struc
 #line 201
   __mptr___0 = (struct kobject  const  *)kobj;
 #line 201
-  __mptr = (struct device  const  *)((struct device *)__mptr___0 + 0xfffffffffffffff0UL);
+  __mptr = (struct device  const  *)((struct device *)((char *)__mptr___0 - 16UL));
 #line 201
-  dev = (struct rio_dev *)__mptr + 0xffffffffffffff98UL;
+  dev = (struct rio_dev *)((char *)__mptr - 104UL);
 #line 202
   size = (unsigned int )count;
 #line 203

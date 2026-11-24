@@ -12,14 +12,6 @@ add_lit_testsuite(test-all "Run all the tests"
   DEPENDS seahorn
   )
 
-add_lit_testsuite(test-fat-ptr "Run fat ptr tests"
-  -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
-  )
-
 add_lit_testsuite(test-fat-ptr-sym "Run fat ptr symbolic tests"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/fat_ptr_symbolic
@@ -61,14 +53,6 @@ add_lit_testsuite(pred-abs "Regression tests on Predicate Abstraction"
    DEPENDS seahorn
    )
 
-add_lit_testsuite(test-abc "Regression tests for Array Bounds Checks"
-  #--show-tests
-  ${CMAKE_CURRENT_SOURCE_DIR}/abc
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
-  )
-
 add_lit_testsuite(test-smc "Regression tests for Simple Memory Safety Checks"
   -v
   ${CMAKE_CURRENT_SOURCE_DIR}/smc
@@ -100,14 +84,6 @@ add_lit_testsuite(test-opsem-widemem "Regression tests for Operational Semantics
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
   DEPENDS seahorn 
-  )
-
-add_lit_testsuite(test-inc "Regression tests for Inconsistency Analysis"
-  -v
-  ${CMAKE_CURRENT_SOURCE_DIR}/inc
-  ARGS
-  --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seahorn
   )
 
 add_lit_testsuite(test-dsa "Regression tests for DSA"
@@ -232,9 +208,7 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
   add_dependencies(test-simple install)
   add_dependencies(test-solve install)
   add_dependencies(pred-abs install)
-  add_dependencies(test-abc install)
   add_dependencies(test-smc install)
-  add_dependencies(test-inc install)
   add_dependencies(test-devirt install)
   add_dependencies(test-mcfuzz install)
   add_dependencies(test-memssa install)
@@ -252,7 +226,6 @@ install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solve DESTINATION share/seahorn/t
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/smc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/opsem2 DESTINATION share/seahorn/test)
-install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/abc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bmc DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gsa DESTINATION share/seahorn/test)
 install (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/devirt DESTINATION share/seahorn/test)

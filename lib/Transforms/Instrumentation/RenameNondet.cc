@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-FileCopyrightText: 2016 Carnegie Mellon University
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**
 SeaHorn Verification Framework
 Copyright (c) 2016 Carnegie Mellon University.
@@ -10,8 +14,7 @@ WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE WARRANTIES OF
 MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
 NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
 
-Released under a modified BSD license, please see license.txt for full
-terms.
+Licensed under Apache-2.0 WITH LLVM-exception; see LICENSE.
 
 DM-0002198
 */

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /** Insert dummy main function if one does not exist */
 
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"

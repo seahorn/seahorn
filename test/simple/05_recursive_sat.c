@@ -3,6 +3,8 @@
 
 #include "seahorn/seahorn.h"
 
+extern int __VERIFIER_nondet_int(void);
+
 int id(int x);
 int id2(int x);
 

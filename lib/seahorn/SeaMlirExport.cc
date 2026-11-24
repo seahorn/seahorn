@@ -24,7 +24,10 @@
 ///   without a shadow.mem.global.init) is an error, or,
 ///   with --horn-sea-mlir-allow-uninit-globals (every global) or
 ///   --horn-sea-mlir-allow-uninit-global=NAME (that global), a warning and
-///   the global starts uninitialized;
+///   the global starts uninitialized; neither when main's entry block
+///   stores the global's whole value before anything may read memory (a
+///   unique scalar, whose initializer LowerGvInitializers stores in code):
+///   the initializer is never read;
 /// - calls to external functions without a shadow-memory definition are
 ///   no-ops returning a nondet value (as BvOpSem2), with a warning per
 ///   callee;
@@ -267,6 +270,10 @@ private:
   /// --horn-sea-mlir-allow-uninit-global=<its name> (then a warning); once
   /// per global.
   void droppedInit(const GlobalVariable &gv, const Twine &why) {
+    // the code writes gv's whole value before anything reads memory: the
+    // initializer is never read, nothing is lost
+    if (initByCode.count(&gv))
+      return;
     std::string msg =
         ("the initializer of global " + gv.getName() + " is dropped (" + why +
          "): the global would start uninitialized")
@@ -346,6 +353,9 @@ private:
   // -- memory
   void findMemValues();
   bool isMem(const Value *v) const { return memValues.count(v); }
+
+  // -- globals whose initial value the code establishes
+  void findInitStores();
 
   // -- {iN, i1} results of *.with.overflow intrinsics: pairs of names
   void findPairValues();
@@ -456,6 +466,10 @@ private:
   DenseSet<const GlobalVariable *> initializedGlobals;
   /// Globals whose initializer exportGlobalInit could not write.
   DenseSet<const GlobalVariable *> initFailed;
+  /// Globals whose whole value the entry block stores before any
+  /// instruction that may read memory (findInitStores): their initializer
+  /// is never read, so a missing or unwritable one is not dropped.
+  DenseSet<const GlobalVariable *> initByCode;
   /// The {iN, i1} values kept as two names, the value and the overflow bit
   /// (findPairValues): the results of *.with.overflow intrinsics and the
   /// phis, selects, freezes and insertvalues that carry them.
@@ -3085,9 +3099,34 @@ bool Exporter::isShadowCall(const Instruction &I) {
   return fn && fn->getName().starts_with("shadow.mem.");
 }
 
+/// The shadow memory gives a unique scalar (a single-value global alone in
+/// its sea-dsa cell) no shadow.mem.global.init: LowerGvInitializers stores
+/// its initializer at the start of main instead (integers and pointers
+/// only). Such a global is initialized by code when the entry block stores
+/// its whole value before any instruction other than the shadow memory's
+/// that may read memory: nothing can read the initializer, whatever the
+/// stored value. Any other global without a shadow.mem.global.init still
+/// has its initializer dropped (droppedInit).
+void Exporter::findInitStores() {
+  for (const Instruction &I : F.getEntryBlock()) {
+    if (auto *st = dyn_cast<StoreInst>(&I)) {
+      auto *gv = dyn_cast<GlobalVariable>(
+          st->getPointerOperand()->stripPointerCasts());
+      if (gv && gv->hasInitializer() &&
+          DL.getTypeStoreSize(st->getValueOperand()->getType()) >=
+              DL.getTypeAllocSize(gv->getValueType()))
+        initByCode.insert(gv);
+      continue;
+    }
+    if (I.mayReadFromMemory() && !isShadowCall(I))
+      return;
+  }
+}
+
 bool Exporter::run() {
   findMemValues();
   findPairValues();
+  findInitStores();
   unsigned rets = 0;
   for (const BasicBlock &BB : F)
     rets += isa<ReturnInst>(BB.getTerminator());

@@ -37,6 +37,12 @@ sea-vc prog.mlir --lower --seam --widen-memory=4
   whose initializer is dropped (no such global, or its initializer is
   written) is a warning, a stale entry, not an error. The error for a
   dropped initializer names the option that allows it.
+- A unique scalar (a single-value global alone in its sea-dsa cell) gets no
+  `shadow.mem.global.init`; LowerGvInitializers stores the initializer of
+  an integer or pointer global at the start of `main` instead. A global
+  whose whole value `main`'s entry block stores before anything may read
+  memory is not reported: its initializer is never read. Other unique
+  scalars (floating point, vectors) get neither and are reported.
 
 ## What the profile contains
 

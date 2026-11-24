@@ -594,6 +594,19 @@ TEST_CASE("bitwuzla.boolean operators agree with z3") {
 }
 
 namespace {
+/// A uniform number in [0, n), n > 0, by rejection. The standard fixes
+/// mt19937's output but not std::uniform_int_distribution's, which differs
+/// between libc++ and libstdc++; this gives every platform (macOS here, Linux
+/// in CI) the same formulas for the same seed.
+unsigned uniformBelow(std::mt19937 &rng, unsigned n) {
+  const uint32_t reject = (0u - n) % n; // -- 2^32 mod n
+  uint32_t x;
+  do
+    x = static_cast<uint32_t>(rng());
+  while (x < reject);
+  return x % n;
+}
+
 /// Random well-sorted formulas over Bool and bit-vector constants, for
 /// differential testing against Z3. Subterms are reused within a formula, so
 /// formulas are DAGs. Operators get as many arguments as Z3's encoder uses:
@@ -613,9 +626,7 @@ public:
   bool m_function_stores = false;
 
 private:
-  unsigned pick(unsigned n) {
-    return std::uniform_int_distribution<unsigned>(0, n - 1)(m_rng);
-  }
+  unsigned pick(unsigned n) { return uniformBelow(m_rng, n); }
   bool chance(unsigned percent) { return pick(100) < percent; }
   // -- the narrow width that the current formula favours: terms over the
   // -- same few constants make more formulas unsat or valid
@@ -4336,9 +4347,7 @@ TEST_CASE("bitwuzla.random scopes, assumptions and cores agree with z3") {
   // -- formulas other than the first fuzzer's, for the same seed
   RandomFormulas gen(env, seed + 1000003);
   std::mt19937 rng(seed);
-  auto pick = [&](unsigned n) {
-    return std::uniform_int_distribution<unsigned>(0, n - 1)(rng);
-  };
+  auto pick = [&](unsigned n) { return uniformBelow(rng, n); };
   bitwuzla_solver_impl adapter(solve_ms);
   Solver &s = adapter;
   auto anyOf = [](const ExprVector &es, bool (*pred)(Expr)) {

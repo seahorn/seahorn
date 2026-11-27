@@ -3556,12 +3556,18 @@ TEST_CASE("bitwuzla.scopes restore the model guards") {
   s.pop();
   CHECK(value() == env.num(5, 8));
 
-  // -- an assumption with either: no values for that check only
+  // -- an assumption with either: no values for that check only, whether the
+  // -- next check has assumptions or not
   for (Expr g : {withQ, withEq}) {
-    ExprVector as{g};
+    ExprVector as{g}, other{mk<EQ>(y, env.num(3, 8))};
     REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
     CHECK(isOpX<NONDET>(s.get_model()->eval(x, true)));
     CHECK(value() == env.num(5, 8));
+    REQUIRE(s.check_with_assumptions(lits(as)) == SolverResult::SAT);
+    REQUIRE(s.check_with_assumptions(lits(other)) == SolverResult::SAT);
+    Solver::model_ref m = s.get_model();
+    CHECK(m->eval(x, true) == env.num(5, 8));
+    CHECK(m->eval(y, true) == env.num(3, 8));
   }
 }
 

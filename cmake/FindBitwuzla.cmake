@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 # - Try to find Bitwuzla (https://bitwuzla.github.io)
 # Once done this will define
 #  BITWUZLA_FOUND - System has a usable Bitwuzla

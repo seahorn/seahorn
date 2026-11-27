@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The SeaHorn Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifdef WITH_BITWUZLA
 /* Unit tests for the Bitwuzla encoder (marshal_bitwuzla) and solver */
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN

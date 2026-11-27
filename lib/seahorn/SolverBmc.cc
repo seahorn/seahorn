@@ -44,6 +44,14 @@ SolverBmcEngine::SolverBmcEngine(OperationalSemantics &sem,
     ERR << "No yices2 fiound. Compile SeaHorn with YICES2_HOME option!";
     std::exit(1);
 #endif
+  } else if (m_solver_kind == solver::SolverKind::BITWUZLA) {
+    LOG("bmc", INFO << "bmc using Bitwuzla";);
+#ifdef WITH_BITWUZLA
+    m_new_smt_solver = std::make_unique<solver::bitwuzla_solver_impl>();
+#else
+    ERR << "No Bitwuzla found. Compile SeaHorn with BITWUZLA_HOME option!";
+    std::exit(1);
+#endif
   } else {
     ERR << "Unsupported SMT solver requested\n";
     std::exit(1);

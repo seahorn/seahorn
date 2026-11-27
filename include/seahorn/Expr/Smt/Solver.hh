@@ -18,7 +18,7 @@ namespace seahorn {
 namespace solver {
 
 /** Kind of solver **/
-enum class SolverKind { Z3 , YICES2};
+enum class SolverKind { Z3, YICES2, BITWUZLA };
 
 /** Result of the check */
 enum class SolverResult {

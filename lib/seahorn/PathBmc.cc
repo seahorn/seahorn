@@ -108,15 +108,17 @@ unsigned MucTimeout;
 std::string SmtOutDir;
 } // namespace seahorn
 
-static llvm::cl::opt<seahorn::solver::SolverKind, true>
-    XSmtSolver("horn-bmc-smt-solver",
-               llvm::cl::values(clEnumValN(seahorn::solver::SolverKind::Z3,
-                                           "z3", "z3 SMT solver"),
-                                clEnumValN(seahorn::solver::SolverKind::YICES2,
-                                           "y2", "Yices2 SMT solver")),
-               llvm::cl::desc("Choose SMT solver used by path-bmc"),
-               llvm::cl::location(seahorn::SmtSolver),
-               llvm::cl::init(seahorn::solver::SolverKind::Z3));
+static llvm::cl::opt<seahorn::solver::SolverKind, true> XSmtSolver(
+    "horn-bmc-smt-solver",
+    llvm::cl::values(clEnumValN(seahorn::solver::SolverKind::Z3, "z3",
+                                "z3 SMT solver"),
+                     clEnumValN(seahorn::solver::SolverKind::YICES2, "y2",
+                                "Yices2 SMT solver"),
+                     clEnumValN(seahorn::solver::SolverKind::BITWUZLA, "bw",
+                                "Bitwuzla SMT solver")),
+    llvm::cl::desc("Choose SMT solver used by path-bmc"),
+    llvm::cl::location(seahorn::SmtSolver),
+    llvm::cl::init(seahorn::solver::SolverKind::Z3));
 
 static llvm::cl::opt<bool, true> XUseCrabGlobalInvariants(
     "horn-bmc-crab-invariants",
@@ -1068,6 +1070,13 @@ PathBmcEngine::PathBmcEngine(OperationalSemantics &sem,
     m_smt_path_solver = std::make_unique<solver::yices_solver_impl>(sem.efac());
 #else
     assertion_failed("Compile with YICES2_HOME option", __FILE__, __LINE__);
+#endif
+  } else if (SmtSolver == solver::SolverKind::BITWUZLA) {
+#ifdef WITH_BITWUZLA
+    assertion_failed("Path bmc does not support Bitwuzla yet", __FILE__,
+                     __LINE__);
+#else
+    assertion_failed("Compile with BITWUZLA_HOME option", __FILE__, __LINE__);
 #endif
   } else {
     assertion_failed("Unsupported smt solver", __FILE__, __LINE__);

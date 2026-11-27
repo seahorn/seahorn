@@ -123,3 +123,136 @@ jobs:
       #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/crab"
       # - name: Run BMC(opsem) tests
       #   run: docker run -v $(pwd):/host seahorn_container /bin/bash -c "cd seahorn/share/seahorn && lit -a --time-tests --max-time=1200 test/bmc"
+
+  # Mono BMC with Bitwuzla (--horn-bmc-solver=smt-bw), in a job of its own.
+  # Its unit tests check Bitwuzla against Z3, and the test job's Z3 4.8.9 is
+  # too old for that: its SMT-LIB parser does not know the overflow
+  # predicates (bvsaddo, bvumulo, ...), and its signed multiplication
+  # overflow check is wrong at small widths. Z3 4.14.1, the newest release
+  # built for this image's glibc, still gives up on some of the checks. So
+  # docker/build_seahorn.sh builds Z3 5.1.0 from source, and Bitwuzla with
+  # the GMP and MPFR it needs; both are cached. The test job is unchanged.
+  bitwuzla:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      BITWUZLA_VERSION: 0.9.1
+      Z3_VERSION: 5.1.0
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Choose the buildpack-deps image
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          IMAGE="ghcr.io/${OWNER,,}/buildpack-deps-seahorn"
+          if ! docker manifest inspect "$IMAGE:jammy-llvm18" > /dev/null 2>&1; then
+            echo "::notice::$IMAGE:jammy-llvm18 not found; using seahorn's image"
+            IMAGE=ghcr.io/seahorn/buildpack-deps-seahorn
+          fi
+          echo "BUILDPACK_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-bitwuzla-llvm18-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-bitwuzla-llvm18-${{ github.ref_name }}-
+            ccache-bitwuzla-llvm18-dev18-
+            ccache-bitwuzla-llvm18-
+      # Bitwuzla, GMP and MPFR take minutes to build; the key changes with
+      # the version and with the script that builds them. Z3 takes about 20
+      # minutes; its key changes with the version only: bump the -r suffix
+      # if build_seahorn.sh builds it differently. Both are saved below as
+      # soon as they are complete, even if a later step fails.
+      - name: Restore Bitwuzla
+        id: bitwuzla-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .bitwuzla
+          key: bitwuzla-${{ env.BITWUZLA_VERSION }}-jammy-llvm18-${{ hashFiles('docker/build_seahorn.sh') }}
+      - name: Restore Z3
+        id: z3-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .z3
+          key: z3-${{ env.Z3_VERSION }}-jammy-llvm18-r1
+      # Runs units_bitwuzla only (the test job runs the other unit tests with
+      # its Z3), and fails unless seahorn has Bitwuzla and loads it, GMP and
+      # MPFR from the Bitwuzla prefix (build_seahorn.sh). The container is
+      # kept as an image for the test step: it has the newer libstdc++ that
+      # Z3 5.1.0 needs, and so the seahorn built with it.
+      - name: Build SeaHorn with Bitwuzla
+        run: |
+          mkdir -p .bitwuzla .z3
+          docker run --name bitwuzla_build \
+            -v "$(pwd)":/seahorn \
+            -v "$(pwd)/.ccache":/ccache \
+            -v "$(pwd)/.bitwuzla":/opt/bitwuzla-${BITWUZLA_VERSION} \
+            -v "$(pwd)/.z3":/opt/z3-${Z3_VERSION} \
+            -e CCACHE_DIR=/ccache \
+            -e BUILD_TYPE=RelWithDebInfo \
+            -e LLVM_VERSION=18 \
+            -e BITWUZLA_VERSION \
+            -e Z3_VERSION \
+            -e Z3_ROOT=/opt/z3-${Z3_VERSION} \
+            -e UNITS=bitwuzla \
+            "$BUILDPACK_IMAGE:jammy-llvm18" \
+            bash /seahorn/docker/build_seahorn.sh
+          docker commit bitwuzla_build bitwuzla_image
+      # Written by root in the container: readable to the runner user, so
+      # actions/cache can pack them. A prefix is complete once build_seahorn.sh
+      # wrote its .complete-<version> marker (last).
+      - name: Check what was built
+        id: built
+        if: always()
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" .ccache .bitwuzla .z3
+          echo "bitwuzla=$(test -f .bitwuzla/.complete-$BITWUZLA_VERSION && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+          echo "z3=$(test -f .z3/.complete-$Z3_VERSION && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - name: Save Bitwuzla
+        if: always() && steps.bitwuzla-cache.outputs.cache-hit != 'true' && steps.built.outputs.bitwuzla == 'yes'
+        uses: actions/cache/save@v4
+        with:
+          path: .bitwuzla
+          key: ${{ steps.bitwuzla-cache.outputs.cache-primary-key }}
+      - name: Save Z3
+        if: always() && steps.z3-cache.outputs.cache-hit != 'true' && steps.built.outputs.z3 == 'yes'
+        uses: actions/cache/save@v4
+        with:
+          path: .z3
+          key: ${{ steps.z3-cache.outputs.cache-primary-key }}
+      # opsem and opsem2 with --horn-bmc-solver=smt-bw, from the install tree
+      # (build/run). Left out: calloc.01 and calloc.02, whose equality between
+      # constant arrays Bitwuzla 0.9.1 answers unknown. It fails if a command
+      # that solves (seahorn --horn-solve, sea bpf/fpf) lacks the solver
+      # option (nham.1.ll's two lines only encode), or if lit skipped a test
+      # (it does so, without failing, for tests unfinished at --max-time).
+      - name: Run opsem and opsem2 with Bitwuzla
+        run: |
+          docker run --rm -i -v "$(pwd)":/seahorn \
+            -v "$(pwd)/.bitwuzla":/opt/bitwuzla-${BITWUZLA_VERSION} \
+            bitwuzla_image bash -s <<'EOF'
+          set -uo pipefail
+          export PATH=/seahorn/build/run/bin:$PATH
+          cd /seahorn/build/run/share/seahorn
+          bad=0
+          for suite in opsem opsem2; do
+            filter=()
+            [ "$suite" = opsem ] && filter=(--filter-out 'calloc\.0[12]\.ll')
+            lit -a --time-tests --max-time=1200 -D opsem_opts=--horn-bmc-solver=smt-bw \
+              "${filter[@]}" "test/$suite" | tee "/tmp/$suite.log" || bad=1
+            solving=$(grep -E '^# executed command: [^ ]*/(seahorn .*--horn-solve|sea (bpf|fpf) )' "/tmp/$suite.log" | wc -l)
+            with=$(grep -E '^# executed command: [^ ]*/(seahorn .*--horn-solve|sea (bpf|fpf) )' "/tmp/$suite.log" | grep -c -- '--horn-bmc-solver=smt-bw')
+            echo "$suite: $solving commands that solve, $with with --horn-bmc-solver=smt-bw"
+            if [ "$solving" -eq 0 ] || [ "$solving" -ne "$with" ]; then bad=1; fi
+            if grep -qE '^ *Skipped *:' "/tmp/$suite.log"; then
+              echo "$suite: lit skipped tests"; bad=1
+            fi
+          done
+          exit $bad
+          EOF

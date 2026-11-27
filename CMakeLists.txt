@@ -177,6 +177,45 @@ if (YICES2_FOUND)
   install(FILES ${YICES2_LIBRARY} DESTINATION lib)
 endif()  
 
+# Find Bitwuzla. WITH_BITWUZLA=AUTO uses it if a usable installation is found,
+# ON fails without one, and OFF does not look. BITWUZLA_HOME (the CMake
+# setting, else the environment variable) names the installation to use: only
+# it is searched, and Bitwuzla becomes required. Without it, Bitwuzla_ROOT,
+# CMAKE_PREFIX_PATH, pkg-config and the system prefixes are searched (see
+# cmake/FindBitwuzla.cmake).
+set(WITH_BITWUZLA AUTO CACHE STRING "Bitwuzla support: AUTO, ON or OFF")
+set_property(CACHE WITH_BITWUZLA PROPERTY STRINGS AUTO ON OFF)
+set(BITWUZLA_HOME "" CACHE PATH
+  "Bitwuzla installation to use. Setting it makes Bitwuzla required.")
+if (NOT BITWUZLA_HOME AND NOT "$ENV{BITWUZLA_HOME}" STREQUAL "")
+  set(BITWUZLA_HOME "$ENV{BITWUZLA_HOME}")
+endif()
+string(TOUPPER "${WITH_BITWUZLA}" _BITWUZLA_MODE)
+if (_BITWUZLA_MODE MATCHES "^(ON|YES|TRUE|Y|1)$")
+  set(_BITWUZLA_MODE ON)
+elseif (_BITWUZLA_MODE MATCHES "^(OFF|NO|FALSE|N|0)$")
+  set(_BITWUZLA_MODE OFF)
+elseif (NOT _BITWUZLA_MODE STREQUAL "AUTO")
+  message(FATAL_ERROR "WITH_BITWUZLA must be AUTO, ON or OFF, not \"${WITH_BITWUZLA}\"")
+endif()
+if (_BITWUZLA_MODE STREQUAL "OFF")
+  message(STATUS "Bitwuzla support disabled (WITH_BITWUZLA=OFF)")
+elseif (_BITWUZLA_MODE STREQUAL "ON" OR BITWUZLA_HOME)
+  find_package(Bitwuzla 0.9 REQUIRED)
+else()
+  find_package(Bitwuzla 0.9)
+endif()
+if (BITWUZLA_FOUND)
+  add_definitions(-DWITH_BITWUZLA)
+  include_directories(${BITWUZLA_INCLUDE_DIR})
+  message("Found Bitwuzla library: ${BITWUZLA_LIBRARY} (version ${BITWUZLA_VERSION})")
+  # The library is not installed; the installed seahorn loads it from where
+  # it was found.
+elseif (_BITWUZLA_MODE STREQUAL "AUTO")
+  message(STATUS "Bitwuzla support disabled (none usable found; "
+    "point BITWUZLA_HOME or Bitwuzla_ROOT at an installation)")
+endif()
+
 # LLVM 15 (Ubuntu package) exposes zstd::libzstd_shared in its export set.
 # Pull in zstd's imported targets first so find_package(LLVM) can resolve it.
 find_package (zstd QUIET)

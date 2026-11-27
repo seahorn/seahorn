@@ -62,16 +62,17 @@ static llvm::cl::opt<bool>
               llvm::cl::desc("Use new CexExeGenerator for bmc"),
               llvm::cl::init(false), llvm::cl::Hidden);
 
-enum class BmcSolverKind { Z3, SMT_Z3, SMT_YICES2 };
+enum class BmcSolverKind { Z3, SMT_Z3, SMT_YICES2, SMT_BITWUZLA };
 
 static llvm::cl::opt<BmcSolverKind> BmcSolver(
     "horn-bmc-solver",
     llvm::cl::desc("SMT Solver to use for Solver BMC engine"),
-    llvm::cl::values(clEnumValN(BmcSolverKind::Z3, "z3", "Use Z3 directly"),
-                     clEnumValN(BmcSolverKind::SMT_Z3, "smt-z3",
-                                "Use Z3 interface"),
-                     clEnumValN(BmcSolverKind::SMT_YICES2, "smt-y2",
-                                "Use Yices2 interface")),
+    llvm::cl::values(
+        clEnumValN(BmcSolverKind::Z3, "z3", "Use Z3 directly"),
+        clEnumValN(BmcSolverKind::SMT_Z3, "smt-z3", "Use Z3 interface"),
+        clEnumValN(BmcSolverKind::SMT_YICES2, "smt-y2", "Use Yices2 interface"),
+        clEnumValN(BmcSolverKind::SMT_BITWUZLA, "smt-bw",
+                   "Use Bitwuzla interface")),
     llvm::cl::init(BmcSolverKind::Z3), llvm::cl::Hidden);
 
 namespace {
@@ -275,6 +276,9 @@ public:
           break;
         case BmcSolverKind::SMT_YICES2:
           solver_kind = SolverKind::YICES2;
+          break;
+        case BmcSolverKind::SMT_BITWUZLA:
+          solver_kind = SolverKind::BITWUZLA;
           break;
         default:
           LOG("bmc", errs()

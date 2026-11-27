@@ -39,6 +39,10 @@
 #include "seahorn/clam_Clam.hh"
 #endif
 
+#ifdef WITH_BITWUZLA
+#include "bitwuzla/cpp/bitwuzla.h"
+#endif
+
 #include "seadsa/DsaAnalysis.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/SeaDsaAnalysis.hh"
@@ -68,6 +72,9 @@ void print_seahorn_version(llvm::raw_ostream &OS) {
   OS << "SeaHorn (http://seahorn.github.io/):\n"
      << "  SeaHorn version " << SEAHORN_VERSION_INFO << "-" << g_GIT_SHA1
      << "\n";
+#ifdef WITH_BITWUZLA
+  OS << "  Bitwuzla version " << bitwuzla::version() << "\n";
+#endif
 }
 
 /// XXX HACK to force compiler to link this in
